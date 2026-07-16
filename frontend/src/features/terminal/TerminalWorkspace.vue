@@ -1,15 +1,5 @@
 <script setup lang="ts">
-import {
-  NAlert,
-  NButton,
-  NCard,
-  NEmpty,
-  NFlex,
-  NInput,
-  NSpin,
-  NTabPane,
-  NTabs,
-} from 'naive-ui'
+import { NAlert, NButton, NCard, NEmpty, NFlex, NInput, NSpin, NTabPane, NTabs } from 'naive-ui'
 import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 

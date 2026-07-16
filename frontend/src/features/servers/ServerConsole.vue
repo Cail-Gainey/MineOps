@@ -284,7 +284,9 @@ onUnmounted(() => {
           placeholder="输入 Java/Minecraft 命令"
           @keyup.enter="sendCommand"
         />
-        <NButton :disabled="!consoleReady || !commandText.trim()" @click="sendCommand">发送命令</NButton>
+        <NButton :disabled="!consoleReady || !commandText.trim()" @click="sendCommand"
+          >发送命令</NButton
+        >
       </NFlex>
     </template>
     <div ref="terminalElement" class="console-terminal" :class="{ hidden: !canShowConsole }" />

@@ -1,13 +1,5 @@
 <script setup lang="ts">
-import {
-  Edit3,
-  FolderOpen,
-  Plus,
-  Star,
-  StarOff,
-  TerminalSquare,
-  Trash2,
-} from '@lucide/vue'
+import { Edit3, FolderOpen, Plus, Star, StarOff, TerminalSquare, Trash2 } from '@lucide/vue'
 import {
   NButton,
   NCard,
@@ -63,12 +55,22 @@ const columns: DataTableColumns<SSHSessionDTO> = [
         h('div', { class: 'session-cell__title' }, [
           h(NText, { strong: true }, { default: () => row.name }),
           ...(row.favourite
-            ? [h(NTag, { size: 'small', type: 'warning', bordered: false }, { default: () => '收藏' })]
+            ? [
+                h(
+                  NTag,
+                  { size: 'small', type: 'warning', bordered: false },
+                  { default: () => '收藏' },
+                ),
+              ]
             : []),
         ]),
-        h(NText, { class: 'session-cell__target' }, {
-          default: () => `${row.username}@${row.host}:${row.port}`,
-        }),
+        h(
+          NText,
+          { class: 'session-cell__target' },
+          {
+            default: () => `${row.username}@${row.host}:${row.port}`,
+          },
+        ),
         h('div', { class: 'session-cell__meta' }, [
           h(NTag, { size: 'small', bordered: false }, { default: () => row.authType }),
           h(
@@ -80,7 +82,11 @@ const columns: DataTableColumns<SSHSessionDTO> = [
             },
             { default: () => (row.hostKeyPolicy === 'strict' ? '严格校验' : '首次确认') },
           ),
-          h(NTag, { size: 'small', bordered: false }, { default: () => `${row.serverCount} Server` }),
+          h(
+            NTag,
+            { size: 'small', bordered: false },
+            { default: () => `${row.serverCount} Server` },
+          ),
           ...(row.group
             ? [h(NTag, { size: 'small', bordered: false }, { default: () => row.group })]
             : []),
@@ -100,7 +106,11 @@ const columns: DataTableColumns<SSHSessionDTO> = [
     render: (row) => {
       const status = connectionStates.value[row.id]
       if (!status) {
-        return h(NTag, { bordered: false, title: '等待自动延迟测量。' }, { default: () => '待测量' })
+        return h(
+          NTag,
+          { bordered: false, title: '等待自动延迟测量。' },
+          { default: () => '待测量' },
+        )
       }
       const label =
         status.state === 'latency'
@@ -110,11 +120,7 @@ const columns: DataTableColumns<SSHSessionDTO> = [
             : '不可达'
       const type =
         status.state === 'latency' ? 'success' : status.state === 'measuring' ? 'info' : 'error'
-      return h(
-        NTag,
-        { type, bordered: false, title: status.message },
-        { default: () => label },
-      )
+      return h(NTag, { type, bordered: false, title: status.message }, { default: () => label })
     },
   },
   {
@@ -136,8 +142,15 @@ const columns: DataTableColumns<SSHSessionDTO> = [
         ),
         h(
           NButton,
-          { quaternary: true, circle: true, size: 'small', onClick: () => void toggleFavourite(row) },
-          { default: () => h(AppIcon, { icon: row.favourite ? Star : StarOff, label: '切换收藏' }) },
+          {
+            quaternary: true,
+            circle: true,
+            size: 'small',
+            onClick: () => void toggleFavourite(row),
+          },
+          {
+            default: () => h(AppIcon, { icon: row.favourite ? Star : StarOff, label: '切换收藏' }),
+          },
         ),
         h(
           NButton,

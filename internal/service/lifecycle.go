@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"errors"
-	"fmt"
 	"path"
 	"sync"
 	"time"
@@ -282,19 +281,12 @@ func (m *LifecycleManager) startNow(ctx context.Context, serverID model.ID, repo
 	if err != nil {
 		return m.failServer(ctx, server, err)
 	}
-	executable := path.Join(javaRuntime.JavaHome, "bin/java")
-	arguments := []string{fmt.Sprintf("-Xms%dM", server.LaunchProfile.XmsMiB), fmt.Sprintf("-Xmx%dM", server.LaunchProfile.XmxMiB)}
-	arguments = append(arguments, server.LaunchProfile.JVMArguments...)
-	arguments = append(arguments, "-jar", server.LaunchProfile.JarPath)
-	arguments = append(arguments, server.LaunchProfile.ServerArguments...)
-	if server.Type == enums.ServerForge || server.Type == enums.ServerNeoForge {
-		executable = "sh"
-		arguments = append([]string{"run.sh"}, server.LaunchProfile.ServerArguments...)
-	}
+	launch := launchCommandForServer(*server, path.Join(javaRuntime.JavaHome, "bin/java"))
+	profile := runtimeProfileForServerType(server.Type)
 	process, err := m.processes.Start(ctx, port.ProcessLaunchSpec{
-		ServerID: server.ID, SSHSessionID: server.SSHSessionID, Executable: executable,
-		Arguments: arguments, WorkingDirectory: server.RemotePath,
-		ReadyPatterns: []string{"Done (", "Listening on", "For help, type"},
+		ServerID: server.ID, SSHSessionID: server.SSHSessionID, Executable: launch.executable,
+		Arguments: launch.arguments, WorkingDirectory: server.RemotePath,
+		ReadyPatterns: profile.readyPatterns,
 	})
 	if err != nil {
 		return m.failServer(ctx, server, err)

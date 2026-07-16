@@ -310,6 +310,12 @@ export const useServerWizardStore = defineStore('server-wizard', () => {
       const home = username === 'root' ? '/root' : `/home/${username}`
       server.value.remotePath = `${home}/MineOps/Servers/${safeDirectoryName(name)}`
     }
+    if (
+      ['velocity', 'waterfall', 'bungeecord'].includes(server.value.type) &&
+      JSON.stringify(server.value.launchProfile.serverArguments) === JSON.stringify(['nogui'])
+    ) {
+      server.value.launchProfile.serverArguments = []
+    }
     server.value.launchProfile.workingDirectory = server.value.remotePath
   }
 
@@ -335,6 +341,20 @@ export const useServerWizardStore = defineStore('server-wizard', () => {
       sessionStorage.removeItem(storageKey)
     }
   }
+
+  watch(
+    () => server.value.type,
+    (type, previousType) => {
+      const previousDefaults = defaultServerArguments(previousType)
+      if (
+        server.value.launchProfile.serverArguments.length === 0 ||
+        JSON.stringify(server.value.launchProfile.serverArguments) ===
+          JSON.stringify(previousDefaults)
+      ) {
+        server.value.launchProfile.serverArguments = defaultServerArguments(type)
+      }
+    },
+  )
 
   watch(
     [
@@ -457,4 +477,8 @@ function safeDirectoryName(value: string): string {
       .replace(/^[._-]+|[._-]+$/g, '')
       .slice(0, 80) || 'server'
   )
+}
+
+function defaultServerArguments(serverType: string): string[] {
+  return ['velocity', 'waterfall', 'bungeecord'].includes(serverType) ? [] : ['nogui']
 }

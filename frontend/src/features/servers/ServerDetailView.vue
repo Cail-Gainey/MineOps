@@ -544,7 +544,7 @@ watch(
             提示：{{ installationStatus.warnings.join('；') }}
           </div>
           <div v-if="!installationStatus.issues.length && !installationStatus.warnings.length">
-            远程启动文件、配置、EULA、Java 运行时和最近安装检查点一致。
+            远程启动文件、配置、适用的 EULA、Java 运行时和最近安装检查点一致。
           </div>
         </NAlert>
         <NDescriptions bordered :columns="2" label-placement="left">

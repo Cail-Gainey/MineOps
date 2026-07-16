@@ -295,7 +295,11 @@ func (c *RemoteProcessController) Stop(ctx context.Context, identity model.Remot
 	}
 	defer func() { _ = client.Close() }()
 	if !force {
-		writeErr := c.sendTmuxLine(ctx, client, identity.TmuxSession, "stop")
+		server, serverErr := c.store.MinecraftServers().Get(ctx, identity.ServerID, false)
+		if serverErr != nil {
+			return serverErr
+		}
+		writeErr := c.sendTmuxLine(ctx, client, identity.TmuxSession, runtimeProfileForServerType(server.Type).stopCommand)
 		if writeErr == nil {
 			for attempt := 0; attempt < 60; attempt++ {
 				probeResult, probeErr := c.Probe(ctx, identity)
@@ -346,11 +350,16 @@ func (c *RemoteProcessController) stopLegacyProcess(ctx context.Context, identit
 	}
 	defer func() { _ = client.Close() }()
 	if !force {
+		server, serverErr := c.store.MinecraftServers().Get(ctx, identity.ServerID, false)
+		if serverErr != nil {
+			return serverErr
+		}
 		writeScript := `set -eu
 fifo=$1
+stop_command=$2
 test -p "$fifo"
-printf 'stop\n' > "$fifo"`
-		_, writeErr := client.RunCommand(ctx, RemoteCommand{Executable: "sh", Arguments: []string{"-c", writeScript, "mineops", identity.ConsoleFIFO}, Timeout: 10 * time.Second})
+printf '%s\n' "$stop_command" > "$fifo"`
+		_, writeErr := client.RunCommand(ctx, RemoteCommand{Executable: "sh", Arguments: []string{"-c", writeScript, "mineops", identity.ConsoleFIFO, runtimeProfileForServerType(server.Type).stopCommand}, Timeout: 10 * time.Second})
 		if writeErr == nil {
 			for attempt := 0; attempt < 60; attempt++ {
 				probeResult, probeErr := c.Probe(ctx, identity)

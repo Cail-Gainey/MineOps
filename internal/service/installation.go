@@ -87,7 +87,7 @@ func (m *InstallationManager) Start(ctx context.Context, serverID model.ID) (Ins
 home=$(printenv HOME)
 test -n "$home"
 test -w "$home"
-for command in sh mkdir mv cp find chmod sha256sum curl tar awk df wc head dirname grep tail mkfifo seq sleep kill; do command -v "$command" >/dev/null 2>&1 || { printf 'missing:%s\n' "$command" >&2; exit 21; }; done
+for command in sh mkdir mv cp find chmod sha256sum curl tar awk df wc head dirname grep tail mkfifo seq sleep kill setsid; do command -v "$command" >/dev/null 2>&1 || { printf 'missing:%s\n' "$command" >&2; exit 21; }; done
 available=$(df -Pk "$home" | awk 'NR==2 {print $4}')
 test "${available:-0}" -ge 524288
 printf '%s\n' "$home"`
@@ -648,6 +648,13 @@ func (m *InstallationManager) writeEULA(ctx context.Context, task model.Installa
 		return nil, err
 	}
 	defer func() { _ = client.Close() }()
+	profile := runtimeProfileForServerType(server.Type)
+	if !profile.requiresEULA {
+		if err := reporter.SetProgress(1, "当前服务端类型不需要 Minecraft EULA 文件", 8); err != nil {
+			return nil, err
+		}
+		return map[string]any{"accepted": true, "skipped": true}, nil
+	}
 	eulaPath := path.Join(server.RemotePath, "eula.txt")
 	script := `set -eu
 temporary="${1}.part"
@@ -711,48 +718,76 @@ func (m *InstallationManager) firstStart(ctx context.Context, task model.Install
 		}
 		javaExecutable = checkpointString(resolveCheckpoint, "executablePath")
 	}
-	launchExecutable := javaExecutable
-	arguments := []string{fmt.Sprintf("-Xms%dM", server.LaunchProfile.XmsMiB), fmt.Sprintf("-Xmx%dM", server.LaunchProfile.XmxMiB)}
-	arguments = append(arguments, server.LaunchProfile.JVMArguments...)
-	arguments = append(arguments, "-jar", server.LaunchProfile.JarPath)
-	arguments = append(arguments, server.LaunchProfile.ServerArguments...)
-	if server.Type == enums.ServerForge || server.Type == enums.ServerNeoForge {
-		launchExecutable = "sh"
-		arguments = append([]string{"run.sh"}, server.LaunchProfile.ServerArguments...)
-	}
-	encodedArguments := strings.Join(arguments, "\n")
+	launch := launchCommandForServer(*server, javaExecutable)
+	profile := runtimeProfileForServerType(server.Type)
+	encodedArguments := strings.Join(launch.arguments, "\n")
+	readyPatterns := strings.Join(profile.readyPatterns, "\n")
+	configurationPath := path.Join(server.RemotePath, profile.configurationFile)
 	script := `set -eu
-java=$1
+executable=$1
 work=$2
 arguments=$3
-log="$work/logs/latest.log"
+ready_patterns=$4
+stop_command=$5
+configuration=$6
+output="$work/.mineops-first-start.log"
 fifo="$work/.mineops-console"
 rm -f -- "$fifo"
 mkfifo "$fifo"
-cleanup() { rm -f -- "$fifo"; }
-trap cleanup EXIT INT TERM
+exec 3<> "$fifo"
+pid=''
+cleanup() {
+  status=$?
+  trap - EXIT HUP INT TERM
+  if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+    printf '%s\n' "$stop_command" >&3 2>/dev/null || true
+    for attempt in $(seq 1 10); do kill -0 "$pid" 2>/dev/null || break; sleep 1; done
+    if kill -0 "$pid" 2>/dev/null; then kill -TERM -- "-$pid" 2>/dev/null || true; fi
+    for attempt in $(seq 1 5); do kill -0 "$pid" 2>/dev/null || break; sleep 1; done
+    if kill -0 "$pid" 2>/dev/null; then kill -KILL -- "-$pid" 2>/dev/null || true; fi
+    wait "$pid" 2>/dev/null || true
+  fi
+  exec 3>&- 3<&-
+  rm -f -- "$fifo"
+  exit "$status"
+}
+trap cleanup EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 set --
 while IFS= read -r argument; do set -- "$@" "$argument"; done <<EOF
 $arguments
 EOF
-tail -f "$fifo" | "$java" "$@" > "$work/.mineops-first-start.log" 2>&1 &
+setsid "$executable" "$@" <&3 > "$output" 2>&1 &
 pid=$!
 ready=0
 for attempt in $(seq 1 180); do
-  if ! kill -0 "$pid" 2>/dev/null; then wait "$pid"; exit 31; fi
-  if { [ -f "$log" ] && grep -Eq 'Done \([0-9.]+s\)!|Listening on|For help, type' "$log"; } || grep -Eq 'Done \([0-9.]+s\)!|Listening on|For help, type' "$work/.mineops-first-start.log"; then ready=1; break; fi
+  if ! kill -0 "$pid" 2>/dev/null; then wait "$pid" || true; tail -c 65536 "$output" >&2 || true; exit 31; fi
+  while IFS= read -r pattern; do
+    [ -n "$pattern" ] || continue
+    if grep -Fq -- "$pattern" "$output"; then ready=1; break; fi
+  done <<EOF
+$ready_patterns
+EOF
+  [ "$ready" = "0" ] || break
   sleep 1
 done
-[ "$ready" = "1" ]
-printf 'stop\n' > "$fifo" &
+[ "$ready" = "1" ] || { tail -c 65536 "$output" >&2 || true; exit 33; }
+printf '%s\n' "$stop_command" >&3
 for attempt in $(seq 1 60); do
-  kill -0 "$pid" 2>/dev/null || { wait "$pid"; printf 'ready-and-stopped\n'; exit 0; }
+  if ! kill -0 "$pid" 2>/dev/null; then
+    wait "$pid" || { tail -c 65536 "$output" >&2 || true; exit 34; }
+    test -f "$configuration" && test ! -L "$configuration" || { printf 'missing-configuration:%s\n' "$configuration" >&2; exit 35; }
+    printf 'ready-and-stopped configuration=%s\n' "$configuration"
+    exit 0
+  fi
   sleep 1
 done
-kill "$pid" 2>/dev/null || true
+tail -c 65536 "$output" >&2 || true
 exit 32`
 	result, err := client.RunCommand(ctx, RemoteCommand{
-		Executable: "sh", Arguments: []string{"-c", script, "mineops", launchExecutable, server.RemotePath, encodedArguments},
+		Executable: "sh", Arguments: []string{"-c", script, "mineops", launch.executable, server.RemotePath, encodedArguments, readyPatterns, profile.stopCommand, configurationPath},
 		WorkingDirectory: server.RemotePath, Timeout: 5 * time.Minute, MaximumOutput: 512 * 1024,
 		OnOutput: installationOutputReporter(reporter, 0.6, "首次启动"),
 	})
@@ -780,7 +815,8 @@ func (m *InstallationManager) registerServer(ctx context.Context, task model.Ins
 	if err != nil {
 		return nil, err
 	}
-	if checkpointString(installCheckpoint, "artifactSHA256") == "" || !checkpointBool(firstStartCheckpoint, "ready") || !checkpointBool(firstStartCheckpoint, "stopped") || !server.EULAAccepted || server.JavaRuntimeID == nil {
+	profile := runtimeProfileForServerType(server.Type)
+	if checkpointString(installCheckpoint, "artifactSHA256") == "" || !checkpointBool(firstStartCheckpoint, "ready") || !checkpointBool(firstStartCheckpoint, "stopped") || (profile.requiresEULA && !server.EULAAccepted) || server.JavaRuntimeID == nil {
 		return nil, apperror.New(apperror.CodeInstallationRegistrationFailed, "安装结果证据不完整，拒绝注册 Server")
 	}
 	if err := reporter.SetProgress(1, "Server 已注册并进入 Stopped 状态", 11); err != nil {

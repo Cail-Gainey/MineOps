@@ -46,7 +46,8 @@ func (m *MinecraftServerManager) InspectInstallationStatus(ctx context.Context, 
 	if server.Type == enums.ServerForge || server.Type == enums.ServerNeoForge {
 		artifactPath = path.Join(server.RemotePath, "run.sh")
 	}
-	propertiesPath := path.Join(server.RemotePath, "server.properties")
+	profile := runtimeProfileForServerType(server.Type)
+	propertiesPath := path.Join(server.RemotePath, profile.configurationFile)
 	eulaPath := path.Join(server.RemotePath, "eula.txt")
 	script := `set -eu
 test -d "$1"
@@ -79,7 +80,7 @@ printf '1\000%s\000%s\000%s\000%s\000%s\000' "$artifact" "$artifact_size" "$arti
 	}
 	status := ServerInstallationStatus{
 		State: "partial", DirectoryFound: fields[0] == "1", ArtifactFound: fields[1] == "1",
-		PropertiesFound: fields[4] == "1", EULAAccepted: fields[5] == "1", JavaRuntimeBound: server.JavaRuntimeID != nil,
+		PropertiesFound: fields[4] == "1", EULAAccepted: !profile.requiresEULA || fields[5] == "1", JavaRuntimeBound: server.JavaRuntimeID != nil,
 		ArtifactPath: artifactPath, ArtifactSize: artifactSize, ActualArtifactHash: strings.ToLower(fields[3]),
 		Issues: make([]string, 0), Warnings: make([]string, 0), InspectedAt: m.clock.Now().UTC(),
 	}
@@ -87,9 +88,9 @@ printf '1\000%s\000%s\000%s\000%s\000%s\000' "$artifact" "$artifact_size" "$arti
 		status.Issues = append(status.Issues, "启动 Artifact 不存在或不是普通文件")
 	}
 	if !status.PropertiesFound {
-		status.Issues = append(status.Issues, "server.properties 不存在或不是普通文件")
+		status.Issues = append(status.Issues, profile.configurationFile+" 不存在或不是普通文件")
 	}
-	if !status.EULAAccepted || !server.EULAAccepted {
+	if profile.requiresEULA && (!status.EULAAccepted || !server.EULAAccepted) {
 		status.Issues = append(status.Issues, "远端 EULA 与 Server 元数据未同时确认")
 	}
 	if !status.JavaRuntimeBound {

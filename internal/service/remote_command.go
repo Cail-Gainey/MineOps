@@ -126,8 +126,12 @@ func (c *SSHClient) RunCommand(ctx context.Context, command RemoteCommand) (Remo
 		case <-commandResult:
 		case <-time.After(time.Second):
 		}
-		return RemoteCommandResult{}, apperror.Wrap(apperror.CodeProcessCancelled, "远程命令已取消或超时", commandCtx.Err()).WithDetails(map[string]any{
-			"executable": command.Executable,
+		result := RemoteCommandResult{
+			Stdout: stdout.String(), Stderr: stderr.String(), Duration: time.Since(startedAt),
+			Truncated: stdout.Truncated() || stderr.Truncated(),
+		}
+		return result, apperror.Wrap(apperror.CodeProcessCancelled, "远程命令已取消或超时", commandCtx.Err()).WithDetails(map[string]any{
+			"executable": command.Executable, "stdout": result.Stdout, "stderr": result.Stderr,
 		})
 	case runError := <-commandResult:
 		result := RemoteCommandResult{

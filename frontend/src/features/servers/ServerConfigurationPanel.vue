@@ -18,7 +18,10 @@ import {
 } from 'naive-ui'
 import { computed, onMounted, reactive, ref } from 'vue'
 
-import type { MinecraftServer } from '../../../bindings/github.com/Cail-Gainey/MineOps/internal/model/models'
+import type {
+  MinecraftServer,
+  RemoteTextDocument,
+} from '../../../bindings/github.com/Cail-Gainey/MineOps/internal/model/models'
 import type {
   ServerPropertiesBackup,
   ServerPropertiesSnapshot,
@@ -26,6 +29,7 @@ import type {
 } from '../../../bindings/github.com/Cail-Gainey/MineOps/internal/service/models'
 import { useUnsavedGuard } from '../../composables/use-unsaved-guard'
 import { ApplicationError } from '../../services/api-client'
+import { readRemoteText, saveRemoteText } from '../../services/file-api'
 import {
   listMinecraftServerPropertyBackups,
   readMinecraftServerProperties,
@@ -56,6 +60,7 @@ const interactions = useInteractionStore()
 const locale = useLocaleStore()
 const notifications = useNotificationStore()
 const snapshot = ref<ServerPropertiesSnapshot | null>(null)
+const genericDocument = ref<RemoteTextDocument | null>(null)
 const backups = ref<ServerPropertiesBackup[]>([])
 const selectedBackupPath = ref('')
 const mode = ref<'structured' | 'raw'>('structured')
@@ -66,6 +71,14 @@ const error = ref<unknown>(null)
 const backupError = ref<unknown>(null)
 const conflictMessage = ref('')
 const rawDirty = ref(false)
+const isProxyConfiguration = computed(() =>
+  ['velocity', 'waterfall', 'bungeecord'].includes(props.server.type),
+)
+const configurationFileName = computed(() => {
+  if (props.server.type === 'velocity') return 'velocity.toml'
+  if (props.server.type === 'waterfall' || props.server.type === 'bungeecord') return 'config.yml'
+  return 'server.properties'
+})
 
 const form = reactive<StructuredPropertiesForm>({
   motd: 'A Minecraft Server',
@@ -97,9 +110,11 @@ const structuredValid = computed(
     form.simulationDistance <= 32 &&
     form.levelName.trim().length > 0,
 )
-const document = computed(() => snapshot.value?.document ?? null)
+const document = computed(() =>
+  isProxyConfiguration.value ? genericDocument.value : (snapshot.value?.document ?? null),
+)
 const propertiesPath = computed(
-  () => `${props.server.remotePath.replace(/\/$/, '')}/server.properties`,
+  () => `${props.server.remotePath.replace(/\/$/, '')}/${configurationFileName.value}`,
 )
 const backupOptions = computed(() =>
   backups.value.map((backup) => ({
@@ -161,8 +176,20 @@ async function load(): Promise<void> {
   loading.value = true
   error.value = null
   try {
-    applySnapshot(await readMinecraftServerProperties(props.server.id))
-    await loadBackups()
+    if (isProxyConfiguration.value) {
+      mode.value = 'raw'
+      genericDocument.value = await readRemoteText(
+        props.server.sshSessionID,
+        propertiesPath.value,
+        props.server.remotePath,
+      )
+      conflictMessage.value = ''
+      backups.value = []
+      selectedBackupPath.value = ''
+    } else {
+      applySnapshot(await readMinecraftServerProperties(props.server.id))
+      await loadBackups()
+    }
   } catch (reason) {
     error.value = reason
   } finally {
@@ -273,6 +300,18 @@ async function saveRaw(content: string, versionToken: string): Promise<void> {
   saving.value = true
   conflictMessage.value = ''
   try {
+    if (isProxyConfiguration.value) {
+      genericDocument.value = await saveRemoteText(
+        props.server.sshSessionID,
+        propertiesPath.value,
+        props.server.remotePath,
+        content,
+        versionToken,
+      )
+      rawDirty.value = false
+      notifySuccess('代理配置已保存', false)
+      return
+    }
     const saved = await runWithFirewallConfirmation((confirmed) =>
       saveMinecraftServerProperties(props.server.id, 'raw', content, versionToken, [], confirmed),
     )
@@ -335,11 +374,13 @@ function handleSaveError(reason: unknown): void {
   })
 }
 
-function notifySuccess(title: string): void {
+function notifySuccess(title: string, retainedBackup = true): void {
   notifications.push({
     kind: 'success',
     title,
-    content: '保存前版本已进入远程有限备份，最多保留 10 份。',
+    content: retainedBackup
+      ? '保存前版本已进入远程有限备份，最多保留 10 份。'
+      : '远端配置已原子保存。',
     dedupeKey: `server-properties:saved:${props.server.id}`,
   })
 }
@@ -348,7 +389,7 @@ function explainSaveAs(): void {
   notifications.push({
     kind: 'info',
     title: '请在“文件”页签另存配置文件',
-    content: '“配置”页签固定编辑 server.properties，其他文件请使用完整的“文件”工作区。',
+    content: `“配置”页签固定编辑 ${configurationFileName.value}，其他文件请使用完整的“文件”工作区。`,
     dedupeKey: `server-properties:save-as:${props.server.id}`,
   })
 }
@@ -363,11 +404,12 @@ onMounted(() => {
     <NFlex vertical :size="12" class="configuration-panel">
       <NFlex align="center" justify="space-between" wrap>
         <div>
-          <NText strong>server.properties</NText>
+          <NText strong>{{ configurationFileName }}</NText>
           <NText depth="3" class="path-text">{{ propertiesPath }}</NText>
         </div>
         <NFlex>
           <NSelect
+            v-if="!isProxyConfiguration"
             v-model:value="selectedBackupPath"
             :options="backupOptions"
             :disabled="!backups.length"
@@ -375,6 +417,7 @@ onMounted(() => {
             style="width: 320px"
           />
           <NButton
+            v-if="!isProxyConfiguration"
             type="warning"
             :disabled="!selectedBackupPath || !document || structuredDirty || rawDirty"
             :loading="restoring"
@@ -395,6 +438,9 @@ onMounted(() => {
       <NAlert v-if="backupError" type="warning" title="配置已加载，但备份列表不可用">
         {{ backupError instanceof Error ? backupError.message : String(backupError) }}
       </NAlert>
+      <NAlert v-if="isProxyConfiguration" type="info" title="代理配置使用原文模式">
+        {{ configurationFileName }} 由对应代理服务端生成，MineOps 会进行冲突检测和原子保存。
+      </NAlert>
       <NAlert v-if="snapshot?.validationNotice" type="warning" title="配置值需要修正">
         {{ snapshot.validationNotice }}
       </NAlert>
@@ -409,7 +455,12 @@ onMounted(() => {
       </NAlert>
 
       <NTabs v-if="document" v-model:value="mode" type="segment" animated>
-        <NTabPane name="structured" tab="表单模式" display-directive="show">
+        <NTabPane
+          v-if="!isProxyConfiguration"
+          name="structured"
+          tab="表单模式"
+          display-directive="show"
+        >
           <NCard size="small">
             <NForm label-placement="top">
               <div class="form-grid">
@@ -472,7 +523,11 @@ onMounted(() => {
             </NForm>
           </NCard>
         </NTabPane>
-        <NTabPane name="raw" tab="原文模式" display-directive="show">
+        <NTabPane
+          name="raw"
+          :tab="isProxyConfiguration ? '代理配置' : '原文模式'"
+          display-directive="show"
+        >
           <RemoteTextEditor
             :document="document"
             :saving="saving"
@@ -482,7 +537,7 @@ onMounted(() => {
             @save="saveRaw"
             @save-as="explainSaveAs"
             @reload="requestReload"
-            @close="snapshot = null"
+            @close="isProxyConfiguration ? (genericDocument = null) : (snapshot = null)"
             @dirty-change="rawDirty = $event"
           />
         </NTabPane>

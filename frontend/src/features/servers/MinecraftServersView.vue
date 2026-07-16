@@ -1,0 +1,1024 @@
+<script setup lang="ts">
+import { Eye, Pencil, Play, Plus, RotateCcw, RotateCw, Square, Trash2 } from '@lucide/vue'
+import {
+  NButton,
+  NCard,
+  NCheckbox,
+  NDynamicTags,
+  NAlert,
+  NFlex,
+  NForm,
+  NFormItem,
+  NInput,
+  NInputNumber,
+  NModal,
+  NSelect,
+  NTag,
+  NText,
+  type DataTableColumns,
+} from 'naive-ui'
+import { computed, h, onMounted, onUnmounted, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
+
+import type { MinecraftServerInput } from '../../../bindings/github.com/Cail-Gainey/MineOps/internal/desktop/services/models'
+import type {
+  JavaRuntime,
+  MinecraftServer,
+} from '../../../bindings/github.com/Cail-Gainey/MineOps/internal/model/models'
+import type { RemoteServerInspection } from '../../../bindings/github.com/Cail-Gainey/MineOps/internal/service/models'
+import { ApplicationError } from '../../services/api-client'
+import { listJavaRuntimes } from '../../services/java-runtime-api'
+import { restartServer, startServer, stopServer } from '../../services/lifecycle-api'
+import {
+  hardDeleteRemoteMinecraftServer,
+  importRemoteMinecraftServer,
+  inspectRemoteMinecraftServer,
+} from '../../services/minecraft-server-api'
+import { subscribeOperationProgress } from '../../services/operation-api'
+import AppDataTable from '../../shared/components/AppDataTable.vue'
+import AppIcon from '../../shared/components/AppIcon.vue'
+import { useInteractionStore } from '../../stores/interactions'
+import { useMinecraftServersStore } from '../../stores/minecraft-servers'
+import { useNotificationStore } from '../../stores/notifications'
+import { useSettingsStore } from '../../stores/settings'
+import { useSSHSessionsStore } from '../../stores/ssh-sessions'
+import ServerWizard from './ServerWizard.vue'
+
+const store = useMinecraftServersStore()
+const router = useRouter()
+const sshSessions = useSSHSessionsStore()
+const interactions = useInteractionStore()
+const notifications = useNotificationStore()
+const settings = useSettingsStore()
+const wizardVisible = ref(false)
+const importVisible = ref(false)
+const importLoading = ref(false)
+const inspection = ref<RemoteServerInspection | null>(null)
+const importSSHSessionID = ref('')
+const importPath = ref('')
+const importName = ref('')
+const importType = ref('vanilla')
+const importVersion = ref('')
+const importJar = ref('')
+const importJavaRuntimeID = ref('')
+const importJavaRuntimes = ref<JavaRuntime[]>([])
+const importJavaLoading = ref(false)
+const importJavaError = ref<unknown>(null)
+const importXmsMiB = ref(1024)
+const importXmxMiB = ref(2048)
+const editVisible = ref(false)
+const editLoading = ref(false)
+const editTarget = ref<MinecraftServer | null>(null)
+const editDraft = ref<MinecraftServerInput | null>(null)
+const hardDeleteVisible = ref(false)
+const hardDeleteLoading = ref(false)
+const hardDeleteTarget = ref<MinecraftServer | null>(null)
+const confirmedDeleteName = ref('')
+const confirmedDeletePath = ref('')
+const sessionError = ref<unknown>(null)
+type LifecycleAction = 'start' | 'stop' | 'restart'
+const lifecycleActions = ref<Record<string, LifecycleAction>>({})
+let unsubscribeOperation: (() => void) | null = null
+const partialMessage = computed(() =>
+  sessionError.value
+    ? sshSessions.sessions.length
+      ? 'SSH Session 列表刷新失败，Server 列表仍可浏览；筛选项可能不是最新。'
+      : 'SSH Session 列表不可用，Server 列表仍可浏览，但无法创建或按连接筛选。'
+    : '',
+)
+const firewallPolicyOptions = [
+  { label: '自动管理', value: 'automatic' },
+  { label: '操作前确认', value: 'prompt' },
+  { label: '不管理', value: 'disabled' },
+]
+const stateOptions = [
+  { label: '全部状态', value: '' },
+  ...['creating', 'installing', 'ready', 'running', 'stopped', 'failed', 'deleted'].map(
+    (value) => ({ label: value, value }),
+  ),
+]
+const serverTypeOptions = [
+  'vanilla',
+  'paper',
+  'purpur',
+  'spigot',
+  'fabric',
+  'forge',
+  'neoforge',
+  'quilt',
+  'folia',
+  'velocity',
+  'waterfall',
+  'bungeecord',
+].map((value) => ({ label: value, value }))
+
+const columns: DataTableColumns<MinecraftServer> = [
+  {
+    title: 'Server',
+    key: 'server',
+    sorter: (left, right) => left.name.localeCompare(right.name),
+    minWidth: 420,
+    render: (row) =>
+      h('div', { class: 'server-cell' }, [
+        h('div', { class: 'server-cell__title' }, [
+          h(NText, { strong: true }, { default: () => row.name }),
+          ...(row.favourite
+            ? [
+                h(
+                  NTag,
+                  { size: 'small', type: 'warning', bordered: false },
+                  { default: () => '收藏' },
+                ),
+              ]
+            : []),
+          ...(row.deletedAt
+            ? [h(NTag, { size: 'small', bordered: false }, { default: () => '已删除' })]
+            : []),
+        ]),
+        h('div', { class: 'server-cell__meta' }, [
+          h(NTag, { size: 'small', bordered: false }, { default: () => row.type }),
+          h(NTag, { size: 'small', bordered: false }, { default: () => row.version }),
+          ...(row.group
+            ? [h(NTag, { size: 'small', bordered: false }, { default: () => row.group })]
+            : []),
+        ]),
+        h(NText, { depth: 3, class: 'server-cell__path' }, { default: () => row.remotePath }),
+      ]),
+  },
+  {
+    title: '运行配置',
+    key: 'runtime',
+    width: 190,
+    render: (row) =>
+      h('div', { class: 'runtime-cell' }, [
+        h(NText, null, {
+          default: () => `${row.launchProfile.xmsMiB} / ${row.launchProfile.xmxMiB} MiB`,
+        }),
+        h(
+          NText,
+          { depth: 3, class: 'runtime-cell__jar' },
+          {
+            default: () => row.launchProfile.jarPath || '未设置 Jar',
+          },
+        ),
+      ]),
+  },
+  {
+    title: '状态',
+    key: 'state',
+    width: 112,
+    render: (row) =>
+      h(
+        NTag,
+        {
+          type:
+            row.state === 'running'
+              ? 'success'
+              : row.state === 'failed'
+                ? 'error'
+                : row.state === 'deleted'
+                  ? 'default'
+                  : 'info',
+          bordered: false,
+        },
+        { default: () => row.state },
+      ),
+  },
+  {
+    title: '操作',
+    key: 'actions',
+    width: 252,
+    fixed: 'right',
+    render: (row) =>
+      row.deletedAt
+        ? h(NFlex, { wrap: false, justify: 'end', class: 'row-actions' }, () => [
+            h(
+              NButton,
+              { quaternary: true, circle: true, size: 'small', onClick: () => void restore(row) },
+              { default: () => h(AppIcon, { icon: RotateCcw, label: '恢复' }) },
+            ),
+            h(
+              NButton,
+              {
+                quaternary: true,
+                circle: true,
+                size: 'small',
+                type: 'error',
+                onClick: () => openHardDelete(row),
+              },
+              { default: () => h(AppIcon, { icon: Trash2, label: '永久删除远程目录' }) },
+            ),
+          ])
+        : h(NFlex, { wrap: false, justify: 'end', class: 'row-actions' }, () => [
+            h(
+              NButton,
+              {
+                quaternary: true,
+                circle: true,
+                size: 'small',
+                onClick: () =>
+                  void router.push({ name: 'server-detail', params: { serverID: row.id } }),
+              },
+              { default: () => h(AppIcon, { icon: Eye, label: '打开 Server 详情' }) },
+            ),
+            ...(['stopped', 'ready', 'failed'].includes(row.state)
+              ? [
+                  h(
+                    NButton,
+                    {
+                      quaternary: true,
+                      circle: true,
+                      size: 'small',
+                      type: 'primary',
+                      loading: lifecycleActions.value[row.id] === 'start',
+                      disabled: Boolean(lifecycleActions.value[row.id]),
+                      onClick: () => void startLifecycle(row),
+                    },
+                    { default: () => h(AppIcon, { icon: Play, label: '启动 Server' }) },
+                  ),
+                ]
+              : []),
+            ...(['running', 'starting', 'failed'].includes(row.state)
+              ? [
+                  h(
+                    NButton,
+                    {
+                      quaternary: true,
+                      circle: true,
+                      size: 'small',
+                      loading: lifecycleActions.value[row.id] === 'stop',
+                      disabled: Boolean(lifecycleActions.value[row.id]),
+                      onClick: () => void stopLifecycle(row),
+                    },
+                    { default: () => h(AppIcon, { icon: Square, label: '停止 Server' }) },
+                  ),
+                ]
+              : []),
+            ...(row.state === 'running'
+              ? [
+                  h(
+                    NButton,
+                    {
+                      quaternary: true,
+                      circle: true,
+                      size: 'small',
+                      loading: lifecycleActions.value[row.id] === 'restart',
+                      disabled: Boolean(lifecycleActions.value[row.id]),
+                      onClick: () => void restartLifecycle(row),
+                    },
+                    { default: () => h(AppIcon, { icon: RotateCw, label: '重启 Server' }) },
+                  ),
+                ]
+              : []),
+            h(
+              NButton,
+              {
+                quaternary: true,
+                circle: true,
+                size: 'small',
+                disabled: Boolean(lifecycleActions.value[row.id]),
+                onClick: () => openEdit(row),
+              },
+              { default: () => h(AppIcon, { icon: Pencil, label: '编辑元数据' }) },
+            ),
+            h(
+              NButton,
+              {
+                quaternary: true,
+                circle: true,
+                size: 'small',
+                type: 'error',
+                disabled: Boolean(lifecycleActions.value[row.id]),
+                onClick: () => void softDelete(row),
+              },
+              { default: () => h(AppIcon, { icon: Trash2, label: '软删除' }) },
+            ),
+          ]),
+  },
+]
+
+async function refresh(): Promise<void> {
+  try {
+    await store.refresh()
+  } catch (error) {
+    notifyError('加载 Minecraft Servers 失败', error)
+  }
+}
+
+function notifyLifecycleOperation(
+  server: MinecraftServer,
+  action: string,
+  operationID: string,
+): void {
+  notifications.push({
+    kind: 'info',
+    title: `Server ${action} Operation 已启动`,
+    content: operationID || `${server.name} 的请求已处理`,
+    dedupeKey: `server:lifecycle:${server.id}:${action}:${operationID}`,
+  })
+}
+
+async function startLifecycle(server: MinecraftServer): Promise<void> {
+  lifecycleActions.value[server.id] = 'start'
+  let operationID = ''
+  try {
+    let firewallConfirmed = false
+    let tmuxInstallConfirmed = false
+    while (!operationID) {
+      try {
+        operationID = await startServer(server.id, firewallConfirmed, tmuxInstallConfirmed)
+      } catch (error) {
+        if (
+          error instanceof ApplicationError &&
+          error.details.requiresTmuxInstallConfirmation === true &&
+          !tmuxInstallConfirmed
+        ) {
+          const confirmed = await interactions.confirm({
+            title: '远程服务器未安装 tmux，是否自动安装？',
+            content: String(
+              error.details.intent ??
+                'MineOps 将安装 tmux，用于在 SSH 断开后保持服务器进程运行并提供实时日志。',
+            ),
+            objectLabel: `${error.details.os ?? 'Linux'} · ${error.details.packageManager ?? '系统包管理器'}`,
+            impact: `${error.details.needsSudo === true ? '需要 sudo 权限。' : ''}${error.details.command ? ` 将执行：${String(error.details.command)}` : ''}`,
+            positiveText: '安装 tmux 并继续',
+          })
+          if (!confirmed) return
+          tmuxInstallConfirmed = true
+          continue
+        }
+        if (
+          error instanceof ApplicationError &&
+          error.details.requiresFirewallConfirmation === true &&
+          !firewallConfirmed
+        ) {
+          const confirmed = await interactions.confirm({
+            title: '启动前放行防火墙端口？',
+            content: String(error.details.intent ?? '将幂等放行 Minecraft TCP 端口。'),
+            objectLabel: `${error.details.backend ?? 'firewall'} · TCP ${error.details.port ?? ''}`,
+            impact: 'MineOps 会记录规则归属，仅在安全条件满足时回收旧端口。',
+            positiveText: '确认放行并启动',
+          })
+          if (!confirmed) return
+          firewallConfirmed = true
+          continue
+        }
+        throw error
+      }
+    }
+    notifyLifecycleOperation(server, '启动', operationID)
+    await refresh()
+    await router.push({
+      name: 'server-detail',
+      params: { serverID: server.id },
+      query: { tab: 'console' },
+    })
+  } catch (error) {
+    notifyError('启动 Server 失败', error)
+  } finally {
+    if (!operationID && lifecycleActions.value[server.id] === 'start')
+      delete lifecycleActions.value[server.id]
+  }
+}
+
+async function stopLifecycle(server: MinecraftServer): Promise<void> {
+  lifecycleActions.value[server.id] = 'stop'
+  let operationID = ''
+  try {
+    operationID = await stopServer(server.id)
+    notifyLifecycleOperation(server, '停止', operationID)
+    await refresh()
+  } catch (error) {
+    notifyError('停止 Server 失败', error)
+  } finally {
+    if (!operationID && lifecycleActions.value[server.id] === 'stop')
+      delete lifecycleActions.value[server.id]
+  }
+}
+
+async function restartLifecycle(server: MinecraftServer): Promise<void> {
+  lifecycleActions.value[server.id] = 'restart'
+  let operationID = ''
+  try {
+    try {
+      operationID = await restartServer(server.id)
+    } catch (error) {
+      if (
+        error instanceof ApplicationError &&
+        error.details.requiresTmuxInstallConfirmation === true
+      ) {
+        const confirmed = await interactions.confirm({
+          title: '远程服务器未安装 tmux，是否自动安装？',
+          content: String(
+            error.details.intent ??
+              'MineOps 将安装 tmux，用于在 SSH 断开后保持服务器进程运行并提供实时日志。',
+          ),
+          objectLabel: `${error.details.os ?? 'Linux'} · ${error.details.packageManager ?? '系统包管理器'}`,
+          impact: `${error.details.needsSudo === true ? '需要 sudo 权限。' : ''}${error.details.command ? ` 将执行：${String(error.details.command)}` : ''}`,
+          positiveText: '安装 tmux 并重启',
+        })
+        if (!confirmed) return
+        operationID = await restartServer(server.id, true)
+      } else {
+        throw error
+      }
+    }
+    notifyLifecycleOperation(server, '重启', operationID)
+    await refresh()
+    await router.push({
+      name: 'server-detail',
+      params: { serverID: server.id },
+      query: { tab: 'console' },
+    })
+  } catch (error) {
+    notifyError('重启 Server 失败', error)
+  } finally {
+    if (!operationID && lifecycleActions.value[server.id] === 'restart')
+      delete lifecycleActions.value[server.id]
+  }
+}
+
+async function softDelete(server: MinecraftServer): Promise<void> {
+  const confirmed = await interactions.confirm({
+    title: '软删除 Minecraft Server？',
+    content:
+      '仅把 Server 标记为 Deleted，远程目录和文件会保留。运行中或存在活动 Operation 时会被拒绝。',
+    objectLabel: `${server.name} · ${server.remotePath}`,
+    positiveText: '软删除',
+    danger: true,
+  })
+  if (!confirmed) return
+  try {
+    await store.softDelete(server.id)
+  } catch (error) {
+    notifyError('软删除 Minecraft Server 失败', error)
+  }
+}
+
+async function restore(server: MinecraftServer): Promise<void> {
+  try {
+    await store.restore(server.id)
+  } catch (error) {
+    notifyError('恢复 Minecraft Server 失败', error)
+  }
+}
+
+function openImport(): void {
+  inspection.value = null
+  importSSHSessionID.value = sshSessions.sessions[0]?.id ?? ''
+  importPath.value = ''
+  importName.value = ''
+  importType.value = 'vanilla'
+  importVersion.value = ''
+  importJar.value = ''
+  importJavaRuntimeID.value = ''
+  importVisible.value = true
+  void loadImportJavaRuntimes()
+}
+
+async function loadImportJavaRuntimes(): Promise<void> {
+  importJavaError.value = null
+  importJavaRuntimes.value = []
+  importJavaRuntimeID.value = ''
+  if (!importSSHSessionID.value) return
+  importJavaLoading.value = true
+  try {
+    importJavaRuntimes.value = await listJavaRuntimes(importSSHSessionID.value)
+    importJavaRuntimeID.value =
+      importJavaRuntimes.value.find((runtime) => runtime.default)?.id ??
+      importJavaRuntimes.value[0]?.id ??
+      ''
+  } catch (error) {
+    importJavaError.value = error
+  } finally {
+    importJavaLoading.value = false
+  }
+}
+
+async function inspectImport(): Promise<void> {
+  if (!importSSHSessionID.value || !importPath.value.trim()) return
+  importLoading.value = true
+  try {
+    inspection.value = await inspectRemoteMinecraftServer(
+      importSSHSessionID.value,
+      importPath.value.trim(),
+    )
+    importPath.value = inspection.value.remotePath
+    importName.value ||=
+      inspection.value.remotePath.split('/').filter(Boolean).at(-1) ?? 'Imported Server'
+    importType.value = inspection.value.suggestedType
+    importVersion.value = inspection.value.suggestedVersion
+    importJar.value = inspection.value.suggestedJar
+  } catch (error) {
+    notifyError('检查远程 Server 失败', error)
+  } finally {
+    importLoading.value = false
+  }
+}
+
+async function submitImport(): Promise<void> {
+  if (
+    !inspection.value ||
+    !importName.value.trim() ||
+    !importVersion.value.trim() ||
+    !importJar.value ||
+    !importJavaRuntimeID.value
+  )
+    return
+  importLoading.value = true
+  try {
+    const input: MinecraftServerInput = {
+      sshSessionID: importSSHSessionID.value,
+      javaRuntimeID: importJavaRuntimeID.value,
+      name: importName.value.trim(),
+      type: importType.value,
+      version: importVersion.value.trim(),
+      remotePath: inspection.value.remotePath,
+      group: '',
+      tags: ['imported'],
+      favourite: false,
+      launchProfile: {
+        xmsMiB: importXmsMiB.value,
+        xmxMiB: importXmxMiB.value,
+        jvmArguments: [],
+        jarPath: importJar.value,
+        workingDirectory: inspection.value.remotePath,
+        serverArguments: ['nogui'],
+      },
+      firewallPolicy: settings.committed?.firewall.defaultPolicy ?? 'automatic',
+      eulaAccepted: inspection.value.eulaAccepted,
+    }
+    const server = await importRemoteMinecraftServer(input)
+    importVisible.value = false
+    await store.refresh()
+    notifications.push({
+      kind: 'success',
+      title: '远程 Server 已导入',
+      content: `${server.name} · 原目录未被修改`,
+      dedupeKey: `server:imported:${server.id}`,
+    })
+  } catch (error) {
+    notifyError('导入远程 Server 失败', error)
+  } finally {
+    importLoading.value = false
+  }
+}
+
+function openEdit(server: MinecraftServer): void {
+  editTarget.value = server
+  editDraft.value = {
+    sshSessionID: server.sshSessionID,
+    javaRuntimeID: server.javaRuntimeID ?? '',
+    name: server.name,
+    type: server.type,
+    version: server.version,
+    remotePath: server.remotePath,
+    group: server.group,
+    tags: [...server.tags],
+    favourite: server.favourite,
+    launchProfile: {
+      xmsMiB: server.launchProfile.xmsMiB,
+      xmxMiB: server.launchProfile.xmxMiB,
+      jvmArguments: [...server.launchProfile.jvmArguments],
+      jarPath: server.launchProfile.jarPath,
+      workingDirectory: server.launchProfile.workingDirectory,
+      serverArguments: [...server.launchProfile.serverArguments],
+    },
+    firewallPolicy: server.firewallPolicy,
+    eulaAccepted: server.eulaAccepted,
+  }
+  editVisible.value = true
+}
+
+async function submitEdit(): Promise<void> {
+  if (!editTarget.value || !editDraft.value) return
+  editLoading.value = true
+  try {
+    const updated = await store.update(editTarget.value.id, editDraft.value)
+    editVisible.value = false
+    notifications.push({
+      kind: 'success',
+      title: 'Server 元数据已更新',
+      content: updated.name + ' · SSH Session 与远程目录保持不变',
+      dedupeKey: 'server:update:' + updated.id,
+    })
+  } catch (error) {
+    notifyError('更新 Minecraft Server 失败', error)
+  } finally {
+    editLoading.value = false
+  }
+}
+
+function openHardDelete(server: MinecraftServer): void {
+  hardDeleteTarget.value = server
+  confirmedDeleteName.value = ''
+  confirmedDeletePath.value = ''
+  hardDeleteVisible.value = true
+}
+
+async function submitHardDelete(): Promise<void> {
+  if (!hardDeleteTarget.value) return
+  hardDeleteLoading.value = true
+  try {
+    const operationID = await hardDeleteRemoteMinecraftServer(
+      hardDeleteTarget.value.id,
+      confirmedDeleteName.value,
+      confirmedDeletePath.value,
+    )
+    hardDeleteVisible.value = false
+    notifications.push({
+      kind: 'warning',
+      title: '永久删除 Operation 已启动',
+      content: operationID,
+      dedupeKey: `server:hard-delete:${operationID}`,
+    })
+  } catch (error) {
+    notifyError('启动远程硬删除失败', error)
+  } finally {
+    hardDeleteLoading.value = false
+  }
+}
+
+function notifyError(title: string, error: unknown): void {
+  notifications.push({
+    kind: 'error',
+    title,
+    content: error instanceof Error ? error.message : String(error),
+    dedupeKey: `server:error:${title}`,
+  })
+}
+
+onMounted(async () => {
+  unsubscribeOperation = subscribeOperationProgress((operation) => {
+    if (operation.targetType !== 'server' || !lifecycleActions.value[operation.targetID]) return
+    if (!['pending', 'running'].includes(operation.state)) {
+      delete lifecycleActions.value[operation.targetID]
+      void refresh()
+    }
+  })
+  const results = await Promise.allSettled([
+    sshSessions.sessions.length ? Promise.resolve() : sshSessions.refresh(),
+    store.refresh(),
+  ])
+  if (results[0].status === 'rejected') sessionError.value = results[0].reason
+  if (results[1].status === 'rejected')
+    notifyError('加载 Minecraft Servers 失败', results[1].reason)
+})
+
+onUnmounted(() => unsubscribeOperation?.())
+
+watch(importSSHSessionID, () => {
+  inspection.value = null
+  if (importVisible.value) void loadImportJavaRuntimes()
+})
+</script>
+
+<template>
+  <NCard>
+    <NFlex justify="end" wrap class="page-actions">
+      <NButton
+        type="primary"
+        :disabled="!sshSessions.sessions.length"
+        @click="wizardVisible = true"
+      >
+        <template #icon><AppIcon :icon="Plus" label="创建" /></template>
+        创建并安装 Server
+      </NButton>
+      <NButton :disabled="!sshSessions.sessions.length" @click="openImport">
+        导入远程 Server
+      </NButton>
+    </NFlex>
+
+    <div class="toolbar">
+      <NInput
+        v-model:value="store.search"
+        class="toolbar-search"
+        clearable
+        placeholder="搜索名称、路径或版本"
+        @keyup.enter="refresh"
+      />
+      <NSelect
+        v-model:value="store.sshSessionID"
+        clearable
+        placeholder="全部 SSH Sessions"
+        :options="
+          sshSessions.sessions.map((session) => ({ label: session.name, value: session.id }))
+        "
+        @update:value="refresh"
+      />
+      <NSelect v-model:value="store.state" :options="stateOptions" @update:value="refresh" />
+      <NCheckbox
+        v-model:checked="store.includeDeleted"
+        class="include-deleted"
+        @update:checked="refresh"
+      >
+        包含已删除
+      </NCheckbox>
+      <NButton :loading="store.loading" @click="refresh">刷新</NButton>
+    </div>
+
+    <AppDataTable
+      :columns="columns"
+      :data="store.servers"
+      :loading="store.loading"
+      :error="store.error"
+      :partial-message="partialMessage"
+      :scroll-x="974"
+      empty-description="尚未创建 Minecraft Server"
+      @retry="refresh"
+      @open="
+        (server) =>
+          !server.deletedAt &&
+          router.push({ name: 'server-detail', params: { serverID: server.id } })
+      "
+    />
+  </NCard>
+
+  <ServerWizard v-model:show="wizardVisible" />
+
+  <NModal
+    v-model:show="editVisible"
+    preset="card"
+    title="编辑 Server 元数据"
+    style="width: min(760px, calc(100vw - 32px))"
+  >
+    <NForm v-if="editDraft && editTarget">
+      <NAlert type="info" title="SSH 绑定与远程目录保持不变">
+        {{ editTarget.sshSessionID }} · {{ editTarget.remotePath }}。LaunchProfile
+        变更将在下次启动时使用，不会移动现有文件。
+      </NAlert>
+      <NFlex :wrap="false">
+        <NFormItem label="名称" style="flex: 2">
+          <NInput v-model:value="editDraft.name" />
+        </NFormItem>
+        <NFormItem label="分组" style="flex: 1">
+          <NInput v-model:value="editDraft.group" />
+        </NFormItem>
+        <NFormItem label="收藏">
+          <NCheckbox v-model:checked="editDraft.favourite">置顶</NCheckbox>
+        </NFormItem>
+      </NFlex>
+      <NFormItem label="标签">
+        <NDynamicTags v-model:value="editDraft.tags" />
+      </NFormItem>
+      <NFlex :wrap="false">
+        <NFormItem label="Xms MiB" style="flex: 1">
+          <NInputNumber v-model:value="editDraft.launchProfile.xmsMiB" :min="64" />
+        </NFormItem>
+        <NFormItem label="Xmx MiB" style="flex: 1">
+          <NInputNumber
+            v-model:value="editDraft.launchProfile.xmxMiB"
+            :min="editDraft.launchProfile.xmsMiB"
+          />
+        </NFormItem>
+        <NFormItem label="启动 Jar" style="flex: 2">
+          <NInput v-model:value="editDraft.launchProfile.jarPath" />
+        </NFormItem>
+      </NFlex>
+      <NFormItem label="JVM 参数">
+        <NDynamicTags v-model:value="editDraft.launchProfile.jvmArguments" />
+      </NFormItem>
+      <NFormItem label="Server 参数">
+        <NDynamicTags v-model:value="editDraft.launchProfile.serverArguments" />
+      </NFormItem>
+      <NFormItem label="防火墙策略">
+        <NSelect v-model:value="editDraft.firewallPolicy" :options="firewallPolicyOptions" />
+      </NFormItem>
+      <NFlex justify="end">
+        <NButton @click="editVisible = false">取消</NButton>
+        <NButton
+          type="primary"
+          :loading="editLoading"
+          :disabled="
+            !editDraft.name.trim() ||
+            !editDraft.launchProfile.jarPath.trim() ||
+            editDraft.launchProfile.xmsMiB > editDraft.launchProfile.xmxMiB
+          "
+          @click="submitEdit"
+        >
+          保存元数据
+        </NButton>
+      </NFlex>
+    </NForm>
+  </NModal>
+
+  <NModal
+    v-model:show="importVisible"
+    preset="card"
+    title="导入现有远程 Server"
+    style="width: min(760px, calc(100vw - 32px))"
+  >
+    <NForm>
+      <NFlex :wrap="false">
+        <NFormItem label="SSH Session" style="flex: 1">
+          <NSelect
+            v-model:value="importSSHSessionID"
+            :options="sshSessions.sessions.map((item) => ({ label: item.name, value: item.id }))"
+          />
+        </NFormItem>
+        <NFormItem label="远程目录" style="flex: 2">
+          <NInput v-model:value="importPath" placeholder="/home/minecraft/server" />
+        </NFormItem>
+        <NFormItem label="只读检查">
+          <NButton :loading="importLoading" @click="inspectImport">检查</NButton>
+        </NFormItem>
+      </NFlex>
+      <template v-if="inspection">
+        <NAlert
+          :type="inspection.eulaAccepted && inspection.propertiesFound ? 'success' : 'warning'"
+          title="远程检查结果"
+        >
+          Jar {{ inspection.jars.length }} 个 · server.properties
+          {{ inspection.propertiesFound ? '存在' : '缺失' }} · EULA
+          {{ inspection.eulaAccepted ? '已接受' : '未接受' }}。导入不会修改原目录。
+        </NAlert>
+        <NAlert v-if="inspection.warnings.length" type="warning" title="需要确认">
+          {{ inspection.warnings.join('；') }}
+        </NAlert>
+        <NFlex :wrap="false">
+          <NFormItem label="名称" style="flex: 1"><NInput v-model:value="importName" /></NFormItem>
+          <NFormItem label="类型" style="flex: 1">
+            <NSelect v-model:value="importType" :options="serverTypeOptions" />
+          </NFormItem>
+          <NFormItem label="版本" style="flex: 1"
+            ><NInput v-model:value="importVersion"
+          /></NFormItem>
+        </NFlex>
+        <NFormItem label="启动 Jar">
+          <NSelect
+            v-model:value="importJar"
+            :options="
+              inspection.jars.map((jar) => ({
+                label: `${jar.name} · ${(jar.size / 1024 / 1024).toFixed(1)} MiB`,
+                value: jar.name,
+              }))
+            "
+          />
+        </NFormItem>
+        <NFormItem label="Java Runtime">
+          <NSelect
+            v-model:value="importJavaRuntimeID"
+            :loading="importJavaLoading"
+            :options="
+              importJavaRuntimes.map((runtime) => ({
+                label: `${runtime.vendor} Java ${runtime.majorVersion} · ${runtime.javaHome}${runtime.default ? ' · 默认' : ''}`,
+                value: runtime.id,
+              }))
+            "
+            placeholder="选择同一 SSH Session 下的 Java Runtime"
+          />
+        </NFormItem>
+        <NAlert v-if="importJavaError" type="warning" title="Java Runtime 列表不可用">
+          {{ importJavaError instanceof Error ? importJavaError.message : String(importJavaError) }}
+        </NAlert>
+        <NAlert
+          v-else-if="!importJavaLoading && !importJavaRuntimes.length"
+          type="warning"
+          title="需要 Java Runtime"
+        >
+          请先在 Java Runtime 页面为该 SSH Session 发现或导入 Java；远程 Server 注册后才能直接启动。
+        </NAlert>
+        <NFlex :wrap="false">
+          <NFormItem label="Xms MiB" style="flex: 1">
+            <NInputNumber v-model:value="importXmsMiB" :min="64" />
+          </NFormItem>
+          <NFormItem label="Xmx MiB" style="flex: 1">
+            <NInputNumber v-model:value="importXmxMiB" :min="64" />
+          </NFormItem>
+        </NFlex>
+      </template>
+      <NFlex justify="end">
+        <NButton @click="importVisible = false">取消</NButton>
+        <NButton
+          type="primary"
+          :loading="importLoading"
+          :disabled="
+            !inspection ||
+            !importName.trim() ||
+            !importVersion.trim() ||
+            !importJar ||
+            !importJavaRuntimeID
+          "
+          @click="submitImport"
+        >
+          注册且不修改远程目录
+        </NButton>
+      </NFlex>
+    </NForm>
+  </NModal>
+
+  <NModal
+    v-model:show="hardDeleteVisible"
+    preset="card"
+    title="永久删除远程 Server"
+    style="width: min(640px, calc(100vw - 32px))"
+  >
+    <NAlert type="error" title="不可撤销">
+      MineOps 将重新检查根目录、Home、符号链接和挂载根，然后递归删除远程目录及数据库注册。
+    </NAlert>
+    <NForm v-if="hardDeleteTarget">
+      <NFormItem :label="`输入名称：${hardDeleteTarget.name}`">
+        <NInput v-model:value="confirmedDeleteName" />
+      </NFormItem>
+      <NFormItem :label="`输入完整路径：${hardDeleteTarget.remotePath}`">
+        <NInput v-model:value="confirmedDeletePath" />
+      </NFormItem>
+      <NFlex justify="end">
+        <NButton @click="hardDeleteVisible = false">取消</NButton>
+        <NButton
+          type="error"
+          :loading="hardDeleteLoading"
+          :disabled="
+            confirmedDeleteName !== hardDeleteTarget.name ||
+            confirmedDeletePath !== hardDeleteTarget.remotePath
+          "
+          @click="submitHardDelete"
+        >
+          永久删除
+        </NButton>
+      </NFlex>
+    </NForm>
+  </NModal>
+</template>
+
+<style scoped>
+.page-actions {
+  margin-bottom: 16px;
+}
+
+.toolbar {
+  display: grid;
+  grid-template-columns: minmax(240px, 1.4fr) minmax(220px, 1.2fr) minmax(160px, 0.8fr) auto auto;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.toolbar > * {
+  min-width: 0;
+}
+
+.include-deleted {
+  white-space: nowrap;
+}
+
+.server-cell,
+.runtime-cell {
+  min-width: 0;
+}
+
+.server-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 4px 0;
+}
+
+.server-cell__title,
+.server-cell__meta {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+}
+
+.server-cell__path,
+.runtime-cell__jar {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.runtime-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.row-actions {
+  gap: 4px;
+}
+
+@media (max-width: 1100px) {
+  .toolbar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .include-deleted {
+    justify-self: start;
+  }
+}
+
+@media (max-width: 680px) {
+  .page-actions,
+  .page-actions :deep(.n-button) {
+    width: 100%;
+  }
+
+  .toolbar {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+</style>

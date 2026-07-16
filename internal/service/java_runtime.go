@@ -1,0 +1,309 @@
+package service
+
+import (
+	"context"
+	"errors"
+	"path"
+	"sort"
+	"strings"
+	"time"
+
+	"github.com/Cail-Gainey/MineOps/internal/global/apperror"
+	"github.com/Cail-Gainey/MineOps/internal/global/appsettings"
+	"github.com/Cail-Gainey/MineOps/internal/model"
+	"github.com/Cail-Gainey/MineOps/internal/port"
+	"github.com/Cail-Gainey/MineOps/internal/repository"
+)
+
+// JavaCandidate contains a verified remote Java executable before persistence.
+type JavaCandidate struct {
+	ExecutablePath string                  `json:"executablePath"`
+	Source         model.JavaRuntimeSource `json:"source"`
+	Info           model.JavaVersionInfo   `json:"info"`
+}
+
+// JavaRuntimeManager discovers, validates, imports, recommends, and deletes remote Java installations.
+type JavaRuntimeManager struct {
+	clock    model.Clock
+	store    repository.Store
+	clients  *SSHClientFactory
+	settings *appsettings.Manager
+	catalog  port.JDKCatalog
+	runner   *OperationRunner
+}
+
+// NewJavaRuntimeManager creates the remote Java application service.
+func NewJavaRuntimeManager(clock model.Clock, store repository.Store, clients *SSHClientFactory, settings *appsettings.Manager, catalog port.JDKCatalog, runner *OperationRunner) (*JavaRuntimeManager, error) {
+	if clock == nil || store == nil || clients == nil || settings == nil || catalog == nil || runner == nil {
+		return nil, apperror.New(apperror.CodeValidationRequired, "Java Runtime Manager 依赖不能为空")
+	}
+	return &JavaRuntimeManager{clock: clock, store: store, clients: clients, settings: settings, catalog: catalog, runner: runner}, nil
+}
+
+// Discover verifies managed, JAVA_HOME, PATH, and common Linux Java candidates in priority order.
+func (m *JavaRuntimeManager) Discover(ctx context.Context, sshSessionID model.ID) ([]JavaCandidate, error) {
+	sshSession, client, err := m.connect(ctx, sshSessionID)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = client.Close() }()
+	_ = sshSession
+	home := strings.TrimSpace(m.commandOutput(ctx, client, RemoteCommand{Executable: "printenv", Arguments: []string{"HOME"}, Timeout: 5 * time.Second, MaximumOutput: 4096}))
+	javaHome := strings.TrimSpace(m.commandOutput(ctx, client, RemoteCommand{Executable: "printenv", Arguments: []string{"JAVA_HOME"}, Timeout: 5 * time.Second, MaximumOutput: 4096}))
+	pathJava := strings.TrimSpace(m.commandOutput(ctx, client, RemoteCommand{Executable: "which", Arguments: []string{"java"}, Timeout: 5 * time.Second, MaximumOutput: 4096}))
+
+	type candidatePath struct {
+		value  string
+		source model.JavaRuntimeSource
+	}
+	paths := make([]candidatePath, 0, 32)
+	if home != "" {
+		managedRoot := path.Join(home, "MineOps/Runtime")
+		for _, value := range m.findJavaExecutables(ctx, client, managedRoot) {
+			paths = append(paths, candidatePath{value: value, source: model.JavaSourceManaged})
+		}
+	}
+	if javaHome != "" {
+		paths = append(paths, candidatePath{value: path.Join(javaHome, "bin/java"), source: model.JavaSourceJavaHome})
+	}
+	if pathJava != "" {
+		paths = append(paths, candidatePath{value: strings.Split(pathJava, "\n")[0], source: model.JavaSourcePath})
+	}
+	for _, root := range []string{"/usr/lib/jvm", "/usr/local/lib/jvm", "/opt/java", "/opt/jdk"} {
+		for _, value := range m.findJavaExecutables(ctx, client, root) {
+			paths = append(paths, candidatePath{value: value, source: model.JavaSourceSystem})
+		}
+	}
+
+	seen := make(map[string]bool, len(paths))
+	result := make([]JavaCandidate, 0, len(paths))
+	for _, candidate := range paths {
+		candidate.value = path.Clean(strings.TrimSpace(candidate.value))
+		if candidate.value == "." || seen[candidate.value] {
+			continue
+		}
+		seen[candidate.value] = true
+		verified, verifyErr := m.validateWithClient(ctx, client, candidate.value, candidate.source)
+		if verifyErr == nil {
+			result = append(result, verified)
+		}
+	}
+	return result, nil
+}
+
+// List returns persisted Java Runtimes using repository filters.
+func (m *JavaRuntimeManager) List(ctx context.Context, query repository.JavaRuntimeQuery) ([]model.JavaRuntime, error) {
+	return m.store.JavaRuntimes().List(ctx, query)
+}
+
+// ListArtifacts returns approved provider-neutral JDK download artifacts.
+func (m *JavaRuntimeManager) ListArtifacts(ctx context.Context, majorVersion int, architecture string) ([]port.JDKArtifact, error) {
+	return m.catalog.List(ctx, majorVersion, architecture, "linux")
+}
+
+// Validate verifies one manually supplied Java executable through SSH.
+func (m *JavaRuntimeManager) Validate(ctx context.Context, sshSessionID model.ID, executablePath string, source model.JavaRuntimeSource) (JavaCandidate, error) {
+	_, client, err := m.connect(ctx, sshSessionID)
+	if err != nil {
+		return JavaCandidate{}, err
+	}
+	defer func() { _ = client.Close() }()
+	return m.validateWithClient(ctx, client, executablePath, source)
+}
+
+// Import validates and transactionally registers one remote Java installation, deduplicated by path.
+func (m *JavaRuntimeManager) Import(ctx context.Context, sshSessionID model.ID, executablePath string, source model.JavaRuntimeSource) (*model.JavaRuntime, error) {
+	candidate, err := m.Validate(ctx, sshSessionID, executablePath, source)
+	if err != nil {
+		return nil, err
+	}
+	return m.registerCandidate(ctx, sshSessionID, candidate)
+}
+
+func (m *JavaRuntimeManager) registerCandidate(ctx context.Context, sshSessionID model.ID, candidate JavaCandidate) (*model.JavaRuntime, error) {
+	installPath := candidate.Info.JavaHome
+	if installPath == "" {
+		installPath = path.Dir(path.Dir(candidate.ExecutablePath))
+	}
+	if existing, findErr := m.store.JavaRuntimes().GetByPath(ctx, sshSessionID, installPath); findErr == nil {
+		existing.Version = candidate.Info.Version
+		existing.MajorVersion = candidate.Info.MajorVersion
+		existing.Vendor = candidate.Info.Vendor
+		existing.Architecture = candidate.Info.Architecture
+		existing.Source = candidate.Source
+		existing.JavaHome = installPath
+		existing.Managed = candidate.Source == model.JavaSourceManaged
+		existing.Reusable = true
+		existing.UpdatedAt = m.clock.Now().UTC()
+		if err := m.store.JavaRuntimes().Update(ctx, existing); err != nil {
+			return nil, err
+		}
+		return existing, nil
+	} else if apperror.ToDTO(findErr).Code != apperror.CodeIONotFound.String() {
+		return nil, findErr
+	}
+	javaRuntime, err := model.NewJavaRuntime(m.clock, model.JavaRuntime{
+		SSHSessionID: sshSessionID, Version: candidate.Info.Version, MajorVersion: candidate.Info.MajorVersion,
+		Vendor: candidate.Info.Vendor, Architecture: candidate.Info.Architecture, Source: candidate.Source,
+		InstallPath: installPath, JavaHome: installPath, Managed: candidate.Source == model.JavaSourceManaged,
+		Reusable: true,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if err := m.store.JavaRuntimes().Create(ctx, javaRuntime); err != nil {
+		return nil, err
+	}
+	return javaRuntime, nil
+}
+
+// Recommend selects the default or closest compatible reusable Java Runtime for a Minecraft version.
+func (m *JavaRuntimeManager) Recommend(ctx context.Context, sshSessionID model.ID, serverType, minecraftVersion string) (*model.JavaRuntime, error) {
+	requirement, err := model.JavaRequirementForMinecraft(serverType, minecraftVersion)
+	if err != nil {
+		return nil, err
+	}
+	runtimes, err := m.store.JavaRuntimes().List(ctx, repository.JavaRuntimeQuery{SSHSessionID: sshSessionID, Limit: 500})
+	if err != nil {
+		return nil, err
+	}
+	compatible := make([]model.JavaRuntime, 0, len(runtimes))
+	for _, javaRuntime := range runtimes {
+		if javaRuntime.Reusable && requirement.Compatible(javaRuntime.MajorVersion) {
+			compatible = append(compatible, javaRuntime)
+		}
+	}
+	if len(compatible) == 0 {
+		return nil, apperror.New(apperror.CodeIONotFound, "没有兼容的 Java Runtime").WithDetails(map[string]any{
+			"minimumMajor": requirement.MinimumMajor, "maximumMajor": requirement.MaximumMajor,
+		})
+	}
+	sort.SliceStable(compatible, func(left, right int) bool {
+		if compatible[left].Default != compatible[right].Default {
+			return compatible[left].Default
+		}
+		leftDistance := absolute(compatible[left].MajorVersion - requirement.PreferredMajor)
+		rightDistance := absolute(compatible[right].MajorVersion - requirement.PreferredMajor)
+		return leftDistance < rightDistance
+	})
+	selected := compatible[0]
+	return &selected, nil
+}
+
+// SetDefault marks one Java Runtime as the default for its SSH Session.
+func (m *JavaRuntimeManager) SetDefault(ctx context.Context, sshSessionID, id model.ID) error {
+	return m.store.JavaRuntimes().SetDefault(ctx, sshSessionID, id)
+}
+
+// Delete removes an unreferenced Java Runtime registration without deleting its remote files.
+func (m *JavaRuntimeManager) Delete(ctx context.Context, id model.ID) error {
+	references, err := m.store.JavaRuntimes().CountServerReferences(ctx, id)
+	if err != nil {
+		return err
+	}
+	if references > 0 {
+		return apperror.New(apperror.CodeValidationConflict, "Java Runtime 已被 Minecraft Server 引用").WithDetails(map[string]any{"serverCount": references})
+	}
+	return m.store.JavaRuntimes().Delete(ctx, id)
+}
+
+func (m *JavaRuntimeManager) connect(ctx context.Context, sshSessionID model.ID) (*model.SSHSession, *SSHClient, error) {
+	sshSession, err := m.store.SSHSessions().Get(ctx, sshSessionID)
+	if err != nil {
+		return nil, nil, err
+	}
+	client, err := m.clients.Connect(ctx, sshSession, m.settings.Snapshot().SSH)
+	if err != nil {
+		return nil, nil, err
+	}
+	return sshSession, client, nil
+}
+
+func (m *JavaRuntimeManager) validateWithClient(ctx context.Context, client *SSHClient, executablePath string, source model.JavaRuntimeSource) (JavaCandidate, error) {
+	executablePath = path.Clean(strings.TrimSpace(executablePath))
+	if !path.IsAbs(executablePath) {
+		return JavaCandidate{}, apperror.New(apperror.CodeValidationInvalidArgument, "Java 可执行文件必须是远程绝对路径")
+	}
+	resolveScript := `set -eu
+candidate=$1
+if [ -d "$candidate" ]; then candidate=$candidate/bin/java; fi
+if [ ! -f "$candidate" ] || [ ! -x "$candidate" ]; then
+  printf 'Java executable is missing or not executable: %s\n' "$candidate" >&2
+  exit 2
+fi
+if command -v readlink >/dev/null 2>&1; then
+  resolved=$(readlink -f "$candidate" 2>/dev/null || true)
+  if [ -n "$resolved" ]; then candidate=$resolved; fi
+fi
+printf '%s' "$candidate"`
+	resolved, resolveErr := client.RunCommand(ctx, RemoteCommand{
+		Executable: "sh", Arguments: []string{"-c", resolveScript, "mineops-java-validate", executablePath},
+		Timeout: 10 * time.Second, MaximumOutput: 16 * 1024,
+	})
+	if resolveErr != nil || strings.TrimSpace(resolved.Stdout) == "" {
+		return JavaCandidate{}, apperror.Wrap(apperror.CodeValidationInvalidArgument, "Java 可执行文件不存在或不可执行", resolveErr).WithDetails(map[string]any{
+			"requestedPath": executablePath,
+			"exitCode":      resolved.ExitCode,
+			"stderr":        strings.TrimSpace(resolved.Stderr),
+		})
+	}
+	executablePath = path.Clean(strings.TrimSpace(resolved.Stdout))
+	probes := [][]string{{"-XshowSettings:properties", "-version"}, {"-version"}, {"--version"}}
+	combined := strings.Builder{}
+	var lastResult RemoteCommandResult
+	var lastError error
+	var parseErr error
+	for _, arguments := range probes {
+		lastResult, lastError = client.RunCommand(ctx, RemoteCommand{
+			Executable: executablePath, Arguments: arguments,
+			Timeout: 15 * time.Second, MaximumOutput: 256 * 1024,
+		})
+		output := strings.TrimSpace(lastResult.Stdout + "\n" + lastResult.Stderr)
+		if output != "" {
+			if combined.Len() > 0 {
+				combined.WriteByte('\n')
+			}
+			combined.WriteString(output)
+		}
+		var info model.JavaVersionInfo
+		info, parseErr = model.ParseJavaVersionOutput(combined.String())
+		if parseErr == nil {
+			return JavaCandidate{ExecutablePath: executablePath, Source: source, Info: info}, nil
+		}
+	}
+	return JavaCandidate{}, apperror.Wrap(apperror.CodeValidationInvalidArgument, "无法读取 Java 版本信息", parseErr).WithDetails(map[string]any{
+		"executablePath": executablePath,
+		"exitCode":       lastResult.ExitCode,
+		"stderr":         strings.TrimSpace(lastResult.Stderr),
+		"commandFailed":  lastError != nil,
+	})
+}
+
+func (m *JavaRuntimeManager) findJavaExecutables(ctx context.Context, client *SSHClient, root string) []string {
+	result, err := client.RunCommand(ctx, RemoteCommand{
+		Executable: "find", Arguments: []string{root, "-maxdepth", "5", "-type", "f", "-name", "java", "-perm", "-u+x"},
+		Timeout: 10 * time.Second, MaximumOutput: 64 * 1024,
+	})
+	if err != nil && strings.TrimSpace(result.Stdout) == "" {
+		return nil
+	}
+	return strings.Fields(result.Stdout)
+}
+
+func (m *JavaRuntimeManager) commandOutput(ctx context.Context, client *SSHClient, command RemoteCommand) string {
+	result, err := client.RunCommand(ctx, command)
+	if err != nil {
+		var applicationError *apperror.Error
+		if !errors.As(err, &applicationError) {
+			return ""
+		}
+	}
+	return result.Stdout
+}
+
+func absolute(value int) int {
+	if value < 0 {
+		return -value
+	}
+	return value
+}

@@ -1,0 +1,242 @@
+name: GitHub Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to rebuild
+        required: true
+      allow_public_maintenance:
+        description: Allow replacing assets on an already-public release
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.tag.outputs.version }}
+      channel: ${{ steps.tag.outputs.channel }}
+      prerelease: ${{ steps.tag.outputs.prerelease }}
+      tag: ${{ steps.ref.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref_name }}
+      - id: ref
+        shell: bash
+        run: echo "tag=${{ inputs.tag || github.ref_name }}" >> "$GITHUB_OUTPUT"
+      - id: tag
+        shell: bash
+        run: node build/release/validate-tag.mjs "${{ inputs.tag || github.ref_name }}" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: prepare
+    environment: release
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-2025
+            platform: windows
+            arch: amd64
+          - runner: macos-15
+            platform: darwin
+            arch: universal
+          - runner: ubuntu-24.04
+            platform: linux
+            arch: amd64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.tag }}
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.22.1
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - uses: arduino/setup-task@v2
+        with:
+          version: 3.45.5
+      - name: Install Linux packaging dependencies
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes gcc pkg-config libgtk-4-dev libwebkitgtk-6.0-dev rpm
+      - name: Install Windows packaging dependencies
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: choco install mingw nsis --no-progress --yes
+      - name: Bootstrap pinned tools
+        run: task bootstrap
+      - name: Prepare embedded update public key
+        shell: bash
+        env:
+          UPDATE_PUBLIC_KEY: ${{ secrets.UPDATE_PUBLIC_KEY }}
+        run: |
+          test -n "$UPDATE_PUBLIC_KEY"
+          printf 'UPDATE_PUBLIC_KEY_BASE64=%s\n' "$(printf '%s' "$UPDATE_PUBLIC_KEY" | base64 | tr -d '\r\n')" >> "$GITHUB_ENV"
+      - name: Apply tag version to platform metadata
+        run: node build/release/set-version.mjs "${{ needs.prepare.outputs.version }}"
+      - name: Import Windows signing certificate
+        if: matrix.platform == 'windows'
+        id: win-cert
+        shell: pwsh
+        env:
+          WINDOWS_SIGNING_PFX_BASE64: ${{ secrets.WINDOWS_SIGNING_PFX_BASE64 }}
+          WINDOWS_SIGNING_PFX_PASSWORD: ${{ secrets.WINDOWS_SIGNING_PFX_PASSWORD }}
+        run: |
+          if (!$env:WINDOWS_SIGNING_PFX_BASE64 -or !$env:WINDOWS_SIGNING_PFX_PASSWORD) { throw "Windows signing secrets are required" }
+          $path = Join-Path $env:RUNNER_TEMP "mineops-signing.pfx"
+          [IO.File]::WriteAllBytes($path, [Convert]::FromBase64String($env:WINDOWS_SIGNING_PFX_BASE64))
+          $password = ConvertTo-SecureString $env:WINDOWS_SIGNING_PFX_PASSWORD -AsPlainText -Force
+          $certificate = Import-PfxCertificate -FilePath $path -CertStoreLocation Cert:\CurrentUser\My -Password $password
+          "thumbprint=$($certificate.Thumbprint)" >> $env:GITHUB_OUTPUT
+      - name: Configure Apple signing and notarization
+        if: matrix.platform == 'darwin'
+        shell: bash
+        env:
+          MACOS_CERTIFICATE_BASE64: ${{ secrets.MACOS_CERTIFICATE_BASE64 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: |
+          test -n "$MACOS_CERTIFICATE_BASE64" && test -n "$MACOS_CERTIFICATE_PASSWORD" && test -n "$APPLE_ID" && test -n "$APPLE_TEAM_ID" && test -n "$APPLE_APP_PASSWORD"
+          keychain="$RUNNER_TEMP/mineops.keychain-db"
+          security create-keychain -p runner "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p runner "$keychain"
+          echo "$MACOS_CERTIFICATE_BASE64" | base64 --decode > "$RUNNER_TEMP/mineops.p12"
+          security import "$RUNNER_TEMP/mineops.p12" -k "$keychain" -P "$MACOS_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security list-keychains -d user -s "$keychain" login.keychain-db
+          security set-key-partition-list -S apple-tool:,apple: -s -k runner "$keychain"
+          xcrun notarytool store-credentials mineops-ci --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD"
+      - name: Build, sign, package and stage Windows
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          task windows:build ARCH=amd64 APP_VERSION=${{ needs.prepare.outputs.version }}
+          task windows:create:nsis:installer ARCH=amd64 APP_VERSION=${{ needs.prepare.outputs.version }}
+          task windows:release:sign ARCH=amd64 SIGN_THUMBPRINT=${{ steps.win-cert.outputs.thumbprint }} TIMESTAMP_SERVER=http://timestamp.digicert.com
+          task release:stage ARCH=amd64 APP_VERSION=${{ needs.prepare.outputs.version }}
+      - name: Build, sign, notarize and stage macOS
+        if: matrix.platform == 'darwin'
+        shell: bash
+        env:
+          SIGN_IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
+        run: |
+          test -n "$SIGN_IDENTITY"
+          task darwin:package:universal APP_VERSION=${{ needs.prepare.outputs.version }}
+          task darwin:release:sign:notarize APP_VERSION=${{ needs.prepare.outputs.version }} SIGN_IDENTITY="$SIGN_IDENTITY" KEYCHAIN_PROFILE=mineops-ci
+          task release:stage ARCH=universal APP_VERSION=${{ needs.prepare.outputs.version }}
+      - name: Build, package and stage Linux
+        if: matrix.platform == 'linux'
+        shell: bash
+        run: |
+          task linux:package ARCH=amd64 APP_VERSION=${{ needs.prepare.outputs.version }}
+          task release:stage ARCH=amd64 APP_VERSION=${{ needs.prepare.outputs.version }}
+      - name: Package smoke checks
+        shell: bash
+        run: |
+          test -s dist/release/LICENSE
+          test -s dist/release/THIRD_PARTY_NOTICES.md
+          find dist/release -type f -empty -print -quit | grep -q . && exit 1 || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.platform }}-${{ matrix.arch }}
+          path: dist/release/
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    needs: [prepare, build]
+    runs-on: ubuntu-24.04
+    environment: release
+    permissions:
+      contents: write
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.tag }}
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.22.1
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          path: dist/release
+          merge-multiple: true
+      - name: Install pinned Wails CLI
+        run: go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-alpha2.117
+      - name: Load protected update signing key
+        shell: bash
+        env:
+          UPDATE_PRIVATE_KEY: ${{ secrets.UPDATE_PRIVATE_KEY }}
+          UPDATE_PUBLIC_KEY: ${{ secrets.UPDATE_PUBLIC_KEY }}
+        run: |
+          test -n "$UPDATE_PRIVATE_KEY" && test -n "$UPDATE_PUBLIC_KEY"
+          printf '%s\n' "$UPDATE_PRIVATE_KEY" > "$RUNNER_TEMP/update.key"
+          printf '%s\n' "$UPDATE_PUBLIC_KEY" > "$RUNNER_TEMP/update.key.pub"
+          chmod 0600 "$RUNNER_TEMP/update.key"
+      - name: Generate and verify signed update metadata
+        shell: bash
+        run: |
+          cd dist/release
+          mapfile -t update_assets < <(find . -maxdepth 1 -type f \( -name 'MineOps-*-windows-*.exe' -o -name 'MineOps-*-darwin-*.zip' -o -name 'MineOps-*-linux-*' \) ! -name '*-installer.exe' ! -name '*.AppImage' ! -name '*.deb' ! -name '*.rpm' -printf '%f\n' | sort)
+          test "${#update_assets[@]}" -eq 3
+          wails3 updater manifest -version "${{ needs.prepare.outputs.version }}" -channel "${{ needs.prepare.outputs.channel }}" -key "$RUNNER_TEMP/update.key" -name "MineOps ${{ needs.prepare.outputs.version }}" -url-prefix "https://github.com/${GITHUB_REPOSITORY}/releases/download/${{ needs.prepare.outputs.tag }}" -output mineops-desktop-update.json "${update_assets[@]}"
+          node ../../build/release/create-sidecar.mjs mineops-desktop-update.json "$RUNNER_TEMP/update.key" mineops-desktop-update.sig.json
+          find . -maxdepth 1 -type f ! -name SHA512SUMS -printf '%f\n' | sort | xargs sha512sum > SHA512SUMS
+          wails3 updater verify -manifest mineops-desktop-update.json -dir . -publickey "$RUNNER_TEMP/update.key.pub"
+          go run ../../build/release/verify-sidecar.go mineops-desktop-update.json mineops-desktop-update.sig.json "$RUNNER_TEMP/update.key.pub"
+          node ../../build/release/verify-release.mjs . mineops-desktop-update.json mineops-desktop-update.sig.json
+          test "$(jq -r .version mineops-desktop-update.json)" = "${{ needs.prepare.outputs.version }}"
+          test "$(jq -r .channel mineops-desktop-update.json)" = "${{ needs.prepare.outputs.channel }}"
+      - name: Create or refresh draft Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+          PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
+          ALLOW_PUBLIC: ${{ inputs.allow_public_maintenance || false }}
+        run: |
+          state=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" --jq 'if .draft then "draft" else "public" end' 2>/dev/null || echo missing)
+          if [ "$state" = public ] && [ "$ALLOW_PUBLIC" != true ]; then
+            echo "Refusing to mutate already-public release $TAG" >&2
+            exit 1
+          fi
+          if [ "$state" = missing ]; then
+            args=(--draft --title "MineOps ${TAG#v}" --generate-notes)
+            [ "$PRERELEASE" = true ] && args+=(--prerelease)
+            gh release create "$TAG" "${args[@]}"
+          else
+            gh release view "$TAG" --json assets --jq '.assets[].name' | while read -r asset; do
+              gh release delete-asset "$TAG" "$asset" --yes
+            done
+          fi
+          gh release upload "$TAG" dist/release/* --clobber
+          gh release edit "$TAG" --draft=false --prerelease="$PRERELEASE" --latest="$([ "$PRERELEASE" = true ] && echo false || echo true)"

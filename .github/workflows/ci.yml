@@ -1,0 +1,117 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - develop
+      - main
+      - master
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Quality and security
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.22.1
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - uses: arduino/setup-task@v2
+        with:
+          version: 3.45.5
+      - name: Install Linux desktop dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes gcc pkg-config libgtk-4-dev libwebkitgtk-6.0-dev
+      - name: Bootstrap pinned tools
+        run: task bootstrap
+      - name: Run quality gates
+        run: task check
+      - name: Run infrastructure spikes
+        run: |
+          task spike:sqlcipher
+          task spike:spark
+      - name: Scan dependencies
+        run: |
+          govulncheck . ./cmd/... ./internal/...
+          npm run audit --prefix frontend
+
+  desktop-build:
+    name: Desktop build (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - macos-15
+          - windows-2025
+          - ubuntu-24.04
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.22.1
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - uses: arduino/setup-task@v2
+        with:
+          version: 3.45.5
+      - name: Install Linux desktop dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes gcc pkg-config libgtk-4-dev libwebkitgtk-6.0-dev
+      - name: Install Windows CGO toolchain
+        if: runner.os == 'Windows'
+        run: choco install mingw --no-progress --yes
+      - name: Bootstrap pinned tools
+        run: task bootstrap
+      - name: Build desktop application
+        run: task build
+      - name: Upload desktop artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mineops-${{ runner.os }}-${{ runner.arch }}
+          path: bin/
+          if-no-files-found: error
+
+  agent-build:
+    name: Agent release artifacts
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: arduino/setup-task@v2
+        with:
+          version: 3.45.5
+      - uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+      - name: Build pinned Linux Agent artifacts
+        run: task agent:build:linux
+      - name: Upload Agent artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: mineops-agent-linux
+          path: bin/agent/
+          if-no-files-found: error

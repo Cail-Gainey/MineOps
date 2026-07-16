@@ -1,0 +1,239 @@
+import { defineStore } from 'pinia'
+import { computed, ref, watch } from 'vue'
+
+import type { MinecraftServer } from '../../bindings/github.com/Cail-Gainey/MineOps/internal/model/models'
+import type {
+  SparkCapability,
+  SparkReport,
+  SparkSnapshot,
+} from '../../bindings/github.com/Cail-Gainey/MineOps/internal/model/models'
+import type {
+  MonitoringOverview,
+  PerformanceOverview,
+  SparkInstallPlan,
+} from '../../bindings/github.com/Cail-Gainey/MineOps/internal/service/models'
+import { listMinecraftServers } from '../services/minecraft-server-api'
+import { getMonitoringOverview } from '../services/monitoring-api'
+import {
+  deleteSparkReport,
+  collectSparkSnapshot,
+  getPerformanceOverview,
+  installSpark,
+  planSparkInstall,
+  probeSpark,
+  rollbackSpark,
+  startSparkHealthReport,
+  startSparkProfiler,
+} from '../services/performance-api'
+import { useSettingsStore } from './settings'
+
+export const usePerformanceStore = defineStore('performance', () => {
+  const settings = useSettingsStore()
+  const servers = ref<MinecraftServer[]>([])
+  const selectedServerID = ref('')
+  const overview = ref<PerformanceOverview | null>(null)
+  const monitoringOverview = ref<MonitoringOverview | null>(null)
+  const installPlan = ref<SparkInstallPlan | null>(null)
+  const profilerDurationSeconds = ref(60)
+  const loading = ref(false)
+  const serversError = ref<unknown>(null)
+  const overviewError = ref<unknown>(null)
+  const monitoringOverviewError = ref<unknown>(null)
+  const overviewServerID = ref('')
+  watch(
+    () => settings.committed?.monitoring.profilerDefaultSeconds,
+    (value) => {
+      if (value) profilerDurationSeconds.value = value
+    },
+    { immediate: true },
+  )
+
+  const selectedServer = computed(
+    () => servers.value.find((server) => server.id === selectedServerID.value) ?? null,
+  )
+  const capability = computed<SparkCapability | null>(() => overview.value?.capability ?? null)
+  const reportPrivacyConfirmation = computed(
+    () => settings.committed?.monitoring.reportPrivacyConfirmation ?? true,
+  )
+  const latestSnapshot = computed<SparkSnapshot | null>(
+    () => overview.value?.latestSnapshot ?? null,
+  )
+  const reports = computed<SparkReport[]>(() => overview.value?.reports ?? [])
+  const snapshots = computed<SparkSnapshot[]>(() => overview.value?.snapshots ?? [])
+  const collectorPaused = computed(() => monitoringOverview.value?.collector?.paused === true)
+  const error = computed(() => {
+    if (serversError.value && servers.value.length === 0) return serversError.value
+    if (overviewError.value && !overview.value) return overviewError.value
+    return null
+  })
+  const partialMessage = computed(() => {
+    if (serversError.value && servers.value.length)
+      return 'Server 列表刷新失败，继续使用已加载目标。'
+    if (overviewError.value && overview.value)
+      return 'Performance 数据刷新失败，当前显示上一次成功快照。'
+    if (monitoringOverviewError.value) return 'Spark 采集控制状态刷新失败，当前显示上一次成功状态。'
+    return ''
+  })
+
+  /** Loads Servers and selects a preferred Performance target. */
+  async function loadServers(preferredServerID = ''): Promise<void> {
+    serversError.value = null
+    try {
+      servers.value = await listMinecraftServers()
+      const preferred = servers.value.find((server) => server.id === preferredServerID)
+      if (preferred) selectedServerID.value = preferred.id
+      if (!servers.value.some((server) => server.id === selectedServerID.value)) {
+        selectedServerID.value = servers.value[0]?.id ?? ''
+      }
+    } catch (reason) {
+      serversError.value = reason
+      throw reason
+    }
+  }
+
+  /** Refreshes all bounded Performance Center state. */
+  async function refresh(): Promise<void> {
+    loading.value = true
+    overviewError.value = null
+    monitoringOverviewError.value = null
+    try {
+      if (servers.value.length === 0) await loadServers()
+      if (overviewServerID.value !== selectedServerID.value) overview.value = null
+      if (!selectedServerID.value) {
+        overview.value = null
+        monitoringOverview.value = null
+        return
+      }
+      const [performanceResult, monitoringResult] = await Promise.allSettled([
+        getPerformanceOverview(selectedServerID.value),
+        getMonitoringOverview(selectedServerID.value),
+      ])
+      if (performanceResult.status === 'rejected') throw performanceResult.reason
+      overview.value = performanceResult.value
+      if (monitoringResult.status === 'fulfilled') monitoringOverview.value = monitoringResult.value
+      else monitoringOverviewError.value = monitoringResult.reason
+      overviewServerID.value = selectedServerID.value
+    } catch (reason) {
+      overviewError.value = reason
+      throw reason
+    } finally {
+      loading.value = false
+    }
+  }
+
+  /** Probes current Spark installation and parser compatibility evidence. */
+  async function probe(): Promise<SparkCapability> {
+    loading.value = true
+    try {
+      const result = await probeSpark(selectedServerID.value)
+      await refresh()
+      return result
+    } finally {
+      loading.value = false
+    }
+  }
+
+  /** Computes and stores the exact official Spark mutation plan. */
+  async function planInstall(): Promise<SparkInstallPlan> {
+    loading.value = true
+    try {
+      installPlan.value = await planSparkInstall(selectedServerID.value)
+      return installPlan.value
+    } finally {
+      loading.value = false
+    }
+  }
+
+  /** Executes the already user-confirmed Spark installation or upgrade. */
+  async function install(): Promise<void> {
+    if (!installPlan.value?.planDigest) throw new Error('Spark 安装计划不存在或已过期')
+    loading.value = true
+    try {
+      await installSpark(selectedServerID.value, installPlan.value.planDigest)
+      installPlan.value = null
+      await refresh()
+    } finally {
+      loading.value = false
+    }
+  }
+
+  /** Restores the latest recorded Spark backup. */
+  async function rollback(): Promise<void> {
+    loading.value = true
+    try {
+      await rollbackSpark(selectedServerID.value)
+      await refresh()
+    } finally {
+      loading.value = false
+    }
+  }
+
+  /** Collects one current TPS/MSPT snapshot. */
+  async function collect(): Promise<void> {
+    loading.value = true
+    try {
+      await collectSparkSnapshot(selectedServerID.value)
+      await refresh()
+    } finally {
+      loading.value = false
+    }
+  }
+
+  /** Starts one health report Operation after the caller handles privacy confirmation. */
+  async function healthReport(): Promise<SparkReport> {
+    const report = await startSparkHealthReport(
+      selectedServerID.value,
+      reportPrivacyConfirmation.value,
+    )
+    await refresh()
+    return report
+  }
+
+  /** Starts one explicit-duration profiler Operation after privacy confirmation. */
+  async function profiler(): Promise<SparkReport> {
+    const report = await startSparkProfiler(
+      selectedServerID.value,
+      profilerDurationSeconds.value,
+      reportPrivacyConfirmation.value,
+    )
+    await refresh()
+    return report
+  }
+
+  /** Deletes one ended Spark report and refreshes the selected Server overview. */
+  async function deleteReport(reportID: string): Promise<void> {
+    await deleteSparkReport(reportID)
+    await refresh()
+  }
+
+  return {
+    capability,
+    collectorPaused,
+    collect,
+    error,
+    deleteReport,
+    healthReport,
+    install,
+    installPlan,
+    latestSnapshot,
+    loading,
+    loadServers,
+    overview,
+    monitoringOverview,
+    overviewError,
+    partialMessage,
+    planInstall,
+    probe,
+    profiler,
+    profilerDurationSeconds,
+    reportPrivacyConfirmation,
+    refresh,
+    reports,
+    rollback,
+    selectedServer,
+    selectedServerID,
+    serversError,
+    servers,
+    snapshots,
+  }
+})

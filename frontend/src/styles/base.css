@@ -1,0 +1,102 @@
+:root {
+  font-family:
+    Inter,
+    ui-sans-serif,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background: var(--surface-canvas, #f4f6f8);
+  color: var(--text-primary, #172033);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+}
+
+body {
+  position: relative;
+  overflow: hidden;
+  background: var(--surface-canvas, #f4f6f8);
+}
+
+body::before,
+body::after {
+  position: fixed;
+  inset: 0;
+  content: '';
+  pointer-events: none;
+}
+
+body::before {
+  background-color: var(--app-background-color, var(--surface-canvas, #f4f6f8));
+  background-image: var(--app-background-image, none);
+  background-position: var(--app-background-position, center);
+  background-repeat: var(--app-background-repeat, no-repeat);
+  background-size: var(--app-background-size, cover);
+  filter: blur(var(--app-background-blur, 0));
+  opacity: var(--app-background-opacity, 1);
+  transform: scale(var(--app-background-scale, 1.02));
+  transition:
+    background-color 180ms ease,
+    filter 180ms ease,
+    opacity 180ms ease,
+    transform 180ms ease;
+}
+
+body::after {
+  background: var(--app-background-overlay, transparent);
+}
+
+#app {
+  position: relative;
+  z-index: 1;
+}
+
+:root[data-contrast='high'] {
+  --border-default: var(--border-strong);
+}
+
+/* 桌面外壳去浏览器化:界面骨架(按钮/导航/标签)默认不可框选,运维数据区按白名单恢复可选中复制。 */
+body {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+input,
+textarea,
+select,
+[contenteditable],
+[contenteditable='true'],
+.xterm,
+.monaco-editor,
+.selectable,
+pre,
+code,
+.n-log,
+.n-data-table td {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+:focus-visible {
+  outline: 2px solid var(--border-focus, #059669);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: var(--accent-subtle, #d1fae5);
+  color: var(--text-primary, #172033);
+}

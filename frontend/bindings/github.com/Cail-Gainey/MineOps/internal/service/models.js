@@ -1616,6 +1616,34 @@ export class SparkInstallPlan {
              */
             this["serverType"] = enums$0.MinecraftServerType.$zero;
         }
+        if (!("minecraftVersion" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["minecraftVersion"] = "";
+        }
+        if (!("javaRuntimeID" in $$source)) {
+            /**
+             * @member
+             * @type {model$0.ID}
+             */
+            this["javaRuntimeID"] = "";
+        }
+        if (!("javaMajor" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["javaMajor"] = 0;
+        }
+        if (!("requiredJavaMajor" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["requiredJavaMajor"] = 0;
+        }
         if (!("currentStatus" in $$source)) {
             /**
              * @member
@@ -1766,10 +1794,10 @@ export class SparkInstallPlan {
      * @returns {SparkInstallPlan}
      */
     static createFrom($$source = {}) {
-        const $$createField18_0 = $$createType26;
+        const $$createField22_0 = $$createType26;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("dependencies" in $$parsedSource) {
-            $$parsedSource["dependencies"] = $$createField18_0($$parsedSource["dependencies"]);
+            $$parsedSource["dependencies"] = $$createField22_0($$parsedSource["dependencies"]);
         }
         return new SparkInstallPlan(/** @type {Partial<SparkInstallPlan>} */($$parsedSource));
     }

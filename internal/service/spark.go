@@ -36,6 +36,10 @@ type SparkInstallPlan struct {
 	ServerID          model.ID                  `json:"serverID"`
 	ServerName        string                    `json:"serverName"`
 	ServerType        enums.MinecraftServerType `json:"serverType"`
+	MinecraftVersion  string                    `json:"minecraftVersion"`
+	JavaRuntimeID     model.ID                  `json:"javaRuntimeID"`
+	JavaMajor         int                       `json:"javaMajor"`
+	RequiredJavaMajor int                       `json:"requiredJavaMajor"`
 	CurrentStatus     enums.SparkStatus         `json:"currentStatus"`
 	CurrentVersion    string                    `json:"currentVersion,omitempty"`
 	TargetVersion     string                    `json:"targetVersion"`
@@ -188,8 +192,37 @@ func (m *SparkManager) lockServer(serverID model.ID) func() {
 }
 
 func calculateSparkPlanDigest(plan SparkInstallPlan) (string, error) {
-	plan.PlanDigest = ""
-	payload, err := json.Marshal(plan)
+	digestInput := struct {
+		ServerID          model.ID
+		ServerType        enums.MinecraftServerType
+		MinecraftVersion  string
+		JavaRuntimeID     model.ID
+		JavaMajor         int
+		RequiredJavaMajor int
+		TargetVersion     string
+		Platform          string
+		Provider          string
+		ReleaseID         string
+		Build             int
+		URL               string
+		ChecksumAlgorithm string
+		Checksum          string
+		SHA256            string
+		ArtifactSize      int64
+		TargetPath        string
+		BackupPath        string
+		Dependencies      []SparkInstallDependency
+		RestartRequired   bool
+	}{
+		ServerID: plan.ServerID, ServerType: plan.ServerType, MinecraftVersion: plan.MinecraftVersion,
+		JavaRuntimeID: plan.JavaRuntimeID, JavaMajor: plan.JavaMajor, RequiredJavaMajor: plan.RequiredJavaMajor,
+		TargetVersion: plan.TargetVersion, Platform: plan.Platform, Provider: plan.Provider,
+		ReleaseID: plan.ReleaseID, Build: plan.Build, URL: plan.URL,
+		ChecksumAlgorithm: plan.ChecksumAlgorithm, Checksum: plan.Checksum, SHA256: plan.SHA256,
+		ArtifactSize: plan.ArtifactSize, TargetPath: plan.TargetPath, BackupPath: plan.BackupPath,
+		Dependencies: plan.Dependencies, RestartRequired: plan.RestartRequired,
+	}
+	payload, err := json.Marshal(digestInput)
 	if err != nil {
 		return "", apperror.Wrap(apperror.CodeInternal, "计算 Spark 安装计划摘要失败", err)
 	}
@@ -401,7 +434,7 @@ func (m *SparkManager) probeLocked(ctx context.Context, serverID model.ID) (mode
 		capability.BackupPath = previous.BackupPath
 		capability.InstallManifest = previous.InstallManifest
 	}
-	artifact, artifactErr := minecraftspark.ArtifactForServer(server.Type, server.Version)
+	artifact, artifactErr := minecraftspark.ArtifactForServer(server.Type, server.Version, 0)
 	if artifactErr == nil {
 		capability.Distribution = artifact.Platform
 	} else if server.Type == enums.ServerPaper && minecraftspark.PaperUsesBundledSpark(server.Version) {
@@ -520,12 +553,25 @@ func (m *SparkManager) planInstallLocked(ctx context.Context, serverID model.ID,
 	if err != nil {
 		return SparkInstallPlan{}, err
 	}
-	artifact, err := m.artifacts.ResolveArtifact(ctx, server.Type, server.Version)
+	if server.JavaRuntimeID == nil {
+		return SparkInstallPlan{}, apperror.New(apperror.CodeSparkUnsupported, "Server 尚未绑定 Java Runtime，无法选择兼容的 Spark Artifact")
+	}
+	javaRuntime, err := m.store.JavaRuntimes().Get(ctx, *server.JavaRuntimeID)
+	if err != nil {
+		return SparkInstallPlan{}, err
+	}
+	artifact, err := m.artifacts.ResolveArtifact(ctx, server.Type, server.Version, javaRuntime.MajorVersion)
 	if err != nil {
 		if server.Type == enums.ServerPaper && minecraftspark.PaperUsesBundledSpark(server.Version) {
 			return SparkInstallPlan{}, apperror.New(apperror.CodeSparkUnsupported, "Paper 1.21+ 已内置 Spark，MineOps 不自动安装外置 Jar")
 		}
 		return SparkInstallPlan{}, apperror.Wrap(apperror.CodeSparkUnsupported, "当前 Server 类型没有批准的 Spark Artifact", err)
+	}
+	if artifact.RequiredJavaMajor > javaRuntime.MajorVersion {
+		return SparkInstallPlan{}, apperror.New(apperror.CodeSparkUnsupported, "Spark Artifact 与当前 Java Runtime 不兼容").WithDetails(map[string]any{
+			"serverType": server.Type, "minecraftVersion": server.Version, "javaMajor": javaRuntime.MajorVersion,
+			"sparkVersion": artifact.Version, "requiredJavaMajor": artifact.RequiredJavaMajor,
+		})
 	}
 	current, probeErr := m.probeLocked(ctx, serverID)
 	if probeErr != nil {
@@ -574,7 +620,7 @@ func (m *SparkManager) planInstallLocked(ctx context.Context, serverID model.ID,
 			MatchPattern: dependency.MatchPattern,
 		})
 	}
-	impact := "将从已批准的 Minecraft spark 下载源获取与当前 Server 兼容的精确版本，校验官方 " + strings.ToUpper(checksumAlgorithm) + "，备份现有 Spark Artifact 后原子替换。"
+	impact := fmt.Sprintf("将从已批准的 Minecraft spark 下载源获取与当前 Server 兼容的精确版本（当前 Java %d，Spark 最低 Java %d），校验官方 %s，备份现有 Spark Artifact 后原子替换。", javaRuntime.MajorVersion, artifact.RequiredJavaMajor, strings.ToUpper(checksumAlgorithm))
 	if len(dependencies) > 0 {
 		impact += " 同时安装与当前 Minecraft 版本匹配的锁定依赖："
 		for index, dependency := range dependencies {
@@ -592,6 +638,7 @@ func (m *SparkManager) planInstallLocked(ctx context.Context, serverID model.ID,
 	}
 	plan := SparkInstallPlan{
 		ServerID: server.ID, ServerName: server.Name, ServerType: server.Type, CurrentStatus: current.Status, CurrentVersion: current.PluginVersion,
+		MinecraftVersion: server.Version, JavaRuntimeID: javaRuntime.ID, JavaMajor: javaRuntime.MajorVersion, RequiredJavaMajor: artifact.RequiredJavaMajor,
 		TargetVersion: artifact.Version, Platform: artifact.Platform, Provider: artifact.Provider, ReleaseID: artifact.ReleaseID, Source: artifactURL, Build: artifact.Build,
 		URL: artifactURL, ChecksumAlgorithm: checksumAlgorithm, Checksum: checksum, SHA256: artifact.SHA256, ArtifactSize: artifact.Size, TargetPath: targetPath, BackupPath: backupPath,
 		Dependencies: dependencies, RestartRequired: restartRequired, Impact: impact, GeneratedAt: generatedAt,
@@ -679,6 +726,16 @@ func (m *SparkManager) Install(ctx context.Context, serverID model.ID, planDiges
 		if !downloaded {
 			return SparkInstallResult{}, apperror.New(apperror.CodeArtifactChecksumMismatch, artifact.name+" 所有批准下载源均失败").WithDetails(map[string]any{
 				"sources": artifact.urls, "expectedChecksumAlgorithm": artifact.checksumAlgorithm, "expectedChecksum": artifact.checksum, "downloadErrors": downloadErrors,
+			})
+		}
+		requiredJavaMajor, inspectErr := minecraftspark.RequiredJavaMajor(localPath)
+		if inspectErr != nil {
+			return SparkInstallResult{}, apperror.Wrap(apperror.CodeSparkUnsupported, "检查 "+artifact.name+" Java 字节码版本失败", inspectErr)
+		}
+		if requiredJavaMajor > plan.JavaMajor {
+			return SparkInstallResult{}, apperror.New(apperror.CodeSparkUnsupported, artifact.name+" 与当前 Server Java Runtime 不兼容").WithDetails(map[string]any{
+				"artifact": artifact.name, "requiredJavaMajor": requiredJavaMajor, "javaMajor": plan.JavaMajor,
+				"minecraftVersion": plan.MinecraftVersion, "serverType": plan.ServerType,
 			})
 		}
 		payload, readErr := os.ReadFile(localPath)

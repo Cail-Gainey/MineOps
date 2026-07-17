@@ -2,7 +2,7 @@ version: '3'
 
 vars:
   APP_NAME: "MineOps"
-  APP_VERSION: "0.0.1"
+  APP_VERSION: "1.0.0"
   UPDATE_PUBLIC_KEY_BASE64: '{{.UPDATE_PUBLIC_KEY_BASE64 | default ""}}'
   BIN_DIR: "bin"
   RELEASE_DIR: '{{.RELEASE_DIR | default "dist/release"}}'
@@ -29,6 +29,21 @@ tasks:
       - go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@{{.GOLANGCI_LINT_VERSION}}
       - go install golang.org/x/vuln/cmd/govulncheck@{{.GOVULNCHECK_VERSION}}
       - npm ci --prefix frontend
+
+  update:generate-key:
+    summary: Generates the free Ed25519 keypair used only for MineOps auto-update authentication
+    desc: |
+      Generates a self-owned updater keypair with the pinned Wails CLI.
+      Keep the private key offline and configure UPDATE_PRIVATE_KEY / UPDATE_PUBLIC_KEY
+      in the protected GitHub release environment. No commercial code-signing
+      certificate is required for MineOps update verification.
+    deps:
+      - task: bootstrap
+    cmds:
+      - mkdir -p "$(dirname "{{.OUTPUT}}")"
+      - wails3 updater genkey -out "{{.OUTPUT}}" {{if eq .FORCE "true"}}-force{{end}}
+    vars:
+      OUTPUT: '{{.OUTPUT | default ".keys/mineops-update.key"}}'
 
   bindings:
     summary: Regenerates Wails TypeScript bindings

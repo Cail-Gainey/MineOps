@@ -26,7 +26,7 @@ const (
 
 // ApplicationVersion is the build-time MineOps version. Release builds inject
 // the Git tag value with -ldflags; development builds use the repository default.
-var ApplicationVersion = "0.0.1"
+var ApplicationVersion = "1.0.0"
 
 // ApplicationUserAgent identifies MineOps requests with the injected version.
-var ApplicationUserAgent = "MineOps/0.0.1"
+var ApplicationUserAgent = "MineOps/1.0.0"

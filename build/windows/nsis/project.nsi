@@ -22,7 +22,7 @@ Unicode true
 ## !define INFO_PROJECTNAME    "MineOps"
 ## !define INFO_COMPANYNAME    "MineOps"
 ## !define INFO_PRODUCTNAME    "MineOps"
-## !define INFO_PRODUCTVERSION "0.0.1"
+## !define INFO_PRODUCTVERSION "1.0.0"
 ## !define INFO_COPYRIGHT      "Copyright (c) 2026 MineOps"
 ###
 ## !define PRODUCT_EXECUTABLE  "Application.exe"      # Default "${INFO_PROJECTNAME}.exe"
@@ -36,7 +36,7 @@ Unicode true
 !define INFO_PROJECTNAME    "MineOps"
 !define INFO_COMPANYNAME    "MineOps"
 !define INFO_PRODUCTNAME    "MineOps"
-!define INFO_PRODUCTVERSION "0.0.1"
+!define INFO_PRODUCTVERSION "1.0.0"
 !define INFO_COPYRIGHT      "Copyright (c) 2026 MineOps"
 !define PRODUCT_EXECUTABLE  "MineOps.exe"
 
@@ -82,6 +82,7 @@ Name "${INFO_PRODUCTNAME}"
 OutFile "..\..\..\bin\${INFO_PROJECTNAME}-${ARCH}-installer.exe" # Name of the installer's file.
 !if "${WAILS_INSTALL_SCOPE}" == "user"
     InstallDir "$LOCALAPPDATA\Programs\${INFO_PRODUCTNAME}"
+    InstallDirRegKey HKCU "Software\${INFO_COMPANYNAME}\${INFO_PRODUCTNAME}" "InstallDir"
 !else
     InstallDir "$PROGRAMFILES64\${INFO_COMPANYNAME}\${INFO_PRODUCTNAME}"
 !endif
@@ -97,6 +98,7 @@ Section
     !insertmacro wails.webview2runtime
 
     SetOutPath $INSTDIR
+    WriteRegStr HKCU "Software\${INFO_COMPANYNAME}\${INFO_PRODUCTNAME}" "InstallDir" "$INSTDIR"
     
     !insertmacro wails.files
     File "/oname=LICENSE.txt" "..\..\..\LICENSE"
@@ -134,5 +136,6 @@ Section "uninstall"
     !insertmacro wails.unassociateCustomProtocols
 
     !insertmacro wails.deleteUninstaller
+    DeleteRegKey HKCU "Software\${INFO_COMPANYNAME}\${INFO_PRODUCTNAME}"
     RMDir "$INSTDIR"
 SectionEnd

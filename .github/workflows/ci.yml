@@ -1,12 +1,9 @@
 name: CI
 
 on:
-  pull_request:
   push:
-    branches:
-      - develop
-      - main
-      - master
+    tags:
+      - "v*"
 
 permissions:
   contents: read
@@ -37,9 +34,11 @@ jobs:
       - name: Install Linux desktop dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install --yes gcc pkg-config libgtk-4-dev libwebkitgtk-6.0-dev
+          sudo apt-get install --yes gcc pkg-config ripgrep libgtk-4-dev libwebkitgtk-6.0-dev
       - name: Bootstrap pinned tools
         run: task bootstrap
+      - name: Build embedded frontend
+        run: npm run build --prefix frontend
       - name: Run quality gates
         run: task check
       - name: Run infrastructure spikes
@@ -52,15 +51,30 @@ jobs:
           npm run audit --prefix frontend
 
   desktop-build:
-    name: Desktop build (${{ matrix.os }})
+    name: Desktop build (${{ matrix.platform }}/${{ matrix.arch }})
     strategy:
       fail-fast: false
       matrix:
-        os:
-          - macos-15
-          - windows-2025
-          - ubuntu-24.04
-    runs-on: ${{ matrix.os }}
+        include:
+          - runner: windows-2025
+            platform: windows
+            arch: amd64
+          - runner: windows-11-arm
+            platform: windows
+            arch: arm64
+          - runner: macos-15-intel
+            platform: darwin
+            arch: amd64
+          - runner: macos-14
+            platform: darwin
+            arch: arm64
+          - runner: ubuntu-24.04
+            platform: linux
+            arch: amd64
+          - runner: ubuntu-24.04-arm
+            platform: linux
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
@@ -82,36 +96,31 @@ jobs:
           sudo apt-get update
           sudo apt-get install --yes gcc pkg-config libgtk-4-dev libwebkitgtk-6.0-dev
       - name: Install Windows CGO toolchain
-        if: runner.os == 'Windows'
+        if: matrix.platform == 'windows' && matrix.arch == 'amd64'
         run: choco install mingw --no-progress --yes
+      - name: Configure Windows ARM64 CGO toolchain
+        if: matrix.platform == 'windows' && matrix.arch == 'arm64'
+        shell: pwsh
+        run: |
+          $version = '20260616'
+          $archive = Join-Path $env:RUNNER_TEMP "llvm-mingw-$version.zip"
+          $toolchain = Join-Path $env:RUNNER_TEMP "llvm-mingw-$version"
+          Invoke-WebRequest "https://github.com/mstorsjo/llvm-mingw/releases/download/$version/llvm-mingw-$version-ucrt-aarch64.zip" -OutFile $archive
+          Expand-Archive -Path $archive -DestinationPath $toolchain -Force
+          $bin = Get-ChildItem $toolchain -Directory | Select-Object -First 1 | ForEach-Object { Join-Path $_.FullName 'bin' }
+          $cc = Join-Path $bin 'aarch64-w64-mingw32-clang.exe'
+          $cxx = Join-Path $bin 'aarch64-w64-mingw32-clang++.exe'
+          if (-not (Test-Path $cc)) { throw "LLVM-MinGW ARM64 compiler was not found" }
+          $bin >> $env:GITHUB_PATH
+          "CC=$cc" >> $env:GITHUB_ENV
+          "CXX=$cxx" >> $env:GITHUB_ENV
       - name: Bootstrap pinned tools
         run: task bootstrap
       - name: Build desktop application
-        run: task build
+        run: task ${{ matrix.platform }}:build ARCH=${{ matrix.arch }}
       - name: Upload desktop artifact
         uses: actions/upload-artifact@v4
         with:
-          name: mineops-${{ runner.os }}-${{ runner.arch }}
+          name: mineops-${{ matrix.platform }}-${{ matrix.arch }}
           path: bin/
-          if-no-files-found: error
-
-  agent-build:
-    name: Agent release artifacts
-    runs-on: ubuntu-24.04
-    timeout-minutes: 45
-    steps:
-      - uses: actions/checkout@v4
-      - uses: arduino/setup-task@v2
-        with:
-          version: 3.45.5
-      - uses: docker/setup-qemu-action@v3
-        with:
-          platforms: arm64
-      - name: Build pinned Linux Agent artifacts
-        run: task agent:build:linux
-      - name: Upload Agent artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: mineops-agent-linux
-          path: bin/agent/
           if-no-files-found: error

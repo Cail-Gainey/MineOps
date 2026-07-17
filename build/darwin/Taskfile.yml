@@ -201,15 +201,25 @@ tasks:
         msg: "KEYCHAIN_PROFILE is required. Set it in the vars section at the top of build/darwin/Taskfile.yml"
 
   release:stage:
-    summary: Stages a notarized App Bundle ZIP with one top-level entry
+    summary: Stages an App Bundle ZIP and DMG for one architecture
     preconditions:
       - sh: 'test -d "{{.BIN_DIR}}/{{.APP_NAME}}.app"'
-        msg: "Package, sign and notarize the macOS App Bundle before staging it."
+        msg: "Package the macOS App Bundle before staging it."
     cmds:
       - mkdir -p "{{.RELEASE_DIR}}"
-      - ditto -c -k --sequesterRsrc --keepParent "{{.BIN_DIR}}/{{.APP_NAME}}.app" "{{.RELEASE_DIR}}/{{.APP_NAME}}-{{.APP_VERSION}}-darwin-universal.zip"
-      - unzip -Z1 "{{.RELEASE_DIR}}/{{.APP_NAME}}-{{.APP_VERSION}}-darwin-universal.zip" | awk -F/ 'NF {print $1}' | sort -u | grep -Fxq '{{.APP_NAME}}.app'
-      - test "$(unzip -Z1 "{{.RELEASE_DIR}}/{{.APP_NAME}}-{{.APP_VERSION}}-darwin-universal.zip" | awk -F/ 'NF {print $1}' | sort -u | wc -l | tr -d ' ')" = 1
+      - ditto -c -k --sequesterRsrc --keepParent "{{.BIN_DIR}}/{{.APP_NAME}}.app" "{{.RELEASE_DIR}}/{{.APP_NAME}}-{{.APP_VERSION}}-darwin-{{.ARCH}}.zip"
+      - unzip -Z1 "{{.RELEASE_DIR}}/{{.APP_NAME}}-{{.APP_VERSION}}-darwin-{{.ARCH}}.zip" | awk -F/ 'NF {print $1}' | sort -u | grep -Fxq '{{.APP_NAME}}.app'
+      - test "$(unzip -Z1 "{{.RELEASE_DIR}}/{{.APP_NAME}}-{{.APP_VERSION}}-darwin-{{.ARCH}}.zip" | awk -F/ 'NF {print $1}' | sort -u | wc -l | tr -d ' ')" = 1
+      - |
+        set -eu
+        dmg_root="$(mktemp -d)"
+        trap 'rm -rf "$dmg_root"' EXIT
+        cp -R "{{.BIN_DIR}}/{{.APP_NAME}}.app" "$dmg_root/"
+        ln -s /Applications "$dmg_root/Applications"
+        hdiutil create -volname "{{.APP_NAME}}" -srcfolder "$dmg_root" -ov -format UDZO "{{.RELEASE_DIR}}/{{.APP_NAME}}-{{.APP_VERSION}}-darwin-{{.ARCH}}.dmg"
+        hdiutil verify "{{.RELEASE_DIR}}/{{.APP_NAME}}-{{.APP_VERSION}}-darwin-{{.ARCH}}.dmg"
+    vars:
+      ARCH: '{{.ARCH | default ARCH}}'
 
   release:sign:notarize:
     summary: Signs and notarizes an existing universal App Bundle without rebuilding

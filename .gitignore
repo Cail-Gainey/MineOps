@@ -1,5 +1,8 @@
 # 操作系统与编辑器
 .DS_Store
+
+# Locally generated MineOps updater signing key (public key may be copied to CI separately)
+/.keys/
 Thumbs.db
 .idea/
 .vscode/

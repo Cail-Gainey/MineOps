@@ -161,12 +161,12 @@ tasks:
         msg: "Either SIGN_CERTIFICATE or SIGN_THUMBPRINT is required. Set it in the vars section at the top of build/windows/Taskfile.yml"
 
   release:stage:
-    summary: Stages the signed raw executable and current-user installer
+    summary: Stages the raw executable and custom-path current-user installer
     preconditions:
       - sh: 'test -s "{{.BIN_DIR}}/{{.APP_NAME}}.exe"'
-        msg: "Build and sign the Windows executable before staging it."
+        msg: "Build the Windows executable before staging it."
       - sh: 'test -s "{{.BIN_DIR}}/{{.APP_NAME}}-{{.ARCH}}-installer.exe"'
-        msg: "Build and sign the NSIS installer before staging it."
+        msg: "Build the NSIS installer before staging it."
     cmds:
       - mkdir -p "{{.RELEASE_DIR}}"
       - cp "{{.BIN_DIR}}/{{.APP_NAME}}.exe" "{{.RELEASE_DIR}}/{{.APP_NAME}}-{{.APP_VERSION}}-windows-{{.ARCH}}.exe"

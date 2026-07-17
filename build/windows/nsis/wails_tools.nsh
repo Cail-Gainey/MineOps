@@ -14,7 +14,7 @@
     !define INFO_PRODUCTNAME "MineOps"
 !endif
 !ifndef INFO_PRODUCTVERSION
-    !define INFO_PRODUCTVERSION "0.0.1"
+    !define INFO_PRODUCTVERSION "1.0.0"
 !endif
 !ifndef INFO_COPYRIGHT
     !define INFO_COPYRIGHT "Copyright (c) 2026 MineOps"

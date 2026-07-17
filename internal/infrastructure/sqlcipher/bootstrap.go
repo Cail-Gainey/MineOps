@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/Cail-Gainey/MineOps/internal/global/apperror"
@@ -34,6 +35,12 @@ func BootstrapDatabase(ctx context.Context, path string, store KeyStore) (Bootst
 	if statErr != nil && !errors.Is(statErr, os.ErrNotExist) {
 		return BootstrapResult{}, apperror.Wrap(apperror.CodeIOReadFailed, "检查数据库文件失败", statErr)
 	}
+	databaseDirectoryExists := false
+	if directoryInfo, directoryErr := os.Stat(filepath.Dir(path)); directoryErr == nil {
+		databaseDirectoryExists = directoryInfo.IsDir()
+	} else if !errors.Is(directoryErr, os.ErrNotExist) {
+		return BootstrapResult{}, apperror.Wrap(apperror.CodeIOReadFailed, "检查数据库目录失败", directoryErr)
+	}
 
 	key, keyErr := store.Load(ctx)
 	if keyErr != nil {
@@ -52,7 +59,16 @@ func BootstrapDatabase(ctx context.Context, path string, store KeyStore) (Bootst
 			return BootstrapResult{}, err
 		}
 	} else if !databaseExists && key.DatabaseCreated {
-		return BootstrapResult{}, apperror.New(apperror.CodeIONotFound, "系统密钥存在但数据库文件缺失，必须从备份恢复")
+		if databaseDirectoryExists {
+			return BootstrapResult{}, apperror.New(apperror.CodeIONotFound, "系统密钥存在但数据库文件缺失，必须从备份恢复")
+		}
+		key, keyErr = GenerateDatabaseKey()
+		if keyErr != nil {
+			return BootstrapResult{}, apperror.Wrap(apperror.CodeInternal, "生成残留密钥替换记录失败", keyErr)
+		}
+		if err := store.Save(ctx, key); err != nil {
+			return BootstrapResult{}, err
+		}
 	}
 
 	connection, err := OpenConnection(ctx, ConnectionOptions{Path: path, Key: key.Key})

@@ -14,6 +14,7 @@ import (
 	"github.com/Cail-Gainey/MineOps/internal/global/apperror"
 	"github.com/Cail-Gainey/MineOps/internal/global/applog"
 	"github.com/Cail-Gainey/MineOps/internal/global/appsettings"
+	"github.com/Cail-Gainey/MineOps/internal/global/appthread"
 	"github.com/Cail-Gainey/MineOps/internal/global/constants"
 	"github.com/Cail-Gainey/MineOps/internal/infrastructure/httpclient"
 	"github.com/Cail-Gainey/MineOps/internal/model"
@@ -59,20 +60,24 @@ type DownloadManager struct {
 	store       repository.Store
 	settings    *appsettings.Manager
 	client      *httpclient.Client
+	pool        *appthread.Pool
 	logger      *applog.Logger
 	dataRoot    string
 	unsubscribe func()
 }
 
 // NewDownloadManager creates the download settings owner and loads the initial HTTP transport.
-func NewDownloadManager(clock model.Clock, store repository.Store, settings *appsettings.Manager, client *httpclient.Client, logger *applog.Logger, dataRoot string) (*DownloadManager, error) {
+func NewDownloadManager(clock model.Clock, store repository.Store, settings *appsettings.Manager, client *httpclient.Client, pool *appthread.Pool, logger *applog.Logger, dataRoot string) (*DownloadManager, error) {
 	if clock == nil || store == nil || settings == nil || client == nil || strings.TrimSpace(dataRoot) == "" {
 		return nil, apperror.New(apperror.CodeValidationRequired, "DownloadManager 依赖不能为空")
 	}
 	if logger == nil {
 		logger = applog.Default()
 	}
-	manager := &DownloadManager{clock: clock, store: store, settings: settings, client: client, logger: logger, dataRoot: dataRoot}
+	if pool == nil {
+		pool = appthread.Default()
+	}
+	manager := &DownloadManager{clock: clock, store: store, settings: settings, client: client, pool: pool, logger: logger, dataRoot: dataRoot}
 	if err := manager.ReloadHTTP(context.Background()); err != nil {
 		return nil, err
 	}
@@ -194,29 +199,36 @@ func (m *DownloadManager) ClearProxyCredential(ctx context.Context) error {
 	return m.ReloadHTTP(ctx)
 }
 
-// CheckSources checks enabled sources in configured priority order through the active proxy.
+// CheckSources concurrently probes every enabled source through the active proxy and returns
+// results in configured priority order. Each source is measured independently on the global
+// thread pool, so a slow or timing-out mirror never blocks the rest of the speed test.
 func (m *DownloadManager) CheckSources(ctx context.Context) []DownloadSourceStatus {
 	sources := append([]model.DownloadSourceSettings(nil), m.settings.Snapshot().Downloads.Sources...)
 	sort.SliceStable(sources, func(left, right int) bool { return sources[left].Priority < sources[right].Priority })
-	result := make([]DownloadSourceStatus, 0, len(sources))
+	enabled := make([]model.DownloadSourceSettings, 0, len(sources))
 	for _, source := range sources {
-		if !source.Enabled {
-			continue
+		if source.Enabled {
+			enabled = append(enabled, source)
 		}
-		startedAt := time.Now()
-		response, err := m.client.Do(ctx, http.MethodGet, source.ProbeURL, http.Header{"Accept": []string{"application/json, text/plain, */*"}})
-		status := DownloadSourceStatus{Category: source.Category, Name: source.Name, URL: source.BaseURL, CheckedAt: m.clock.Now().UTC(), Latency: time.Since(startedAt)}
-		if err == nil {
-			_, _ = io.Copy(io.Discard, io.LimitReader(response.Body, 4096))
-			_ = response.Body.Close()
-			status.Available = true
-		} else {
-			dto := apperror.ToDTO(err)
-			status.ErrorCode, status.ErrorMessage = dto.Code, dto.Message
-		}
-		result = append(result, status)
 	}
-	return result
+	return appthread.Map(ctx, m.pool, enabled, m.probeSource)
+}
+
+// probeSource runs one bounded connectivity and latency probe for a single source through the
+// active HTTP transport, converting any failure into stable error metadata.
+func (m *DownloadManager) probeSource(ctx context.Context, source model.DownloadSourceSettings) DownloadSourceStatus {
+	startedAt := time.Now()
+	response, err := m.client.Do(ctx, http.MethodGet, source.ProbeURL, http.Header{"Accept": []string{"application/json, text/plain, */*"}})
+	status := DownloadSourceStatus{Category: source.Category, Name: source.Name, URL: source.BaseURL, CheckedAt: m.clock.Now().UTC(), Latency: time.Since(startedAt)}
+	if err == nil {
+		_, _ = io.Copy(io.Discard, io.LimitReader(response.Body, 4096))
+		_ = response.Body.Close()
+		status.Available = true
+	} else {
+		dto := apperror.ToDTO(err)
+		status.ErrorCode, status.ErrorMessage = dto.Code, dto.Message
+	}
+	return status
 }
 
 // ResolveSource returns the highest-priority enabled endpoint for one stable provider key.

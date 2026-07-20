@@ -9,6 +9,7 @@ import (
 	desktevents "github.com/Cail-Gainey/MineOps/internal/desktop/events"
 	"github.com/Cail-Gainey/MineOps/internal/global/applog"
 	"github.com/Cail-Gainey/MineOps/internal/global/appsettings"
+	"github.com/Cail-Gainey/MineOps/internal/global/appthread"
 	"github.com/Cail-Gainey/MineOps/internal/global/constants"
 	"github.com/Cail-Gainey/MineOps/internal/global/enums"
 	"github.com/Cail-Gainey/MineOps/internal/infrastructure/desktoprelease"
@@ -24,6 +25,7 @@ import (
 // Runtime contains manually composed stage 1 services and their owned resources.
 type Runtime struct {
 	Settings              *appsettings.Manager
+	Threads               *appthread.Pool
 	Operations            *service.OperationRunner
 	SSHSessions           *service.SSHSessionManager
 	KnownHosts            *service.KnownHostManager
@@ -66,6 +68,8 @@ type Runtime struct {
 func NewRuntime(ctx context.Context, logger *applog.Logger, logWriter *applog.RotatingWriter) (*Runtime, error) {
 	shutdown := service.NewShutdownGroup(ctx, logger)
 	exitGuard := service.NewExitGuard()
+	threadPool := appthread.NewPool(appthread.Options{Name: "global", Logger: logger})
+	appthread.SetDefault(threadPool)
 	logs, err := service.NewLogManager(logWriter)
 	if err != nil {
 		return nil, err
@@ -148,7 +152,7 @@ func NewRuntime(ctx context.Context, logger *applog.Logger, logWriter *applog.Ro
 		return nil, err
 	}
 	httpClient := httpclient.New(httpclient.Config{Retries: 2, MaximumResponseSize: 8 * 1024 * 1024})
-	downloads, err := service.NewDownloadManager(model.SystemClock{}, store, settings, httpClient, logger, dataDirectory)
+	downloads, err := service.NewDownloadManager(model.SystemClock{}, store, settings, httpClient, threadPool, logger, dataDirectory)
 	if err != nil {
 		_ = databaseResult.Connection.Close()
 		return nil, err
@@ -323,7 +327,7 @@ func NewRuntime(ctx context.Context, logger *applog.Logger, logWriter *applog.Ro
 		return nil, err
 	}
 	return &Runtime{
-		Settings: settings, Operations: operations, SSHSessions: sshSessions, KnownHosts: knownHosts,
+		Settings: settings, Threads: threadPool, Operations: operations, SSHSessions: sshSessions, KnownHosts: knownHosts,
 		SSHClients: sshClients, Files: files, JavaRuntimes: javaRuntimes, MinecraftServers: minecraftServers,
 		Installations: installations, Downloads: downloads, Processes: processes, Lifecycle: lifecycle, PlayerActivity: playerActivity, Firewall: firewall,
 		Metrics: metrics, MetricBus: metricBus, MetricCollector: metricCollector,
@@ -350,11 +354,15 @@ func (r *Runtime) Close() error {
 	if r.shutdown != nil {
 		shutdownError = r.shutdown.Shutdown(ctx)
 	}
+	var threadError error
+	if r.Threads != nil {
+		threadError = r.Threads.Close(ctx)
+	}
 	var databaseError error
 	if r.database != nil {
 		databaseError = r.database.Close()
 	}
-	return errors.Join(shutdownError, databaseError)
+	return errors.Join(shutdownError, threadError, databaseError)
 }
 
 // JoinCloseError combines application and Runtime shutdown failures.

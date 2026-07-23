@@ -304,6 +304,7 @@ func (c *MetricCollector) collectAll(ctx context.Context, interval time.Duration
 		}
 	}
 
+	startupSweepSessions := make(map[model.ID]bool)
 	startupSweep := c.startupSweepRequired()
 	if startupSweep {
 		sessions, listErr := c.store.SSHSessions().List(ctx, repository.SSHSessionQuery{Limit: 500})
@@ -314,7 +315,7 @@ func (c *MetricCollector) collectAll(ctx context.Context, interval time.Duration
 		} else {
 			for _, session := range sessions {
 				groups[session.ID] = groups[session.ID]
-				c.setSessionActive(session.ID, true)
+				startupSweepSessions[session.ID] = true
 			}
 			c.markStartupSweepDone()
 		}
@@ -331,7 +332,7 @@ func (c *MetricCollector) collectAll(ctx context.Context, interval time.Duration
 				c.recordFailure(serverID, apperror.ToDTO(eligibilityErr).Message)
 			}
 		}
-		if len(targets) == 0 && !c.isSessionActive(sessionID) {
+		if len(targets) == 0 && !c.isSessionActive(sessionID) && !startupSweepSessions[sessionID] {
 			continue
 		}
 		serverIDs := make([]model.ID, 0, len(targets))

@@ -15,6 +15,7 @@ import {
   Update,
 } from '../../bindings/github.com/Cail-Gainey/MineOps/internal/desktop/services/sshsessionservice'
 import { throwIfError } from './api-client'
+import { runWithHostKeyTrustConfirmation } from './host-key-trust'
 
 /** Fetches filtered SSH Sessions through generated Wails bindings. */
 export async function listSSHSessions(
@@ -66,9 +67,11 @@ export async function preflightSSHSession(id: string): Promise<SSHPreflightDTO> 
 
 /** Performs SSH handshake, strict host-key verification, authentication, and a no-op command. */
 export async function testSSHSessionConnection(id: string): Promise<SSHConnectionTestDTO> {
-  const result = await TestConnection(id)
-  throwIfError(result.error)
-  return result
+  return runWithHostKeyTrustConfirmation(async () => {
+    const result = await TestConnection(id)
+    throwIfError(result.error)
+    return result
+  })
 }
 
 /**
@@ -80,7 +83,9 @@ export async function testSSHSessionInput(
   id: string,
   input: SSHSessionInput,
 ): Promise<SSHConnectionTestDTO> {
-  const result = await TestInput(id, input)
-  throwIfError(result.error)
-  return result
+  return runWithHostKeyTrustConfirmation(async () => {
+    const result = await TestInput(id, input)
+    throwIfError(result.error)
+    return result
+  })
 }

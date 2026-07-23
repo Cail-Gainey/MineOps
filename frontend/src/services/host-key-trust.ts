@@ -65,3 +65,21 @@ export async function confirmAndTrustHostKey(error: ApplicationError): Promise<b
     return false
   }
 }
+
+/**
+ * 执行 SSH 操作，并在首次指纹或指纹变化被拒绝时弹出确认，保存信任后重试一次。
+ * @param {() => Promise<T>} operation - 可能返回 ssh.host_key_rejected 的 SSH 操作。
+ * @returns {Promise<T>} 首次执行或确认信任后重试得到的结果。
+ */
+export async function runWithHostKeyTrustConfirmation<T>(
+  operation: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await operation()
+  } catch (error) {
+    if (!isHostKeyRejected(error)) throw error
+    const trusted = await confirmAndTrustHostKey(error)
+    if (!trusted) throw new Error('SSH 主机指纹未被信任，连接已停止')
+    return operation()
+  }
+}

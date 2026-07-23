@@ -16,7 +16,7 @@ import { h, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import type { SSHSessionDTO } from '../../../bindings/github.com/Cail-Gainey/MineOps/internal/desktop/services/models'
-import { preflightSSHSession } from '../../services/ssh-session-api'
+import { preflightSSHSession, testSSHSessionConnection } from '../../services/ssh-session-api'
 import AppDataTable from '../../shared/components/AppDataTable.vue'
 import AppIcon from '../../shared/components/AppIcon.vue'
 import { useInteractionStore } from '../../stores/interactions'
@@ -305,12 +305,23 @@ function handleContextAction(key: string | number, session: SSHSessionDTO): void
 
 async function saved(session: SSHSessionDTO): Promise<void> {
   delete connectionStates.value[session.id]
-  notifications.push({
-    kind: 'success',
-    title: editing.value ? 'SSH Session 已更新' : 'SSH Session 已创建',
-    content: session.name,
-    dedupeKey: `ssh-session:saved:${session.id}`,
-  })
+  const action = editing.value ? '更新' : '创建'
+  try {
+    const result = await testSSHSessionConnection(session.id)
+    notifications.push({
+      kind: 'success',
+      title: `SSH Session 已${action}并通过连接测试`,
+      content: `${session.name} · ${result.serverVersion} · ${result.remoteAddress} · ${result.connectDurationMs} ms`,
+      dedupeKey: `ssh-session:saved:${session.id}`,
+    })
+  } catch (error) {
+    notifications.push({
+      kind: 'warning',
+      title: `SSH Session 已${action}，但自动连接测试未通过`,
+      content: error instanceof Error ? error.message : String(error),
+      dedupeKey: `ssh-session:saved-test-error:${session.id}`,
+    })
+  }
   await refresh()
 }
 

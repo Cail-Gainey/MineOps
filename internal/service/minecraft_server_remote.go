@@ -98,18 +98,20 @@ func (m *MinecraftServerManager) InspectRemote(ctx context.Context, sshSessionID
 		return RemoteServerInspection{}, err
 	}
 	defer func() { _ = client.Close() }()
-	remotePath, err := model.NormalizeRemotePath(requestedPath, home, home)
+	requestedRemotePath, err := model.NormalizeRemotePath(requestedPath, home, home)
+	if err != nil {
+		return RemoteServerInspection{}, err
+	}
+	remotePath, err := resolveRemoteServerImportPath(ctx, client, requestedRemotePath)
+	if err != nil {
+		return RemoteServerInspection{}, err
+	}
+	remotePath, err = model.NormalizeRemotePath(remotePath, home, home)
 	if err != nil {
 		return RemoteServerInspection{}, err
 	}
 	if remotePath == "/" || remotePath == home || path.Dir(remotePath) == "/" {
 		return RemoteServerInspection{}, apperror.New(apperror.CodeSFTPPathRejected, "远程 Server 目录不能是根目录、Home 或根目录下一级路径")
-	}
-	if _, err := client.RunCommand(ctx, RemoteCommand{
-		Executable: "sh", Arguments: []string{"-c", `test -d "$1" && test ! -L "$1"`, "mineops-server-import", remotePath},
-		Timeout: 10 * time.Second, MaximumOutput: 4096,
-	}); err != nil {
-		return RemoteServerInspection{}, apperror.Wrap(apperror.CodeSFTPPathRejected, "远程 Server 路径必须是普通目录，拒绝符号链接", err)
 	}
 	inspectionScript := `set -eu
 for file in "$1"/* "$1"/.[!.]* "$1"/..?*; do
@@ -143,6 +145,9 @@ done`
 	inspection := RemoteServerInspection{
 		RemotePath: remotePath, SuggestedType: enums.ServerVanilla,
 		Jars: make([]RemoteServerJar, 0), Warnings: make([]string, 0),
+	}
+	if requestedRemotePath != remotePath {
+		inspection.Warnings = append(inspection.Warnings, "远程目录符号链接已解析为实际路径，导入后将固定使用该目录")
 	}
 	for index := 0; index < len(fields); index += 2 {
 		name := fields[index]
@@ -211,6 +216,43 @@ done`
 		inspection.Warnings = append(inspection.Warnings, "无法从 Jar、版本元数据或最新日志识别 Minecraft 版本，需要手工确认")
 	}
 	return inspection, nil
+}
+
+func resolveRemoteServerImportPath(ctx context.Context, client *SSHClient, remotePath string) (string, error) {
+	resolveScript := `set -eu
+candidate=$1
+resolved=
+if command -v readlink >/dev/null 2>&1; then
+  resolved=$(readlink -f "$candidate" 2>/dev/null || true)
+fi
+if [ -z "$resolved" ] && command -v realpath >/dev/null 2>&1; then
+  resolved=$(realpath "$candidate" 2>/dev/null || true)
+fi
+if [ -z "$resolved" ]; then
+  if [ -L "$candidate" ]; then
+    printf 'remote directory symlink cannot be resolved: %s\n' "$candidate" >&2
+    exit 2
+  fi
+  resolved=$candidate
+fi
+if [ ! -d "$resolved" ] || [ -L "$resolved" ]; then
+  printf 'remote directory is missing or not an ordinary directory: %s\n' "$candidate" >&2
+  exit 3
+fi
+printf '%s' "$resolved"`
+	result, err := client.RunCommand(ctx, RemoteCommand{
+		Executable: "sh", Arguments: []string{"-c", resolveScript, "mineops-server-import-resolve", remotePath},
+		Timeout: 10 * time.Second, MaximumOutput: 4096,
+	})
+	resolvedPath := strings.TrimSpace(result.Stdout)
+	if err != nil || resolvedPath == "" {
+		return "", apperror.Wrap(apperror.CodeSFTPPathRejected, "远程 Server 路径不存在或无法解析为普通目录", err).WithDetails(map[string]any{
+			"requestedPath": remotePath,
+			"exitCode":      result.ExitCode,
+			"stderr":        strings.TrimSpace(result.Stderr),
+		})
+	}
+	return resolvedPath, nil
 }
 
 // ImportRemote registers read-only inspected remote files without modifying the original directory.

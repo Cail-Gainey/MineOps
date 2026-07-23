@@ -18,8 +18,11 @@ import (
 const minecraftVersionPattern = `[0-9]+(?:\.[0-9]+){1,2}`
 
 var minecraftVersionClue = regexp.MustCompile(`(?:^|[^0-9])(` + minecraftVersionPattern + `)(?:[^0-9]|$)`)
+var forgeLibraryVersionEvidence = regexp.MustCompile(`(?i)net/minecraftforge/forge/(` + minecraftVersionPattern + `)-[^/\s]+/(?:unix|win)_args\.txt`)
+var neoForgeBuildVersionEvidence = regexp.MustCompile(`(?im)(?:net/neoforged/neoforge/|(?:^|[/_-])neoforge[-_])([0-9]+)\.([0-9]+)(?:\.[^/\s]+)?`)
 var minecraftVersionEvidence = []*regexp.Regexp{
 	regexp.MustCompile(`(?i)"(?:id|name)"\s*:\s*"(` + minecraftVersionPattern + `)"`),
+	regexp.MustCompile(`(?i)"minecraft"\s*:\s*"(` + minecraftVersionPattern + `)"`),
 	regexp.MustCompile(`(?im)^[0-9a-f]{32,128}[ \t]+(` + minecraftVersionPattern + `)[ \t]+[^\r\n]*server-`),
 	regexp.MustCompile(`(?i)\b(?:minecraft|mc|game)[ ._-]*version\b"?\s*(?:[:=]|,\s*)\s*"?v?(` + minecraftVersionPattern + `)`),
 	regexp.MustCompile(`(?i)starting\s+minecraft\s+server\s+version\s+v?(` + minecraftVersionPattern + `)`),
@@ -30,6 +33,27 @@ var minecraftVersionEvidence = []*regexp.Regexp{
 	regexp.MustCompile(`(?i)\b(?:paper|purpur|folia|spigot)\s+(?:server\s+)?version\s+v?(` + minecraftVersionPattern + `)`),
 }
 
+const remoteServerInventoryScript = `set -eu
+for file in "$1"/* "$1"/.[!.]* "$1"/..?*; do
+  if [ ! -e "$file" ] || [ -L "$file" ] || [ ! -f "$file" ]; then continue; fi
+  name=${file##*/}
+  case "$name" in
+    run.sh|server.properties|eula.txt)
+      size=$(wc -c < "$file" | tr -d '[:space:]')
+      printf '%s\000%s\000' "$name" "$size"
+      ;;
+    *)
+      lower_name=$(printf '%s' "$name" | tr '[:upper:]' '[:lower:]')
+      case "$lower_name" in
+        *.jar)
+          size=$(wc -c < "$file" | tr -d '[:space:]')
+          printf '%s\000%s\000' "$name" "$size"
+          ;;
+      esac
+      ;;
+  esac
+done`
+
 const remoteServerMetadataScript = `set -u
 root=$1
 jar=$2
@@ -38,15 +62,15 @@ if [ -f "$root/version.json" ] && [ ! -L "$root/version.json" ]; then
   head -c 32768 "$root/version.json" 2>/dev/null || true
   printf '\n'
 fi
-if [ -f "$root/$jar" ] && [ ! -L "$root/$jar" ]; then
+if [ -n "$jar" ] && [ -f "$root/$jar" ] && [ ! -L "$root/$jar" ]; then
   python_command=
   if command -v python3 >/dev/null 2>&1; then
     python_command=python3
   elif command -v python >/dev/null 2>&1; then
     python_command=python
   fi
-  for entry in version.json META-INF/MANIFEST.MF META-INF/versions.list fabric-server-launch.properties install_profile.json; do
-    printf '%s\n' "--- mineops:jar/$entry ---"
+  for entry in version.json META-INF/MANIFEST.MF META-INF/versions.list fabric-server-launch.properties quilt-server-launch.properties install_profile.json; do
+    printf '%s\n' '--- mineops:jar-entry ---'
     if command -v unzip >/dev/null 2>&1; then
       unzip -p "$root/$jar" "$entry" 2>/dev/null | head -c 32768 || true
     elif command -v busybox >/dev/null 2>&1 && busybox unzip -h >/dev/null 2>&1; then
@@ -64,6 +88,22 @@ except (KeyError, OSError, zipfile.BadZipFile):
     printf '\n'
   done
 fi
+if [ -f "$root/run.sh" ] && [ ! -L "$root/run.sh" ]; then
+  printf '%s\n' '--- mineops:file/run.sh ---'
+  head -c 32768 "$root/run.sh" 2>/dev/null || true
+  printf '\n'
+fi
+for entry in \
+  "$root"/libraries/net/minecraftforge/forge/*/unix_args.txt \
+  "$root"/libraries/net/minecraftforge/forge/*/win_args.txt \
+  "$root"/libraries/net/neoforged/neoforge/*/unix_args.txt \
+  "$root"/libraries/net/neoforged/neoforge/*/win_args.txt; do
+  if [ ! -f "$entry" ] || [ -L "$entry" ]; then continue; fi
+  relative=${entry#"$root"/}
+  printf '%s\n' "--- mineops:file/$relative ---"
+  head -c 32768 "$entry" 2>/dev/null || true
+  printf '\n'
+done
 if [ -f "$root/logs/latest.log" ] && [ ! -L "$root/logs/latest.log" ]; then
   printf '%s\n' '--- mineops:logs/latest.log:head ---'
   head -c 131072 "$root/logs/latest.log" 2>/dev/null || true
@@ -91,7 +131,7 @@ type RemoteServerInspection struct {
 	Warnings         []string                  `json:"warnings"`
 }
 
-// InspectRemote performs read-only Jar, Properties, EULA, and version-clue inspection.
+// InspectRemote performs read-only launch file, Properties, EULA, and version-clue inspection.
 func (m *MinecraftServerManager) InspectRemote(ctx context.Context, sshSessionID model.ID, requestedPath string) (RemoteServerInspection, error) {
 	client, home, err := m.connectRemoteServer(ctx, sshSessionID)
 	if err != nil {
@@ -113,19 +153,8 @@ func (m *MinecraftServerManager) InspectRemote(ctx context.Context, sshSessionID
 	if remotePath == "/" || remotePath == home || path.Dir(remotePath) == "/" {
 		return RemoteServerInspection{}, apperror.New(apperror.CodeSFTPPathRejected, "远程 Server 目录不能是根目录、Home 或根目录下一级路径")
 	}
-	inspectionScript := `set -eu
-for file in "$1"/* "$1"/.[!.]* "$1"/..?*; do
-  if [ ! -e "$file" ] || [ -L "$file" ] || [ ! -f "$file" ]; then continue; fi
-  name=${file##*/}
-  case "$name" in
-    *.jar|server.properties|eula.txt)
-      size=$(wc -c < "$file" | tr -d '[:space:]')
-      printf '%s\000%s\000' "$name" "$size"
-      ;;
-  esac
-done`
 	result, err := client.RunCommand(ctx, RemoteCommand{
-		Executable: "sh", Arguments: []string{"-c", inspectionScript, "mineops-server-import", remotePath},
+		Executable: "sh", Arguments: []string{"-c", remoteServerInventoryScript, "mineops-server-import", remotePath},
 		Timeout: 20 * time.Second, MaximumOutput: 512 * 1024,
 	})
 	if err != nil {
@@ -149,6 +178,7 @@ done`
 	if requestedRemotePath != remotePath {
 		inspection.Warnings = append(inspection.Warnings, "远程目录符号链接已解析为实际路径，导入后将固定使用该目录")
 	}
+	var runScript *RemoteServerJar
 	for index := 0; index < len(fields); index += 2 {
 		name := fields[index]
 		size, parseErr := strconv.ParseInt(fields[index+1], 10, 64)
@@ -160,6 +190,9 @@ done`
 			inspection.PropertiesFound = true
 		case "eula.txt":
 			inspection.EULAFound = true
+		case "run.sh":
+			candidate := RemoteServerJar{Name: name, Size: size}
+			runScript = &candidate
 		default:
 			if strings.HasSuffix(strings.ToLower(name), ".jar") {
 				inspection.Jars = append(inspection.Jars, RemoteServerJar{Name: name, Size: size})
@@ -182,29 +215,42 @@ done`
 		}
 	}
 	inspection.SuggestedJar, inspection.SuggestedType, inspection.SuggestedVersion = inferRemoteServerClues(inspection.Jars, "")
-	if inspection.SuggestedJar != "" && (inspection.SuggestedVersion == "" || inspection.SuggestedType == enums.ServerVanilla) {
+	metadataEvidence := ""
+	if runScript != nil || inspection.SuggestedVersion == "" || inspection.SuggestedType == enums.ServerVanilla {
 		metadata, metadataErr := client.RunCommand(ctx, RemoteCommand{
 			Executable: "sh", Arguments: []string{"-c", remoteServerMetadataScript, "mineops-server-import-metadata", remotePath, inspection.SuggestedJar},
 			Timeout: 15 * time.Second, MaximumOutput: 512 * 1024,
 		})
 		if metadataErr == nil {
-			_, inferredType, inferredVersion := inferRemoteServerClues(inspection.Jars, metadata.Stdout)
-			inspection.SuggestedType = inferredType
-			if inferredVersion != "" {
-				inspection.SuggestedVersion = inferredVersion
-			}
+			metadataEvidence = metadata.Stdout
 		}
 	}
+	launchCandidates := append([]RemoteServerJar(nil), inspection.Jars...)
+	if runScript != nil {
+		launchCandidates = append(launchCandidates, *runScript)
+	}
+	suggestedLauncher, inferredType, inferredVersion := inferRemoteServerClues(launchCandidates, metadataEvidence)
+	if inferredType == enums.ServerForge || inferredType == enums.ServerNeoForge {
+		inspection.Jars = launchCandidates
+		inspection.SuggestedJar = suggestedLauncher
+		inspection.SuggestedType = inferredType
+		if inferredVersion != "" {
+			inspection.SuggestedVersion = inferredVersion
+		}
+	} else {
+		inspection.SuggestedJar, inspection.SuggestedType, inspection.SuggestedVersion = inferRemoteServerClues(inspection.Jars, metadataEvidence)
+	}
+	sort.Slice(inspection.Jars, func(left, right int) bool { return inspection.Jars[left].Name < inspection.Jars[right].Name })
 	if inspection.SuggestedVersion == "" {
 		if match := minecraftVersionClue.FindStringSubmatch(strings.ToLower(path.Base(remotePath))); len(match) > 1 {
 			inspection.SuggestedVersion = match[1]
 		}
 	}
 	if len(inspection.Jars) == 0 {
-		inspection.Warnings = append(inspection.Warnings, "根目录未发现可导入的 Jar")
+		inspection.Warnings = append(inspection.Warnings, "根目录未发现可导入的启动文件")
 	}
 	if len(inspection.Jars) > 1 {
-		inspection.Warnings = append(inspection.Warnings, "发现多个 Jar，导入前必须明确选择启动 Jar")
+		inspection.Warnings = append(inspection.Warnings, "发现多个启动文件，导入前必须明确选择")
 	}
 	if !inspection.PropertiesFound {
 		inspection.Warnings = append(inspection.Warnings, "未发现 server.properties，可能尚未完成首次启动")
@@ -213,7 +259,7 @@ done`
 		inspection.Warnings = append(inspection.Warnings, "EULA 未确认；MineOps 不会在导入时修改 eula.txt")
 	}
 	if inspection.SuggestedVersion == "" {
-		inspection.Warnings = append(inspection.Warnings, "无法从 Jar、版本元数据或最新日志识别 Minecraft 版本，需要手工确认")
+		inspection.Warnings = append(inspection.Warnings, "无法从启动文件、版本元数据或最新日志识别 Minecraft 版本，需要手工确认")
 	}
 	return inspection, nil
 }
@@ -264,23 +310,23 @@ func (m *MinecraftServerManager) ImportRemote(ctx context.Context, command Minec
 	if err != nil {
 		return nil, err
 	}
-	selectedJar := path.Clean(strings.TrimSpace(command.LaunchProfile.JarPath))
-	if selectedJar == "." || selectedJar == "" || path.IsAbs(selectedJar) || strings.Contains(selectedJar, "/") {
-		return nil, apperror.New(apperror.CodeValidationInvalidArgument, "导入启动 Jar 必须是远程 Server 根目录下的文件名")
+	selectedLauncher := path.Clean(strings.TrimSpace(command.LaunchProfile.JarPath))
+	if selectedLauncher == "." || selectedLauncher == "" || path.IsAbs(selectedLauncher) || strings.Contains(selectedLauncher, "/") {
+		return nil, apperror.New(apperror.CodeValidationInvalidArgument, "导入启动文件必须是远程 Server 根目录下的文件名")
 	}
-	jarFound := false
+	launcherFound := false
 	for _, candidate := range inspection.Jars {
-		if candidate.Name == selectedJar {
-			jarFound = true
+		if candidate.Name == selectedLauncher {
+			launcherFound = true
 			break
 		}
 	}
-	if !jarFound {
-		return nil, apperror.New(apperror.CodeValidationConflict, "选择的启动 Jar 与最新远程检查结果不一致")
+	if !launcherFound {
+		return nil, apperror.New(apperror.CodeValidationConflict, "选择的启动文件与最新远程检查结果不一致")
 	}
 	command.RemotePath = inspection.RemotePath
 	command.LaunchProfile.WorkingDirectory = inspection.RemotePath
-	command.LaunchProfile.JarPath = selectedJar
+	command.LaunchProfile.JarPath = selectedLauncher
 	server, err := model.NewMinecraftServer(m.clock, model.MinecraftServer{
 		SSHSessionID: command.SSHSessionID, JavaRuntimeID: command.JavaRuntimeID,
 		Name: command.Name, Type: command.Type, Version: command.Version,
@@ -395,64 +441,132 @@ func (m *MinecraftServerManager) connectRemoteServer(ctx context.Context, sshSes
 }
 
 func inferRemoteServerClues(jars []RemoteServerJar, evidence string) (string, enums.MinecraftServerType, string) {
-	if len(jars) == 0 {
-		return "", enums.ServerVanilla, ""
-	}
 	clues := []struct {
-		name string
-		kind enums.MinecraftServerType
+		markers []string
+		kind    enums.MinecraftServerType
 	}{
-		{"neoforge", enums.ServerNeoForge}, {"waterfall", enums.ServerWaterfall}, {"velocity", enums.ServerVelocity},
-		{"purpur", enums.ServerPurpur}, {"paper", enums.ServerPaper}, {"folia", enums.ServerFolia},
-		{"fabric", enums.ServerFabric}, {"quilt", enums.ServerQuilt}, {"spigot", enums.ServerSpigot},
-		{"bungee", enums.ServerBungee}, {"forge", enums.ServerForge},
-	}
-	selected := jars[0].Name
-	selectedPreferred := false
-	for _, jar := range jars {
-		if strings.EqualFold(jar.Name, "server.jar") {
-			selected = jar.Name
-			selectedPreferred = true
-			break
-		}
-	}
-	if !selectedPreferred {
-		for _, jar := range jars {
-			lowerName := strings.ToLower(jar.Name)
-			for _, clue := range clues {
-				if strings.Contains(lowerName, clue.name) {
-					selected = jar.Name
-					selectedPreferred = true
-					break
-				}
-			}
-			if selectedPreferred {
-				break
-			}
-		}
+		{[]string{"neoforge", "neoforged", "neoforge_server"}, enums.ServerNeoForge},
+		{[]string{"waterfall"}, enums.ServerWaterfall},
+		{[]string{"purpur"}, enums.ServerPurpur},
+		{[]string{"folia"}, enums.ServerFolia},
+		{[]string{"quilt", "quiltmc"}, enums.ServerQuilt},
+		{[]string{"fabric", "fabricmc"}, enums.ServerFabric},
+		{[]string{"paper", "papermc", "paperclip"}, enums.ServerPaper},
+		{[]string{"velocity", "velocitypowered"}, enums.ServerVelocity},
+		{[]string{"spigot", "craftbukkit", "org.bukkit"}, enums.ServerSpigot},
+		{[]string{"bungeecord", "net.md_5.bungee", "bungee"}, enums.ServerBungee},
+		{[]string{"minecraftforge", "net.minecraftforge", "forge_server", "forge-", "forge_", "/forge/"}, enums.ServerForge},
 	}
 	allJarNames := strings.Builder{}
 	for _, jar := range jars {
 		allJarNames.WriteString(jar.Name)
 		allJarNames.WriteByte('\n')
 	}
-	lower := strings.ToLower(selected + "\n" + allJarNames.String() + evidence)
+	lower := strings.ToLower(allJarNames.String() + evidence)
 	typeValue := enums.ServerVanilla
 	for _, clue := range clues {
-		if strings.Contains(lower, clue.name) {
-			typeValue = clue.kind
+		for _, marker := range clue.markers {
+			if strings.Contains(lower, marker) {
+				typeValue = clue.kind
+				break
+			}
+		}
+		if typeValue != enums.ServerVanilla {
 			break
 		}
 	}
+	selected := ""
+	if typeValue == enums.ServerForge || typeValue == enums.ServerNeoForge {
+		for _, jar := range jars {
+			if strings.EqualFold(jar.Name, "run.sh") {
+				selected = jar.Name
+				break
+			}
+		}
+	}
+	if selected == "" && typeValue != enums.ServerVanilla {
+		for _, jar := range jars {
+			lowerName := strings.ToLower(jar.Name)
+			for _, clue := range clues {
+				if clue.kind != typeValue {
+					continue
+				}
+				for _, marker := range clue.markers {
+					if strings.Contains(lowerName, marker) {
+						selected = jar.Name
+						break
+					}
+				}
+				if selected != "" {
+					break
+				}
+			}
+			if selected != "" {
+				break
+			}
+		}
+	}
+	if selected == "" {
+		for _, jar := range jars {
+			if strings.EqualFold(jar.Name, "server.jar") {
+				selected = jar.Name
+				break
+			}
+		}
+	}
+	if selected == "" {
+		for _, jar := range jars {
+			if strings.HasSuffix(strings.ToLower(jar.Name), ".jar") {
+				selected = jar.Name
+				break
+			}
+		}
+	}
 	version := ""
-	if match := minecraftVersionClue.FindStringSubmatch(strings.ToLower(selected)); len(match) > 1 {
-		version = match[1]
-	} else {
+	if typeValue == enums.ServerNeoForge {
+		if match := neoForgeBuildVersionEvidence.FindStringSubmatch(evidence + "\n" + allJarNames.String()); len(match) > 2 {
+			minor, minorErr := strconv.Atoi(match[1])
+			patch, patchErr := strconv.Atoi(match[2])
+			if minorErr == nil && patchErr == nil && minor > 1 {
+				if patch == 0 {
+					version = fmt.Sprintf("1.%d", minor)
+				} else {
+					version = fmt.Sprintf("1.%d.%d", minor, patch)
+				}
+			}
+		}
+	}
+	if version == "" && (typeValue == enums.ServerForge || typeValue == enums.ServerNeoForge) {
+		for _, jar := range jars {
+			lowerName := strings.ToLower(jar.Name)
+			if typeValue == enums.ServerForge && !strings.Contains(lowerName, "forge-") && !strings.Contains(lowerName, "forge_") {
+				continue
+			}
+			if typeValue == enums.ServerNeoForge && !strings.Contains(lowerName, "neoforge-") && !strings.Contains(lowerName, "neoforge_") {
+				continue
+			}
+			if match := minecraftVersionClue.FindStringSubmatch(lowerName); len(match) > 1 {
+				version = match[1]
+				break
+			}
+		}
+	}
+	if selected != "" {
+		if match := minecraftVersionClue.FindStringSubmatch(strings.ToLower(selected)); version == "" && len(match) > 1 {
+			version = match[1]
+		}
+	}
+	if version == "" {
 		for _, pattern := range minecraftVersionEvidence {
 			if match := pattern.FindStringSubmatch(evidence); len(match) > 1 {
 				version = match[1]
 				break
 			}
+		}
+	}
+	if version == "" {
+		if match := forgeLibraryVersionEvidence.FindStringSubmatch(evidence); len(match) > 1 {
+			version = match[1]
 		}
 	}
 	return selected, typeValue, version

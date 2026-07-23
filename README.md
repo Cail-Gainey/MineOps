@@ -11,7 +11,7 @@ MineOps 是一款本地优先的 Minecraft 服务器桌面管理工具。你无�
 - 创建或导入 Minecraft 服务器，配置版本、内存、目录、参数和 EULA。
 - 启动、停止、重启服务器，并识别异常退出和进程身份变化。
 - 编辑 `server.properties`，保留原有注释、顺序和未知配置项。
-- 通过 SSH 采集主机与 Java 进程指标，无需部署长期运行的监控 Agent。
+- 每个 SSH Session 仅部署一个无特权轻量采集守护脚本，离线期间持续记录主机与 Java 指标；不安装系统服务或通用监控 Agent。
 - 使用 Minecraft spark 查看 TPS、MSPT、健康报告和 Profiler 结果。
 
 ## 支持的 Minecraft 服务端

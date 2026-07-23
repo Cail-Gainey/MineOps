@@ -140,6 +140,7 @@ func (m *MonitoringManager) Pause(ctx context.Context, serverID model.ID) error 
 	}
 	if err := m.spark.stopRemoteCollector(ctx, *server); err != nil {
 		_ = m.collector.Resume(serverID)
+		_ = m.collector.ReconcileSession(context.WithoutCancel(ctx), server.SSHSessionID)
 		return err
 	}
 	return nil
@@ -152,6 +153,11 @@ func (m *MonitoringManager) Resume(ctx context.Context, serverID model.ID) error
 		return err
 	}
 	if err := m.collector.Resume(serverID); err != nil {
+		return err
+	}
+	if err := m.collector.ReconcileServer(ctx, serverID); err != nil {
+		_ = m.collector.Pause(serverID)
+		_ = m.collector.ReconcileSession(context.WithoutCancel(ctx), server.SSHSessionID)
 		return err
 	}
 	if server.State == enums.LifecycleRunning {

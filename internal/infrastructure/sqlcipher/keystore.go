@@ -13,8 +13,9 @@ import (
 )
 
 const (
-	keyringServiceName = "com.gainey.mineops"
-	databaseKeyAccount = "database-key"
+	keyringServiceName            = "com.gainey.mineops"
+	developmentKeyringServiceName = "com.gainey.mineops.development"
+	databaseKeyAccount            = "database-key"
 )
 
 // DatabaseKey contains the database identity, key version, initialization state, and raw 256-bit key.
@@ -40,14 +41,35 @@ type KeyStore interface {
 }
 
 // SystemKeyStore stores the SQLCipher key in Keychain, Credential Manager, or Secret Service.
-type SystemKeyStore struct{}
+type SystemKeyStore struct {
+	serviceName string
+	accountName string
+}
+
+// NewDevelopmentSystemKeyStore returns a secure store isolated from the packaged database key.
+func NewDevelopmentSystemKeyStore() SystemKeyStore {
+	return SystemKeyStore{serviceName: developmentKeyringServiceName, accountName: databaseKeyAccount}
+}
+
+func (s SystemKeyStore) keyringCoordinates() (string, string) {
+	serviceName := s.serviceName
+	if serviceName == "" {
+		serviceName = keyringServiceName
+	}
+	accountName := s.accountName
+	if accountName == "" {
+		accountName = databaseKeyAccount
+	}
+	return serviceName, accountName
+}
 
 // Load reads and validates the automatic SQLCipher key from system secure storage.
-func (SystemKeyStore) Load(ctx context.Context) (DatabaseKey, error) {
+func (s SystemKeyStore) Load(ctx context.Context) (DatabaseKey, error) {
 	if err := ctx.Err(); err != nil {
 		return DatabaseKey{}, err
 	}
-	value, err := keyring.Get(keyringServiceName, databaseKeyAccount)
+	serviceName, accountName := s.keyringCoordinates()
+	value, err := keyring.Get(serviceName, accountName)
 	if err != nil {
 		if errors.Is(err, keyring.ErrNotFound) {
 			return DatabaseKey{}, apperror.New(apperror.CodeCryptoKeyUnavailable, "数据库密钥尚未初始化")
@@ -69,7 +91,7 @@ func (SystemKeyStore) Load(ctx context.Context) (DatabaseKey, error) {
 }
 
 // Save atomically replaces the automatic SQLCipher key record in system secure storage.
-func (SystemKeyStore) Save(ctx context.Context, value DatabaseKey) error {
+func (s SystemKeyStore) Save(ctx context.Context, value DatabaseKey) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -83,18 +105,20 @@ func (SystemKeyStore) Save(ctx context.Context, value DatabaseKey) error {
 	if err != nil {
 		return apperror.Wrap(apperror.CodeInternal, "编码数据库密钥失败", err)
 	}
-	if err := keyring.Set(keyringServiceName, databaseKeyAccount, string(encoded)); err != nil {
+	serviceName, accountName := s.keyringCoordinates()
+	if err := keyring.Set(serviceName, accountName, string(encoded)); err != nil {
 		return apperror.Wrap(apperror.CodeCryptoKeyUnavailable, "写入系统数据库密钥失败", err)
 	}
 	return nil
 }
 
 // Delete removes the automatic SQLCipher key from system secure storage.
-func (SystemKeyStore) Delete(ctx context.Context) error {
+func (s SystemKeyStore) Delete(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if err := keyring.Delete(keyringServiceName, databaseKeyAccount); err != nil && !errors.Is(err, keyring.ErrNotFound) {
+	serviceName, accountName := s.keyringCoordinates()
+	if err := keyring.Delete(serviceName, accountName); err != nil && !errors.Is(err, keyring.ErrNotFound) {
 		return apperror.Wrap(apperror.CodeCryptoKeyUnavailable, "删除系统数据库密钥失败", err)
 	}
 	return nil

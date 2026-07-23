@@ -78,13 +78,18 @@ func NewRuntime(ctx context.Context, logger *applog.Logger, logWriter *applog.Ro
 	if err != nil {
 		return nil, err
 	}
-	logDirectory, err := applog.ResolveLogDirectory(applog.DetectRuntimeMode())
+	runtimeMode := applog.DetectRuntimeMode()
+	storageMode := applog.ResolveStorageMode(runtimeMode)
+	logDirectory, err := applog.ResolveLogDirectory(storageMode)
 	if err != nil {
 		return nil, err
 	}
 	dataDirectory := filepath.Join(filepath.Dir(logDirectory), constants.DataDirectoryName)
 	databasePath := filepath.Join(dataDirectory, constants.DatabaseFileName)
 	keyStore := sqlcipher.SystemKeyStore{}
+	if storageMode == applog.RuntimeDevelopment {
+		keyStore = sqlcipher.NewDevelopmentSystemKeyStore()
+	}
 	if err := sqlcipher.ApplyPendingMaintenance(ctx, dataDirectory, databasePath, keyStore); err != nil {
 		return nil, err
 	}
@@ -121,7 +126,7 @@ func NewRuntime(ctx context.Context, logger *applog.Logger, logWriter *applog.Ro
 		_ = databaseResult.Connection.Close()
 		return nil, err
 	}
-	diagnostic, err := service.NewDiagnosticManager(model.SystemClock{}, store, settings, logDirectory, applog.DetectRuntimeMode())
+	diagnostic, err := service.NewDiagnosticManager(model.SystemClock{}, store, settings, logDirectory, runtimeMode)
 	if err != nil {
 		_ = databaseResult.Connection.Close()
 		return nil, err

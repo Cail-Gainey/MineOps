@@ -3,6 +3,7 @@ package constants
 
 const (
 	ApplicationName            = "MineOps"
+	DevelopmentApplicationName = "MineOps-Development"
 	LogsDirectoryName          = "logs"
 	DataDirectoryName          = "data"
 	DatabaseFileName           = "mineops.db"

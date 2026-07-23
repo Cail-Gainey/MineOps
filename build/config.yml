@@ -60,7 +60,8 @@ dev_mode:
     # This avoids Wails' short frontend connection timeout on cold starts.
     - cmd: wails3 task common:dev:frontend:wait
       type: blocking
-    - cmd: wails3 task run
+    # Keep Wails development data and its database key isolated from the packaged app.
+    - cmd: wails3 task run STORAGE_PROFILE=development
       type: primary
 
 # File Associations

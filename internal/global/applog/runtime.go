@@ -51,15 +51,28 @@ func DetectRuntimeMode() RuntimeMode {
 	return RuntimeDevelopment
 }
 
+// ResolveStorageMode applies the optional storage override only to development builds.
+func ResolveStorageMode(mode RuntimeMode) RuntimeMode {
+	if mode != RuntimeDevelopment {
+		return mode
+	}
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("MINEOPS_STORAGE_PROFILE"))) {
+	case string(RuntimePackaged):
+		return RuntimePackaged
+	default:
+		return RuntimeDevelopment
+	}
+}
+
 // ResolveLogDirectory returns the deterministic logs directory for the current runtime mode.
 func ResolveLogDirectory(mode RuntimeMode) (string, error) {
+	mode = ResolveStorageMode(mode)
 	if mode == RuntimeDevelopment {
-		_, sourceFile, _, ok := runtime.Caller(0)
-		if !ok || sourceFile == "" {
-			return "", errors.New("cannot resolve applog source path")
+		programDirectory, err := os.UserConfigDir()
+		if err != nil {
+			return "", err
 		}
-		projectRoot := filepath.Clean(filepath.Join(filepath.Dir(sourceFile), "..", "..", ".."))
-		return filepath.Join(projectRoot, constants.LogsDirectoryName), nil
+		return filepath.Join(programDirectory, constants.DevelopmentApplicationName, constants.LogsDirectoryName), nil
 	}
 	executable, err := os.Executable()
 	if err != nil {

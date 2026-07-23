@@ -159,6 +159,7 @@ tasks:
       - 'echo "Skipping codesign (not available on {{OS}}). Sign the .app on macOS before distribution."'
 
   run:
+    summary: Runs the macOS app with isolated development storage by default; set STORAGE_PROFILE=packaged only for explicit production-data diagnostics
     cmds:
       - mkdir -p "{{.BIN_DIR}}/{{.APP_NAME}}.dev.app/Contents/MacOS"
       - mkdir -p "{{.BIN_DIR}}/{{.APP_NAME}}.dev.app/Contents/Resources"
@@ -168,6 +169,10 @@ tasks:
       - cp LICENSE THIRD_PARTY_NOTICES.md "{{.BIN_DIR}}/{{.APP_NAME}}.dev.app/Contents/Resources"
       - codesign --force --deep --sign - "{{.BIN_DIR}}/{{.APP_NAME}}.dev.app"
       - '"{{.BIN_DIR}}/{{.APP_NAME}}.dev.app/Contents/MacOS/{{.APP_NAME}}"'
+    env:
+      MINEOPS_STORAGE_PROFILE: '{{.STORAGE_PROFILE}}'
+    vars:
+      STORAGE_PROFILE: '{{.STORAGE_PROFILE | default "development"}}'
 
   sign:
     summary: Signs the application bundle with Developer ID

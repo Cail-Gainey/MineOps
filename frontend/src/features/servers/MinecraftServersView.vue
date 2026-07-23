@@ -77,6 +77,7 @@ const confirmedDeleteName = ref('')
 const confirmedDeletePath = ref('')
 type LifecycleAction = 'start' | 'stop' | 'restart'
 const lifecycleActions = ref<Record<string, LifecycleAction>>({})
+const pendingHardDeleteTargets = new Set<string>()
 let unsubscribeOperation: (() => void) | null = null
 const firewallPolicyOptions = [
   { label: '自动管理', value: 'automatic' },
@@ -608,12 +609,20 @@ function openHardDelete(server: MinecraftServer): void {
   hardDeleteVisible.value = true
 }
 
+function fillHardDeleteConfirmation(): void {
+  if (!hardDeleteTarget.value) return
+  confirmedDeleteName.value = hardDeleteTarget.value.name
+  confirmedDeletePath.value = hardDeleteTarget.value.remotePath
+}
+
 async function submitHardDelete(): Promise<void> {
   if (!hardDeleteTarget.value) return
+  const targetID = hardDeleteTarget.value.id
+  pendingHardDeleteTargets.add(targetID)
   hardDeleteLoading.value = true
   try {
     const operationID = await hardDeleteRemoteMinecraftServer(
-      hardDeleteTarget.value.id,
+      targetID,
       confirmedDeleteName.value,
       confirmedDeletePath.value,
     )
@@ -625,6 +634,7 @@ async function submitHardDelete(): Promise<void> {
       dedupeKey: `server:hard-delete:${operationID}`,
     })
   } catch (error) {
+    pendingHardDeleteTargets.delete(targetID)
     notifyError('启动远程硬删除失败', error)
   } finally {
     hardDeleteLoading.value = false
@@ -642,9 +652,13 @@ function notifyError(title: string, error: unknown): void {
 
 onMounted(async () => {
   unsubscribeOperation = subscribeOperationProgress((operation) => {
-    if (operation.targetType !== 'server' || !lifecycleActions.value[operation.targetID]) return
+    if (operation.targetType !== 'server') return
+    const isLifecycleOperation = Boolean(lifecycleActions.value[operation.targetID])
+    const isHardDeleteOperation = pendingHardDeleteTargets.has(operation.targetID)
+    if (!isLifecycleOperation && !isHardDeleteOperation) return
     if (!['pending', 'running'].includes(operation.state)) {
-      delete lifecycleActions.value[operation.targetID]
+      if (isLifecycleOperation) delete lifecycleActions.value[operation.targetID]
+      if (isHardDeleteOperation) pendingHardDeleteTargets.delete(operation.targetID)
       void refresh()
     }
   })
@@ -906,6 +920,9 @@ watch(importSSHSessionID, () => {
       MineOps 将重新检查根目录、Home、符号链接和挂载根，然后递归删除远程目录及数据库注册。
     </NAlert>
     <NForm v-if="hardDeleteTarget">
+      <NFlex justify="end">
+        <NButton @click="fillHardDeleteConfirmation">一键填充确认信息</NButton>
+      </NFlex>
       <NFormItem :label="`输入名称：${hardDeleteTarget.name}`">
         <NInput v-model:value="confirmedDeleteName" />
       </NFormItem>

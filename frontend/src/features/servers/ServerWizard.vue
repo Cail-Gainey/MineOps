@@ -135,6 +135,11 @@ async function retry(): Promise<void> {
   }
 }
 
+function clearInstallationState(): void {
+  replacementName.value = ''
+  wizard.resetDraft()
+}
+
 async function resolveDirectoryConflict(action: 'backup' | 'rename' | 'cancel'): Promise<void> {
   try {
     await wizard.resolveDirectoryConflict(action, replacementName.value)
@@ -308,7 +313,7 @@ watch(
 
       <template v-else>
         <NSteps :current="wizard.currentStep" size="small">
-          <NStep title="选择 SSH" description="已有 Session 或新建并测试" />
+          <NStep title="选择 SSH" description="已有会话或新建并测试" />
           <NStep title="服务器配置" description="动态类型、版本和启动参数" />
           <NStep title="确认安装" description="摘要、EULA 与十一阶段任务" />
         </NSteps>
@@ -321,15 +326,15 @@ watch(
         >
           <AppFormField label="SSH 来源">
             <NRadioGroup v-model:value="wizard.sshMode">
-              <NRadioButton value="existing">选择已有 Session</NRadioButton>
-              <NRadioButton value="new">新建 Session</NRadioButton>
+              <NRadioButton value="existing">选择已有会话</NRadioButton>
+              <NRadioButton value="new">新建会话</NRadioButton>
             </NRadioGroup>
           </AppFormField>
-          <NAlert v-if="!sshSessions.sessions.length" type="info" title="尚未配置 SSH Session">
-            可直接在此填写 SSH 信息；点击下一步后会先保存并测试连接，再继续创建 Server。
+          <NAlert v-if="!sshSessions.sessions.length" type="info" title="尚未配置 SSH 会话">
+            可直接在此填写 SSH 信息；点击下一步后会先保存并测试连接，再继续创建服务器。
           </NAlert>
           <template v-if="wizard.sshMode === 'existing'">
-            <AppFormField label="SSH Session" required>
+            <AppFormField label="SSH 会话" required>
               <NSelect
                 v-model:value="wizard.selectedSSHSessionID"
                 filterable
@@ -351,36 +356,39 @@ watch(
             </AppFormField>
           </template>
           <template v-else>
-            <AppFormField label="Session 名称" required
-              ><NInput v-model:value="wizard.newSSH.name"
+            <AppFormField label="会话名称" required
+              ><NInput v-model:value="wizard.newSSH.name" placeholder="例如：生产服宿主机"
             /></AppFormField>
-            <AppFormField label="Host" required
-              ><NInput v-model:value="wizard.newSSH.host"
+            <AppFormField label="主机" required
+              ><NInput v-model:value="wizard.newSSH.host" placeholder="主机名或 IP 地址"
             /></AppFormField>
-            <AppFormField label="Port" required
+            <AppFormField label="端口" required
               ><NInputNumber v-model:value="wizard.newSSH.port" :min="1" :max="65535"
             /></AppFormField>
-            <AppFormField label="Username" required
-              ><NInput v-model:value="wizard.newSSH.username"
+            <AppFormField label="用户名" required
+              ><NInput v-model:value="wizard.newSSH.username" placeholder="请输入用户名"
             /></AppFormField>
-            <AppFormField label="认证类型" required>
+            <AppFormField label="认证方式" required>
               <NSelect
                 v-model:value="wizard.newSSH.authType"
                 :options="[
-                  { label: 'Password', value: 'password' },
-                  { label: 'Private Key', value: 'private_key' },
-                  { label: 'Unix Agent', value: 'agent' },
+                  { label: '密码', value: 'password' },
+                  { label: '私钥', value: 'private_key' },
+                  { label: 'SSH Agent', value: 'agent' },
                 ]"
               />
             </AppFormField>
             <AppFormField
               v-if="wizard.newSSH.authType !== 'agent'"
-              :label="wizard.newSSH.authType === 'private_key' ? 'Private Key' : 'Password'"
+              :label="wizard.newSSH.authType === 'private_key' ? '私钥' : '密码'"
               required
             >
               <NInput
                 v-model:value="wizard.newSSH.secret"
                 :type="wizard.newSSH.authType === 'private_key' ? 'textarea' : 'password'"
+                :placeholder="
+                  wizard.newSSH.authType === 'private_key' ? '请粘贴私钥内容' : '请输入密码'
+                "
                 v-bind="
                   wizard.newSSH.authType === 'private_key'
                     ? { autosize: { minRows: 5, maxRows: 10 } }
@@ -388,12 +396,12 @@ watch(
                 "
               />
             </AppFormField>
-            <AppFormField v-if="wizard.newSSH.authType === 'private_key'" label="Key Passphrase"
-              ><NInput v-model:value="wizard.newSSH.passphrase" type="password"
+            <AppFormField v-if="wizard.newSSH.authType === 'private_key'" label="私钥口令"
+              ><NInput
+                v-model:value="wizard.newSSH.passphrase"
+                type="password"
+                placeholder="请输入私钥口令"
             /></AppFormField>
-            <NAlert type="info"
-              >下一步会先保存加密凭据，再执行完整 SSH 握手和命令通道测试，成功后自动绑定。</NAlert
-            >
           </template>
         </NForm>
 
@@ -492,6 +500,11 @@ watch(
         <NButton @click="show = false">关闭窗口</NButton>
         <NFlex>
           <NButton v-if="wizard.running" type="warning" @click="cancel">取消任务</NButton>
+          <NButton
+            v-if="wizard.task.state === 'failed' || wizard.task.state === 'cancelled'"
+            @click="clearInstallationState"
+            >清除安装状态</NButton
+          >
           <NButton
             v-if="wizard.task.state === 'failed' || wizard.task.state === 'cancelled'"
             type="primary"

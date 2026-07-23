@@ -15,15 +15,62 @@ import (
 	"github.com/Cail-Gainey/MineOps/internal/model"
 )
 
-var minecraftVersionClue = regexp.MustCompile(`(?:^|[^0-9])(\d+\.\d+(?:\.\d+)?)(?:[^0-9]|$)`)
+const minecraftVersionPattern = `[0-9]+(?:\.[0-9]+){1,2}`
+
+var minecraftVersionClue = regexp.MustCompile(`(?:^|[^0-9])(` + minecraftVersionPattern + `)(?:[^0-9]|$)`)
 var minecraftVersionEvidence = []*regexp.Regexp{
-	regexp.MustCompile(`(?i)starting minecraft server version\s+([0-9]+(?:\.[0-9]+){1,2})`),
-	regexp.MustCompile(`(?i)loading minecraft\s+([0-9]+(?:\.[0-9]+){1,2})`),
-	regexp.MustCompile(`(?i)implementing api version\s+([0-9]+(?:\.[0-9]+){1,2})`),
-	regexp.MustCompile(`(?i)\bfor mc\s+([0-9]+(?:\.[0-9]+){1,2})`),
-	regexp.MustCompile(`(?i)"id"\s*:\s*"([0-9]+(?:\.[0-9]+){1,2})"`),
-	regexp.MustCompile(`(?i)minecraft(?:-| )version\s*[:=]\s*([0-9]+(?:\.[0-9]+){1,2})`),
+	regexp.MustCompile(`(?i)"(?:id|name)"\s*:\s*"(` + minecraftVersionPattern + `)"`),
+	regexp.MustCompile(`(?im)^[0-9a-f]{32,128}[ \t]+(` + minecraftVersionPattern + `)[ \t]+[^\r\n]*server-`),
+	regexp.MustCompile(`(?i)\b(?:minecraft|mc|game)[ ._-]*version\b"?\s*(?:[:=]|,\s*)\s*"?v?(` + minecraftVersionPattern + `)`),
+	regexp.MustCompile(`(?i)starting\s+minecraft\s+server\s+version\s+v?(` + minecraftVersionPattern + `)`),
+	regexp.MustCompile(`(?i)loading\s+minecraft\s+v?(` + minecraftVersionPattern + `)`),
+	regexp.MustCompile(`(?i)implementing\s+api\s+version\s+v?(` + minecraftVersionPattern + `)`),
+	regexp.MustCompile(`(?i)\bfor\s+(?:minecraft|mc)\s+v?(` + minecraftVersionPattern + `)`),
+	regexp.MustCompile(`(?i)\(\s*mc\s*:\s*v?(` + minecraftVersionPattern + `)\s*\)`),
+	regexp.MustCompile(`(?i)\b(?:paper|purpur|folia|spigot)\s+(?:server\s+)?version\s+v?(` + minecraftVersionPattern + `)`),
 }
+
+const remoteServerMetadataScript = `set -u
+root=$1
+jar=$2
+if [ -f "$root/version.json" ] && [ ! -L "$root/version.json" ]; then
+  printf '%s\n' '--- mineops:root/version.json ---'
+  head -c 32768 "$root/version.json" 2>/dev/null || true
+  printf '\n'
+fi
+if [ -f "$root/$jar" ] && [ ! -L "$root/$jar" ]; then
+  python_command=
+  if command -v python3 >/dev/null 2>&1; then
+    python_command=python3
+  elif command -v python >/dev/null 2>&1; then
+    python_command=python
+  fi
+  for entry in version.json META-INF/MANIFEST.MF META-INF/versions.list fabric-server-launch.properties install_profile.json; do
+    printf '%s\n' "--- mineops:jar/$entry ---"
+    if command -v unzip >/dev/null 2>&1; then
+      unzip -p "$root/$jar" "$entry" 2>/dev/null | head -c 32768 || true
+    elif command -v busybox >/dev/null 2>&1 && busybox unzip -h >/dev/null 2>&1; then
+      busybox unzip -p "$root/$jar" "$entry" 2>/dev/null | head -c 32768 || true
+    elif command -v bsdtar >/dev/null 2>&1; then
+      bsdtar -xOf "$root/$jar" "$entry" 2>/dev/null | head -c 32768 || true
+    elif [ -n "$python_command" ]; then
+      "$python_command" -c 'import sys, zipfile
+try:
+    with zipfile.ZipFile(sys.argv[1]) as archive:
+        sys.stdout.buffer.write(archive.read(sys.argv[2])[:32768])
+except (KeyError, OSError, zipfile.BadZipFile):
+    pass' "$root/$jar" "$entry" 2>/dev/null || true
+    fi
+    printf '\n'
+  done
+fi
+if [ -f "$root/logs/latest.log" ] && [ ! -L "$root/logs/latest.log" ]; then
+  printf '%s\n' '--- mineops:logs/latest.log:head ---'
+  head -c 131072 "$root/logs/latest.log" 2>/dev/null || true
+  printf '\n%s\n' '--- mineops:logs/latest.log:tail ---'
+  tail -c 131072 "$root/logs/latest.log" 2>/dev/null || true
+  printf '\n'
+fi`
 
 // RemoteServerJar is one ordinary root-level Jar candidate discovered without changing the remote directory.
 type RemoteServerJar struct {
@@ -131,23 +178,9 @@ done`
 	}
 	inspection.SuggestedJar, inspection.SuggestedType, inspection.SuggestedVersion = inferRemoteServerClues(inspection.Jars, "")
 	if inspection.SuggestedJar != "" && (inspection.SuggestedVersion == "" || inspection.SuggestedType == enums.ServerVanilla) {
-		metadataScript := `set -u
-root=$1
-jar=$2
-if [ -f "$root/version.json" ] && [ ! -L "$root/version.json" ]; then
-  cat "$root/version.json" 2>/dev/null || true
-fi
-if command -v unzip >/dev/null 2>&1 && [ -f "$root/$jar" ] && [ ! -L "$root/$jar" ]; then
-  for entry in version.json META-INF/MANIFEST.MF fabric-server-launch.properties; do
-    unzip -p "$root/$jar" "$entry" 2>/dev/null || true
-  done
-fi
-if [ -f "$root/logs/latest.log" ] && [ ! -L "$root/logs/latest.log" ]; then
-  tail -n 2000 "$root/logs/latest.log" 2>/dev/null || true
-fi`
 		metadata, metadataErr := client.RunCommand(ctx, RemoteCommand{
-			Executable: "sh", Arguments: []string{"-c", metadataScript, "mineops-server-import-metadata", remotePath, inspection.SuggestedJar},
-			Timeout: 15 * time.Second, MaximumOutput: 256 * 1024,
+			Executable: "sh", Arguments: []string{"-c", remoteServerMetadataScript, "mineops-server-import-metadata", remotePath, inspection.SuggestedJar},
+			Timeout: 15 * time.Second, MaximumOutput: 512 * 1024,
 		})
 		if metadataErr == nil {
 			_, inferredType, inferredVersion := inferRemoteServerClues(inspection.Jars, metadata.Stdout)

@@ -325,6 +325,9 @@ watch(
               <NRadioButton value="new">新建 Session</NRadioButton>
             </NRadioGroup>
           </AppFormField>
+          <NAlert v-if="!sshSessions.sessions.length" type="info" title="尚未配置 SSH Session">
+            可直接在此填写 SSH 信息；点击下一步后会先保存并测试连接，再继续创建 Server。
+          </NAlert>
           <template v-if="wizard.sshMode === 'existing'">
             <AppFormField label="SSH Session" required>
               <NSelect

@@ -17,7 +17,7 @@ import {
   NText,
   type DataTableColumns,
 } from 'naive-ui'
-import { computed, h, onMounted, onUnmounted, ref, watch } from 'vue'
+import { h, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
 import type { MinecraftServerInput } from '../../../bindings/github.com/Cail-Gainey/MineOps/internal/desktop/services/models'
@@ -75,17 +75,9 @@ const hardDeleteLoading = ref(false)
 const hardDeleteTarget = ref<MinecraftServer | null>(null)
 const confirmedDeleteName = ref('')
 const confirmedDeletePath = ref('')
-const sessionError = ref<unknown>(null)
 type LifecycleAction = 'start' | 'stop' | 'restart'
 const lifecycleActions = ref<Record<string, LifecycleAction>>({})
 let unsubscribeOperation: (() => void) | null = null
-const partialMessage = computed(() =>
-  sessionError.value
-    ? sshSessions.sessions.length
-      ? 'SSH Session 列表刷新失败，Server 列表仍可浏览；筛选项可能不是最新。'
-      : 'SSH Session 列表不可用，Server 列表仍可浏览，但无法创建或按连接筛选。'
-    : '',
-)
 const firewallPolicyOptions = [
   { label: '自动管理', value: 'automatic' },
   { label: '操作前确认', value: 'prompt' },
@@ -656,13 +648,12 @@ onMounted(async () => {
       void refresh()
     }
   })
-  const results = await Promise.allSettled([
+  const [, serverResult] = await Promise.allSettled([
     sshSessions.sessions.length ? Promise.resolve() : sshSessions.refresh(),
     store.refresh(),
   ])
-  if (results[0].status === 'rejected') sessionError.value = results[0].reason
-  if (results[1].status === 'rejected')
-    notifyError('加载 Minecraft Servers 失败', results[1].reason)
+  if (serverResult.status === 'rejected')
+    notifyError('加载 Minecraft Servers 失败', serverResult.reason)
 })
 
 onUnmounted(() => unsubscribeOperation?.())
@@ -678,7 +669,6 @@ watch(importSSHSessionID, () => {
     <NFlex justify="end" wrap class="page-actions">
       <NButton
         type="primary"
-        :disabled="!sshSessions.sessions.length"
         @click="wizardVisible = true"
       >
         <template #icon><AppIcon :icon="Plus" label="创建" /></template>
@@ -722,7 +712,6 @@ watch(importSSHSessionID, () => {
       :data="store.servers"
       :loading="store.loading"
       :error="store.error"
-      :partial-message="partialMessage"
       :scroll-x="974"
       empty-description="尚未创建 Minecraft Server"
       @retry="refresh"

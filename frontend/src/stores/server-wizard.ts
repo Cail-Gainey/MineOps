@@ -93,8 +93,14 @@ export const useServerWizardStore = defineStore('server-wizard', () => {
         }
       }
       distributions.value = await listServerDistributions()
-      if (!selectedSSHSessionID.value)
+      if (!sshSessions.sessions.length) {
+        sshMode.value = 'new'
+        selectedSSHSessionID.value = ''
+      } else if (
+        !sshSessions.sessions.some((session) => session.id === selectedSSHSessionID.value)
+      ) {
         selectedSSHSessionID.value = sshSessions.sessions[0]?.id ?? ''
+      }
       const preferred = distributions.value.find(
         (item) => item.type === server.value.type && item.catalogReady && item.installerReady,
       )
@@ -280,7 +286,7 @@ export const useServerWizardStore = defineStore('server-wizard', () => {
   /** Resets the draft while leaving an already-started backend task untouched. */
   function resetDraft(): void {
     currentStep.value = 1
-    sshMode.value = 'existing'
+    sshMode.value = sshSessions.sessions.length ? 'existing' : 'new'
     selectedSSHSessionID.value = sshSessions.sessions[0]?.id ?? ''
     newSSH.value = emptySSHInput()
     server.value = emptyServerInput()

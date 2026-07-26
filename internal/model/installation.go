@@ -40,6 +40,11 @@ type InstallationStep struct {
 	UpdatedAt    time.Time                   `json:"updatedAt"`
 }
 
+// InstallationStepCount is the fixed number of steps in the standard installation workflow.
+//
+// 前端进度换算需要这个总数;修改步骤列表时必须同步更新它,NewInstallationTask 会做一致性校验。
+const InstallationStepCount = 11
+
 // NewInstallationTask creates the standard eleven-step Minecraft installation workflow.
 func NewInstallationTask(clock Clock, serverID ID) (*InstallationTask, []InstallationStep, error) {
 	if clock == nil || !serverID.Valid() {
@@ -54,6 +59,9 @@ func NewInstallationTask(clock Clock, serverID ID) (*InstallationTask, []Install
 	names := []string{
 		"connect_ssh", "initialize_directories", "create_server_directory", "resolve_java",
 		"install_java", "download_server", "install_server", "write_eula", "configure_firewall", "first_start", "register_server",
+	}
+	if len(names) != InstallationStepCount {
+		return nil, nil, apperror.New(apperror.CodeInternal, "Installation 步骤总数与 InstallationStepCount 不一致")
 	}
 	steps := make([]InstallationStep, len(names))
 	for index, name := range names {

@@ -26,6 +26,8 @@ import (
 type Runtime struct {
 	Settings              *appsettings.Manager
 	Threads               *appthread.Pool
+	InstallWaves          *appthread.Pool
+	RemoteProbes          *appthread.Pool
 	Operations            *service.OperationRunner
 	SSHSessions           *service.SSHSessionManager
 	KnownHosts            *service.KnownHostManager
@@ -70,6 +72,10 @@ func NewRuntime(ctx context.Context, logger *applog.Logger, logWriter *applog.Ro
 	exitGuard := service.NewExitGuard()
 	threadPool := appthread.NewPool(appthread.Options{Name: "global", Logger: logger})
 	appthread.SetDefault(threadPool)
+	// 安装波次与远程探测各用独立的小池:两者会互相嵌套(波次里的 resolve_java 又会扇出探测),
+	// 共用同一个池会自我抢占配额。上限取 4 是为了不打满远端 sshd 默认的 MaxSessions 10。
+	installWavePool := appthread.NewPool(appthread.Options{Name: "install-wave", MaxConcurrency: 4, Logger: logger})
+	remoteProbePool := appthread.NewPool(appthread.Options{Name: "remote-probe", MaxConcurrency: 4, Logger: logger})
 	logs, err := service.NewLogManager(logWriter)
 	if err != nil {
 		return nil, err
@@ -175,7 +181,7 @@ func NewRuntime(ctx context.Context, logger *applog.Logger, logWriter *applog.Ro
 		return nil, err
 	}
 	jdkCatalog := jdkcatalog.NewAdoptiumCatalog(httpClient, downloads)
-	javaRuntimes, err := service.NewJavaRuntimeManager(model.SystemClock{}, store, sshClients, settings, jdkCatalog, operations)
+	javaRuntimes, err := service.NewJavaRuntimeManager(model.SystemClock{}, store, sshClients, settings, jdkCatalog, operations, remoteProbePool)
 	if err != nil {
 		_ = databaseResult.Connection.Close()
 		return nil, err
@@ -191,7 +197,7 @@ func NewRuntime(ctx context.Context, logger *applog.Logger, logWriter *applog.Ro
 		_ = databaseResult.Connection.Close()
 		return nil, err
 	}
-	installationRunner, err := service.NewInstallationRunner(model.SystemClock{}, store, operations)
+	installationRunner, err := service.NewInstallationRunner(model.SystemClock{}, store, operations, installWavePool)
 	if err != nil {
 		_ = databaseResult.Connection.Close()
 		return nil, err
@@ -332,7 +338,8 @@ func NewRuntime(ctx context.Context, logger *applog.Logger, logWriter *applog.Ro
 		return nil, err
 	}
 	return &Runtime{
-		Settings: settings, Threads: threadPool, Operations: operations, SSHSessions: sshSessions, KnownHosts: knownHosts,
+		Settings: settings, Threads: threadPool, InstallWaves: installWavePool, RemoteProbes: remoteProbePool,
+		Operations: operations, SSHSessions: sshSessions, KnownHosts: knownHosts,
 		SSHClients: sshClients, Files: files, JavaRuntimes: javaRuntimes, MinecraftServers: minecraftServers,
 		Installations: installations, Downloads: downloads, Processes: processes, Lifecycle: lifecycle, PlayerActivity: playerActivity, Firewall: firewall,
 		Metrics: metrics, MetricBus: metricBus, MetricCollector: metricCollector,
@@ -360,8 +367,10 @@ func (r *Runtime) Close() error {
 		shutdownError = r.shutdown.Shutdown(ctx)
 	}
 	var threadError error
-	if r.Threads != nil {
-		threadError = r.Threads.Close(ctx)
+	for _, pool := range []*appthread.Pool{r.InstallWaves, r.RemoteProbes, r.Threads} {
+		if pool != nil {
+			threadError = errors.Join(threadError, pool.Close(ctx))
+		}
 	}
 	var databaseError error
 	if r.database != nil {

@@ -3,9 +3,11 @@ package service
 import (
 	"context"
 	"errors"
+	"sort"
 	"sync"
 
 	"github.com/Cail-Gainey/MineOps/internal/global/apperror"
+	"github.com/Cail-Gainey/MineOps/internal/global/appthread"
 	"github.com/Cail-Gainey/MineOps/internal/global/enums"
 	"github.com/Cail-Gainey/MineOps/internal/model"
 	"github.com/Cail-Gainey/MineOps/internal/repository"
@@ -17,7 +19,7 @@ type InstallationStepReporter interface {
 }
 
 // InstallationStepHandler executes one idempotent installation step and returns its durable checkpoint.
-type InstallationStepHandler func(context.Context, model.InstallationTask, model.InstallationStep, InstallationStepReporter) (map[string]any, error)
+type InstallationStepHandler func(context.Context, *InstallationSession, model.InstallationTask, model.InstallationStep, InstallationStepReporter) (map[string]any, error)
 
 // InstallationStartResult contains both durable task and operation identities returned immediately to Wails.
 type InstallationStartResult struct {
@@ -30,17 +32,42 @@ type InstallationRunner struct {
 	clock      model.Clock
 	store      repository.Store
 	operations *OperationRunner
+	threads    *appthread.Pool
 
 	mu       sync.RWMutex
 	handlers map[string]InstallationStepHandler
+	sessions InstallationSessionFactory
+
+	// progressMu 串行化并发步骤的进度上报:reporter 共享同一个 *InstallationTask,
+	// 且 UpdateTask 是整行覆盖,不加锁会同时产生数据竞争与字段互相冲掉。
+	progressMu sync.Mutex
 }
 
 // NewInstallationRunner creates the durable installation queue owner.
-func NewInstallationRunner(clock model.Clock, store repository.Store, operations *OperationRunner) (*InstallationRunner, error) {
+//
+// threads bounds the concurrent steps inside one installation wave; a nil pool falls back to appthread.Default().
+func NewInstallationRunner(clock model.Clock, store repository.Store, operations *OperationRunner, threads *appthread.Pool) (*InstallationRunner, error) {
 	if clock == nil || store == nil || operations == nil {
 		return nil, apperror.New(apperror.CodeValidationRequired, "InstallationRunner 依赖不能为空")
 	}
-	return &InstallationRunner{clock: clock, store: store, operations: operations, handlers: make(map[string]InstallationStepHandler)}, nil
+	if threads == nil {
+		threads = appthread.Default()
+	}
+	return &InstallationRunner{
+		clock: clock, store: store, operations: operations, threads: threads,
+		handlers: make(map[string]InstallationStepHandler),
+	}, nil
+}
+
+// SetSessionFactory installs the per-task shared SSH session factory used by execute.
+func (r *InstallationRunner) SetSessionFactory(factory InstallationSessionFactory) error {
+	if factory == nil {
+		return apperror.New(apperror.CodeValidationRequired, "Installation Session Factory 不能为空")
+	}
+	r.mu.Lock()
+	r.sessions = factory
+	r.mu.Unlock()
+	return nil
 }
 
 // RegisterStep replaces one named idempotent step implementation.
@@ -180,10 +207,59 @@ func (r *InstallationRunner) RecoverInterrupted(ctx context.Context) error {
 	return nil
 }
 
+// installationWaves groups steps that may run concurrently.
+//
+// 每个波次内的步骤彼此没有依赖,波次之间严格有序。划分同时满足两类约束:
+//   - checkpoint 前驱边:install_java 依赖 resolve_java、install_server 依赖 download_server 等
+//   - 隐式边:目录必须先建、jar 必须先到、eula 与端口必须先就绪才能首启
+//
+// 另有一条容易忽略的约束:MinecraftServer 行是整行覆盖更新(Select("*")),
+// 而 resolve_java、install_java、write_eula 都写这一行,因此每个波次里最多只允许一个行写者。
+var installationWaves = map[string]int{
+	"connect_ssh":             1,
+	"initialize_directories":  2,
+	"create_server_directory": 3,
+	"resolve_java":            3,
+	"install_java":            4,
+	"download_server":         4,
+	"install_server":          5,
+	"write_eula":              5,
+	// 放在首启前一个波次,而不是更早:提前放行端口会让"端口已开但没有进程监听"的窗口覆盖整段下载。
+	"configure_firewall": 5,
+	"first_start":        6,
+	"register_server":    7,
+}
+
+// installationWaveFor returns a step's wave, falling back to its order so unknown steps stay fully serialized.
+func installationWaveFor(step model.InstallationStep) int {
+	if wave, ok := installationWaves[step.Name]; ok {
+		return wave
+	}
+	return len(installationWaves) + step.Order
+}
+
+// stepOutcome carries one concurrent step's result back to the wave scheduler.
+//
+// done 只在任务体跑到最后一行时置位。handler panic、线程池拒绝配额、或波次在取得配额前被取消时,
+// appthread.Group 会把错误记在 Wait 的返回值里而任务体一行都不执行 —— 此时 err 仍是 nil,
+// 只有 done 能区分"成功"和"根本没跑"。
+type stepOutcome struct {
+	step       *model.InstallationStep
+	checkpoint map[string]any
+	err        error
+	done       bool
+}
+
 func (r *InstallationRunner) execute(ctx context.Context, taskID model.ID, operationReporter OperationReporter) error {
 	task, steps, err := r.store.Installations().Get(ctx, taskID)
 	if err != nil {
 		return err
+	}
+	r.mu.RLock()
+	factory := r.sessions
+	r.mu.RUnlock()
+	if factory == nil {
+		return apperror.New(apperror.CodeValidationConflict, "Installation Session Factory 尚未注册")
 	}
 	if err := task.Start(r.clock); err != nil {
 		return err
@@ -191,105 +267,325 @@ func (r *InstallationRunner) execute(ctx context.Context, taskID model.ID, opera
 	if err := r.store.Installations().UpdateTask(ctx, task); err != nil {
 		return err
 	}
-	for index := range steps {
-		step := &steps[index]
-		if step.State == enums.InstallationStepSuccess || step.State == enums.InstallationStepSkipped {
+	remote := factory(task.ServerID)
+	defer func() { _ = remote.Close() }()
+
+	for _, wave := range r.pendingWaves(steps) {
+		pending := make([]*model.InstallationStep, 0, len(steps))
+		for index := range steps {
+			step := &steps[index]
+			if installationWaveFor(*step) != wave {
+				continue
+			}
+			if step.State == enums.InstallationStepSuccess || step.State == enums.InstallationStepSkipped {
+				continue
+			}
+			if step.State != enums.InstallationStepWaiting && step.State != enums.InstallationStepFailed {
+				return apperror.New(apperror.CodeValidationConflict, "Installation Step 状态不能执行").WithDetails(map[string]any{
+					"step": step.Name, "state": step.State,
+				})
+			}
+			pending = append(pending, step)
+		}
+		if len(pending) == 0 {
 			continue
 		}
 		if ctx.Err() != nil {
-			return r.finishCancelled(task, step, ctx.Err())
+			return r.finishCancelled(task, nil, ctx.Err())
 		}
-		if step.State != enums.InstallationStepWaiting && step.State != enums.InstallationStepFailed {
-			return apperror.New(apperror.CodeValidationConflict, "Installation Step 状态不能执行").WithDetails(map[string]any{
-				"step": step.Name, "state": step.State,
-			})
+		if err := r.assertHandlers(pending); err != nil {
+			return r.finishFailed(task, pending, err)
 		}
+		if err := r.startWave(ctx, task, steps, pending); err != nil {
+			return r.finishFailed(task, pending, err)
+		}
+		outcomes, waveErr := r.runWave(ctx, remote, task, steps, pending, operationReporter)
+		if waveErr != nil {
+			return r.finishWaveFailure(ctx, task, steps, outcomes, waveErr)
+		}
+		if err := r.commitWave(ctx, task, steps, outcomes, operationReporter); err != nil {
+			return r.finishFailed(task, pending, err)
+		}
+	}
+
+	// task.Complete 先作用在副本上:只有收尾事务成功才提交,失败时 task 仍是 Running,finishFailed 才能生效。
+	completed := *task
+	if err := completed.Complete(r.clock, enums.InstallationSucceeded); err != nil {
+		return r.finishFailed(task, nil, err)
+	}
+	if err := r.finishServerInstalled(ctx, &completed); err != nil {
+		return r.finishFailed(task, nil, err)
+	}
+	*task = completed
+	return nil
+}
+
+// assertHandlers verifies every step of a wave has an implementation before any of them is marked running.
+func (r *InstallationRunner) assertHandlers(pending []*model.InstallationStep) error {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	for _, step := range pending {
+		if r.handlers[step.Name] == nil {
+			return apperror.New(apperror.CodeValidationConflict, "Installation Step 尚未注册实现").WithDetails(map[string]any{"step": step.Name})
+		}
+	}
+	return nil
+}
+
+// pendingWaves returns the ascending wave numbers that still contain executable steps.
+func (r *InstallationRunner) pendingWaves(steps []model.InstallationStep) []int {
+	seen := make(map[int]bool, len(steps))
+	waves := make([]int, 0, len(steps))
+	for index := range steps {
+		step := steps[index]
+		if step.State == enums.InstallationStepSuccess || step.State == enums.InstallationStepSkipped {
+			continue
+		}
+		wave := installationWaveFor(step)
+		if seen[wave] {
+			continue
+		}
+		seen[wave] = true
+		waves = append(waves, wave)
+	}
+	sort.Ints(waves)
+	return waves
+}
+
+// startWave marks every step of one wave as running and republishes the derived task progress.
+func (r *InstallationRunner) startWave(ctx context.Context, task *model.InstallationTask, steps []model.InstallationStep, pending []*model.InstallationStep) error {
+	r.progressMu.Lock()
+	defer r.progressMu.Unlock()
+	for _, step := range pending {
 		if err := step.Start(r.clock); err != nil {
-			return err
-		}
-		task.CurrentStep = step.Order
-		task.UpdatedAt = r.clock.Now().UTC()
-		if err := r.store.Installations().UpdateTask(ctx, task); err != nil {
 			return err
 		}
 		if err := r.store.Installations().UpdateStep(ctx, step); err != nil {
 			return err
 		}
+	}
+	task.CurrentStep = pendingStepOrder(steps)
+	task.UpdatedAt = r.clock.Now().UTC()
+	return r.store.Installations().UpdateTask(ctx, task)
+}
+
+// runWave executes one wave concurrently on the shared pool and collects every step's outcome.
+func (r *InstallationRunner) runWave(ctx context.Context, remote *InstallationSession, task *model.InstallationTask, steps []model.InstallationStep, pending []*model.InstallationStep, operationReporter OperationReporter) ([]stepOutcome, error) {
+	waveCtx, cancelWave := context.WithCancel(ctx)
+	defer cancelWave()
+	outcomes := make([]stepOutcome, len(pending))
+	group := r.threads.NewGroup(waveCtx)
+	// handler 接收的是 task/step 的值拷贝。这份拷贝必须在锁内取:
+	// 并发兄弟步骤的 reporter 会通过同一个 *task 指针写 LogCursor/UpdatedAt,锁外解引用就是数据竞争。
+	r.progressMu.Lock()
+	taskSnapshot := *task
+	stepSnapshots := make([]model.InstallationStep, len(pending))
+	for index, step := range pending {
+		stepSnapshots[index] = snapshotStep(*step)
+	}
+	r.progressMu.Unlock()
+	for index := range pending {
+		index, step := index, pending[index]
 		r.mu.RLock()
 		handler := r.handlers[step.Name]
 		r.mu.RUnlock()
+		outcomes[index] = stepOutcome{step: step}
 		if handler == nil {
-			err := apperror.New(apperror.CodeValidationConflict, "Installation Step 尚未注册实现").WithDetails(map[string]any{"step": step.Name})
-			return r.finishFailed(task, step, err)
+			outcomes[index].err = apperror.New(apperror.CodeValidationConflict, "Installation Step 尚未注册实现").WithDetails(map[string]any{"step": step.Name})
+			cancelWave()
+			continue
 		}
-		stepReporter := &installationStepReporter{runner: r, task: task, step: step, operation: operationReporter, totalSteps: len(steps)}
-		checkpoint, executionErr := handler(ctx, *task, *step, stepReporter)
-		if executionErr != nil {
-			if errors.Is(ctx.Err(), context.Canceled) || errors.Is(executionErr, context.Canceled) {
-				return r.finishCancelled(task, step, executionErr)
+		reporter := &installationStepReporter{runner: r, task: task, step: step, steps: steps, operation: operationReporter}
+		group.Go("installation."+step.Name, func(taskCtx context.Context) error {
+			checkpoint, executionErr := handler(taskCtx, remote, taskSnapshot, stepSnapshots[index], reporter)
+			outcomes[index].checkpoint = checkpoint
+			outcomes[index].err = executionErr
+			outcomes[index].done = true
+			if executionErr != nil {
+				// 同波次的兄弟步骤立即取消;成功的兄弟仍会按 Success 落库,不会白跑。
+				cancelWave()
 			}
-			return r.finishFailed(task, step, executionErr)
+			return executionErr
+		})
+	}
+	if err := group.Wait(); err != nil {
+		return outcomes, err
+	}
+	for _, outcome := range outcomes {
+		if outcome.err != nil {
+			return outcomes, outcome.err
 		}
-		if index == len(steps)-1 {
-			completedStep := *step
-			completedTask := *task
-			if err := completedStep.Complete(r.clock, enums.InstallationStepSuccess, checkpoint, nil); err != nil {
-				return err
-			}
-			if err := completedTask.Complete(r.clock, enums.InstallationSucceeded); err != nil {
-				return err
-			}
-			if err := r.store.Transaction(ctx, func(registry repository.Registry) error {
-				server, err := registry.MinecraftServers().Get(ctx, completedTask.ServerID, false)
-				if err != nil {
-					return err
-				}
-				server.State = enums.LifecycleStopped
-				server.UpdatedAt = r.clock.Now().UTC()
-				if err := registry.MinecraftServers().Update(ctx, server); err != nil {
-					return err
-				}
-				if err := registry.Installations().UpdateStep(ctx, &completedStep); err != nil {
-					return err
-				}
-				return registry.Installations().UpdateTask(ctx, &completedTask)
-			}); err != nil {
-				return r.finishFailed(task, step, err)
-			}
-			*step, *task = completedStep, completedTask
-		} else {
-			if err := step.Complete(r.clock, enums.InstallationStepSuccess, checkpoint, nil); err != nil {
-				return err
-			}
-			if err := r.store.Installations().UpdateStep(ctx, step); err != nil {
-				return err
-			}
-		}
-		if err := operationReporter.SetProgress(step.Name, float64(step.Order)/float64(len(steps)), "安装步骤已完成"); err != nil {
-			return err
-		}
-		if index == len(steps)-1 {
-			return nil
+		if !outcome.done {
+			return outcomes, apperror.New(apperror.CodeInternal, "Installation Step 未执行完成").WithDetails(map[string]any{"step": outcome.step.Name})
 		}
 	}
-	if err := task.Complete(r.clock, enums.InstallationSucceeded); err != nil {
-		return err
-	}
-	return r.store.Installations().UpdateTask(context.WithoutCancel(ctx), task)
+	return outcomes, nil
 }
 
-func (r *InstallationRunner) finishFailed(task *model.InstallationTask, step *model.InstallationStep, failure error) error {
-	_ = step.Complete(r.clock, enums.InstallationStepFailed, step.Checkpoint, failure)
-	_ = r.store.Installations().UpdateStep(context.Background(), step)
+// snapshotStep copies a step for handler input, cloning the checkpoint map so handlers never alias live state.
+func snapshotStep(step model.InstallationStep) model.InstallationStep {
+	if step.Checkpoint == nil {
+		return step
+	}
+	cloned := make(map[string]any, len(step.Checkpoint))
+	for key, value := range step.Checkpoint {
+		cloned[key] = value
+	}
+	step.Checkpoint = cloned
+	return step
+}
+
+// commitWave persists every successful step of one wave and republishes the derived task progress.
+func (r *InstallationRunner) commitWave(ctx context.Context, task *model.InstallationTask, steps []model.InstallationStep, outcomes []stepOutcome, operationReporter OperationReporter) error {
+	r.progressMu.Lock()
+	for _, outcome := range outcomes {
+		if err := outcome.step.Complete(r.clock, enums.InstallationStepSuccess, outcome.checkpoint, nil); err != nil {
+			r.progressMu.Unlock()
+			return err
+		}
+		if err := r.store.Installations().UpdateStep(ctx, outcome.step); err != nil {
+			r.progressMu.Unlock()
+			return err
+		}
+	}
+	task.CurrentStep = pendingStepOrder(steps)
+	task.UpdatedAt = r.clock.Now().UTC()
+	if err := r.store.Installations().UpdateTask(ctx, task); err != nil {
+		r.progressMu.Unlock()
+		return err
+	}
+	stage := outcomes[0].step.Name
+	highest := outcomes[0].step.Order
+	for _, outcome := range outcomes {
+		if outcome.step.Order > highest {
+			stage, highest = outcome.step.Name, outcome.step.Order
+		}
+	}
+	overall := overallStepProgress(steps)
+	r.progressMu.Unlock()
+	return operationReporter.SetProgress(stage, overall, "安装步骤已完成")
+}
+
+// finishWaveFailure keeps every sibling that already succeeded and records the rest as failed or cancelled.
+func (r *InstallationRunner) finishWaveFailure(ctx context.Context, task *model.InstallationTask, steps []model.InstallationStep, outcomes []stepOutcome, waveErr error) error {
+	taskCancelled := errors.Is(ctx.Err(), context.Canceled)
+	succeeded := make([]stepOutcome, 0, len(outcomes))
+	failed := make([]*model.InstallationStep, 0, len(outcomes))
+	cancelled := make([]*model.InstallationStep, 0, len(outcomes))
+	for _, outcome := range outcomes {
+		if outcome.step == nil {
+			continue
+		}
+		switch {
+		case outcome.err == nil && outcome.done:
+			succeeded = append(succeeded, outcome)
+		case outcome.err != nil && !errors.Is(outcome.err, context.Canceled) && !taskCancelled:
+			failed = append(failed, outcome.step)
+		default:
+			// 被连带取消、被线程池拒绝、或 handler panic 的步骤都归这里:标 Cancelled 保持 Retryable,
+			// 绝不能当成 Success —— Success 不可重试,会让整个任务永远卡在证据不完整上。
+			cancelled = append(cancelled, outcome.step)
+		}
+	}
+	// 已经跑完的兄弟按 Success 落库并保留 checkpoint:它可能是一次刚下完的 JDK,
+	// 标成 Cancelled 会让 Retry 重新下载几百 MB(install_java 的脚本没有缓存短路)。
+	r.progressMu.Lock()
+	for _, outcome := range succeeded {
+		if err := outcome.step.Complete(r.clock, enums.InstallationStepSuccess, outcome.checkpoint, nil); err != nil {
+			continue
+		}
+		_ = r.store.Installations().UpdateStep(context.Background(), outcome.step)
+	}
+	if len(succeeded) > 0 {
+		task.CurrentStep = pendingStepOrder(steps)
+		task.UpdatedAt = r.clock.Now().UTC()
+		_ = r.store.Installations().UpdateTask(context.Background(), task)
+	}
+	r.progressMu.Unlock()
+	// 被连带取消的兄弟没有自己的失败原因,标记为 Cancelled 以保持 Retryable。
+	for _, step := range cancelled {
+		_ = step.Complete(r.clock, enums.InstallationStepCancelled, step.Checkpoint, waveErr)
+		_ = r.store.Installations().UpdateStep(context.Background(), step)
+	}
+	if len(failed) == 0 && taskCancelled {
+		return r.finishCancelled(task, nil, waveErr)
+	}
+	return r.finishFailed(task, failed, waveErr)
+}
+
+// finishServerInstalled commits the succeeded task and the stopped Minecraft Server in one transaction.
+//
+// 两者必须原子:任务成功而服务器仍停留在 Installing 是没有恢复路径的状态。
+func (r *InstallationRunner) finishServerInstalled(ctx context.Context, task *model.InstallationTask) error {
+	finishCtx := context.WithoutCancel(ctx)
+	return r.store.Transaction(finishCtx, func(registry repository.Registry) error {
+		server, err := registry.MinecraftServers().Get(finishCtx, task.ServerID, false)
+		if err != nil {
+			return err
+		}
+		server.State = enums.LifecycleStopped
+		server.UpdatedAt = r.clock.Now().UTC()
+		if err := registry.MinecraftServers().Update(finishCtx, server); err != nil {
+			return err
+		}
+		return registry.Installations().UpdateTask(finishCtx, task)
+	})
+}
+
+// pendingStepOrder returns the lowest order that has not finished yet, or the step count when all finished.
+//
+// 取"最小未完成"而不是"最小运行中":一个波次里同时有多个步骤在跑,
+// 而"最大已完成序号"会随波次内步骤的 Order 分布来回跳。未完成集合只会收缩,
+// 所以这个值单调不减,前端可以直接拿它算百分比。
+func pendingStepOrder(steps []model.InstallationStep) int {
+	lowest := 0
+	for _, step := range steps {
+		if step.State == enums.InstallationStepSuccess || step.State == enums.InstallationStepSkipped {
+			continue
+		}
+		if lowest == 0 || step.Order < lowest {
+			lowest = step.Order
+		}
+	}
+	if lowest > 0 {
+		return lowest
+	}
+	return len(steps)
+}
+
+// overallStepProgress averages per-step progress so interleaved concurrent reports stay monotonic.
+func overallStepProgress(steps []model.InstallationStep) float64 {
+	if len(steps) == 0 {
+		return 0
+	}
+	total := float64(0)
+	for _, step := range steps {
+		switch step.State {
+		case enums.InstallationStepSuccess, enums.InstallationStepSkipped:
+			total += 1
+		default:
+			total += min(max(step.Progress, 0), 1)
+		}
+	}
+	return total / float64(len(steps))
+}
+
+func (r *InstallationRunner) finishFailed(task *model.InstallationTask, failed []*model.InstallationStep, failure error) error {
+	for _, step := range failed {
+		_ = step.Complete(r.clock, enums.InstallationStepFailed, step.Checkpoint, failure)
+		_ = r.store.Installations().UpdateStep(context.Background(), step)
+	}
 	_ = task.Complete(r.clock, enums.InstallationFailed)
 	_ = r.store.Installations().UpdateTask(context.Background(), task)
 	r.markServerFailed(task.ServerID)
 	return failure
 }
 
-func (r *InstallationRunner) finishCancelled(task *model.InstallationTask, step *model.InstallationStep, failure error) error {
-	_ = step.Complete(r.clock, enums.InstallationStepCancelled, step.Checkpoint, failure)
-	_ = r.store.Installations().UpdateStep(context.Background(), step)
+func (r *InstallationRunner) finishCancelled(task *model.InstallationTask, cancelled []*model.InstallationStep, failure error) error {
+	for _, step := range cancelled {
+		_ = step.Complete(r.clock, enums.InstallationStepCancelled, step.Checkpoint, failure)
+		_ = r.store.Installations().UpdateStep(context.Background(), step)
+	}
 	_ = task.Complete(r.clock, enums.InstallationCancelled)
 	_ = r.store.Installations().UpdateTask(context.Background(), task)
 	r.markServerFailed(task.ServerID)
@@ -307,30 +603,40 @@ func (r *InstallationRunner) markServerFailed(serverID model.ID) {
 }
 
 type installationStepReporter struct {
-	runner     *InstallationRunner
-	task       *model.InstallationTask
-	step       *model.InstallationStep
-	operation  OperationReporter
-	totalSteps int
+	runner    *InstallationRunner
+	task      *model.InstallationTask
+	step      *model.InstallationStep
+	steps     []model.InstallationStep
+	operation OperationReporter
 }
 
+// SetProgress persists one step's progress under the runner lock so concurrent steps cannot race.
+//
+// 锁覆盖整段:task.LogCursor 是所有 reporter 共享的字段,而 UpdateTask/UpdateStep 都是整行覆盖。
+// 总进度取所有步骤进度的均值,与并发上报的交错顺序无关,因此不会倒退。
 func (r *installationStepReporter) SetProgress(progress float64, message string, logCursor int64) error {
+	r.runner.progressMu.Lock()
 	if logCursor <= r.task.LogCursor {
 		logCursor = r.task.LogCursor + 1
 	}
 	if err := r.step.SetProgress(r.runner.clock, progress, message, logCursor); err != nil {
+		r.runner.progressMu.Unlock()
 		return err
 	}
 	if logCursor > r.task.LogCursor {
 		r.task.LogCursor = logCursor
 		r.task.UpdatedAt = r.runner.clock.Now().UTC()
 		if err := r.runner.store.Installations().UpdateTask(context.Background(), r.task); err != nil {
+			r.runner.progressMu.Unlock()
 			return err
 		}
 	}
 	if err := r.runner.store.Installations().UpdateStep(context.Background(), r.step); err != nil {
+		r.runner.progressMu.Unlock()
 		return err
 	}
-	overall := (float64(r.step.Order-1) + progress) / float64(r.totalSteps)
-	return r.operation.SetProgress(r.step.Name, overall, message)
+	stage := r.step.Name
+	overall := overallStepProgress(r.steps)
+	r.runner.progressMu.Unlock()
+	return r.operation.SetProgress(stage, overall, message)
 }

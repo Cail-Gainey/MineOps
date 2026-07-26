@@ -71,9 +71,7 @@ export async function confirmAndTrustHostKey(error: ApplicationError): Promise<b
  * @param {() => Promise<T>} operation - 可能返回 ssh.host_key_rejected 的 SSH 操作。
  * @returns {Promise<T>} 首次执行或确认信任后重试得到的结果。
  */
-export async function runWithHostKeyTrustConfirmation<T>(
-  operation: () => Promise<T>,
-): Promise<T> {
+export async function runWithHostKeyTrustConfirmation<T>(operation: () => Promise<T>): Promise<T> {
   try {
     return await operation()
   } catch (error) {

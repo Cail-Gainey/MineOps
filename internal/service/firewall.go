@@ -65,18 +65,22 @@ func (m *FirewallManager) Detect(ctx context.Context, serverID model.ID) (port.F
 // DetectPort probes the configured provider for one explicit TCP port.
 func (m *FirewallManager) DetectPort(ctx context.Context, serverID model.ID, serverPort uint16) (port.FirewallStatus, error) {
 	provider := m.settings.Snapshot().Firewall.Provider
-	return m.detectPort(ctx, serverID, serverPort, provider)
+	return m.detectPort(ctx, nil, serverID, serverPort, provider)
 }
 
-func (m *FirewallManager) detectPort(ctx context.Context, serverID model.ID, serverPort uint16, provider string) (port.FirewallStatus, error) {
-	server, session, client, err := m.connect(ctx, serverID)
+func (m *FirewallManager) detectPort(ctx context.Context, shared *SSHClient, serverID model.ID, serverPort uint16, provider string) (port.FirewallStatus, error) {
+	server, session, err := m.target(ctx, serverID)
 	if err != nil {
 		return port.FirewallStatus{}, err
 	}
-	defer func() { _ = client.Close() }()
 	if provider == "disabled" {
 		return port.FirewallStatus{ServerID: server.ID, SSHSessionID: session.ID, Backend: enums.FirewallBackendNone, Port: serverPort, Intent: "全局防火墙 Provider 已禁用"}, nil
 	}
+	client, release, err := m.clientFor(ctx, shared, session)
+	if err != nil {
+		return port.FirewallStatus{}, err
+	}
+	defer release()
 	detectScript := `set -eu
 provider=$1
 port=$2
@@ -137,17 +141,25 @@ printf 'none 0 0 %s\n' "$privileged"`
 
 // EnsureAllowed applies an idempotent UFW or firewalld runtime/permanent rule.
 func (m *FirewallManager) EnsureAllowed(ctx context.Context, status port.FirewallStatus) error {
+	return m.ensureAllowed(ctx, nil, status)
+}
+
+func (m *FirewallManager) ensureAllowed(ctx context.Context, shared *SSHClient, status port.FirewallStatus) error {
 	if status.Backend == enums.FirewallBackendNone || !status.Active || status.AlreadyAllowed {
 		return nil
 	}
 	if !status.Privileged {
 		return apperror.New(apperror.CodeFirewallPermissionDenied, "防火墙修改需要 root 或无密码 sudo -n").WithDetails(map[string]any{"backend": status.Backend, "port": status.Port})
 	}
-	_, _, client, err := m.connect(ctx, status.ServerID)
+	_, session, err := m.target(ctx, status.ServerID)
 	if err != nil {
 		return err
 	}
-	defer func() { _ = client.Close() }()
+	client, release, err := m.clientFor(ctx, shared, session)
+	if err != nil {
+		return err
+	}
+	defer release()
 	script := `set -eu
 backend=$1
 port=$2
@@ -179,17 +191,25 @@ exit 43`
 
 // RemoveAllowed removes one MineOps-owned UFW or firewalld rule.
 func (m *FirewallManager) RemoveAllowed(ctx context.Context, status port.FirewallStatus) error {
+	return m.removeAllowed(ctx, nil, status)
+}
+
+func (m *FirewallManager) removeAllowed(ctx context.Context, shared *SSHClient, status port.FirewallStatus) error {
 	if status.Backend == enums.FirewallBackendNone || !status.Active || !status.AlreadyAllowed {
 		return nil
 	}
 	if !status.Privileged {
 		return apperror.New(apperror.CodeFirewallPermissionDenied, "防火墙修改需要 root 或无密码 sudo -n").WithDetails(map[string]any{"backend": status.Backend, "port": status.Port})
 	}
-	_, _, client, err := m.connect(ctx, status.ServerID)
+	_, session, err := m.target(ctx, status.ServerID)
 	if err != nil {
 		return err
 	}
-	defer func() { _ = client.Close() }()
+	client, release, err := m.clientFor(ctx, shared, session)
+	if err != nil {
+		return err
+	}
+	defer release()
 	script := `set -eu
 backend=$1
 port=$2
@@ -221,6 +241,18 @@ exit 43`
 
 // AcquirePort ensures a rule and records whether MineOps owns it.
 func (m *FirewallManager) AcquirePort(ctx context.Context, serverID model.ID, serverPort uint16) (port.FirewallStatus, error) {
+	return m.acquirePort(ctx, nil, serverID, serverPort)
+}
+
+// AcquirePortWithClient ensures a rule over an already authenticated client so callers can reuse one SSH connection.
+func (m *FirewallManager) AcquirePortWithClient(ctx context.Context, client *SSHClient, serverID model.ID, serverPort uint16) (port.FirewallStatus, error) {
+	if client == nil {
+		return port.FirewallStatus{}, apperror.New(apperror.CodeValidationRequired, "防火墙操作的 SSH Client 不能为空")
+	}
+	return m.acquirePort(ctx, client, serverID, serverPort)
+}
+
+func (m *FirewallManager) acquirePort(ctx context.Context, shared *SSHClient, serverID model.ID, serverPort uint16) (port.FirewallStatus, error) {
 	server, err := m.store.MinecraftServers().Get(ctx, serverID, false)
 	if err != nil {
 		return port.FirewallStatus{}, err
@@ -228,7 +260,7 @@ func (m *FirewallManager) AcquirePort(ctx context.Context, serverID model.ID, se
 	if server.FirewallPolicy == enums.FirewallDisabled || m.settings.Snapshot().Firewall.Provider == "disabled" {
 		return port.FirewallStatus{ServerID: serverID, Backend: enums.FirewallBackendNone, Port: serverPort, Intent: "防火墙策略已禁用"}, nil
 	}
-	status, err := m.DetectPort(ctx, serverID, serverPort)
+	status, err := m.detectPort(ctx, shared, serverID, serverPort, m.settings.Snapshot().Firewall.Provider)
 	if err != nil {
 		return port.FirewallStatus{}, err
 	}
@@ -245,7 +277,7 @@ func (m *FirewallManager) AcquirePort(ctx context.Context, serverID model.ID, se
 			managed = managed || lease.Managed
 		}
 	}
-	if err := m.EnsureAllowed(ctx, status); err != nil {
+	if err := m.ensureAllowed(ctx, shared, status); err != nil {
 		return status, err
 	}
 	now := m.clock.Now().UTC()
@@ -256,7 +288,7 @@ func (m *FirewallManager) AcquirePort(ctx context.Context, serverID model.ID, se
 	if err := m.store.FirewallRuleLeases().Upsert(ctx, &lease); err != nil {
 		if managed && !status.AlreadyAllowed {
 			status.AlreadyAllowed = true
-			_ = m.RemoveAllowed(context.WithoutCancel(ctx), status)
+			_ = m.removeAllowed(context.WithoutCancel(ctx), shared, status)
 		}
 		return status, err
 	}
@@ -417,7 +449,7 @@ func (m *FirewallManager) releaseLease(ctx context.Context, lease model.Firewall
 	if len(references) > 1 {
 		return m.store.FirewallRuleLeases().Delete(ctx, lease.ServerID, lease.Backend, lease.Port)
 	}
-	status, err := m.detectPort(ctx, lease.ServerID, lease.Port, lease.Backend.String())
+	status, err := m.detectPort(ctx, nil, lease.ServerID, lease.Port, lease.Backend.String())
 	if err != nil {
 		lease.PendingRemoval = true
 		lease.UpdatedAt = m.clock.Now().UTC()
@@ -434,19 +466,40 @@ func (m *FirewallManager) releaseLease(ctx context.Context, lease model.Firewall
 }
 
 func (m *FirewallManager) connect(ctx context.Context, serverID model.ID) (*model.MinecraftServer, *model.SSHSession, *SSHClient, error) {
-	server, err := m.store.MinecraftServers().Get(ctx, serverID, false)
+	server, session, err := m.target(ctx, serverID)
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	session, err := m.store.SSHSessions().Get(ctx, server.SSHSessionID)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	client, err := m.clients.Connect(ctx, session, m.settings.Snapshot().SSH)
+	client, _, err := m.clientFor(ctx, nil, session)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 	return server, session, client, nil
+}
+
+// target reads the Minecraft Server and its SSH Session rows without opening a connection.
+func (m *FirewallManager) target(ctx context.Context, serverID model.ID) (*model.MinecraftServer, *model.SSHSession, error) {
+	server, err := m.store.MinecraftServers().Get(ctx, serverID, false)
+	if err != nil {
+		return nil, nil, err
+	}
+	session, err := m.store.SSHSessions().Get(ctx, server.SSHSessionID)
+	if err != nil {
+		return nil, nil, err
+	}
+	return server, session, nil
+}
+
+// clientFor returns the caller's shared client with a no-op release, or a freshly dialed client the caller must release.
+func (m *FirewallManager) clientFor(ctx context.Context, shared *SSHClient, session *model.SSHSession) (*SSHClient, func(), error) {
+	if shared != nil {
+		return shared, func() {}, nil
+	}
+	client, err := m.clients.Connect(ctx, session, m.settings.Snapshot().SSH)
+	if err != nil {
+		return nil, nil, err
+	}
+	return client, func() { _ = client.Close() }, nil
 }
 
 var _ port.FirewallDetector = (*FirewallManager)(nil)

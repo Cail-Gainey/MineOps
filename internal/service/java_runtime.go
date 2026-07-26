@@ -10,6 +10,7 @@ import (
 
 	"github.com/Cail-Gainey/MineOps/internal/global/apperror"
 	"github.com/Cail-Gainey/MineOps/internal/global/appsettings"
+	"github.com/Cail-Gainey/MineOps/internal/global/appthread"
 	"github.com/Cail-Gainey/MineOps/internal/model"
 	"github.com/Cail-Gainey/MineOps/internal/port"
 	"github.com/Cail-Gainey/MineOps/internal/repository"
@@ -30,65 +31,135 @@ type JavaRuntimeManager struct {
 	settings *appsettings.Manager
 	catalog  port.JDKCatalog
 	runner   *OperationRunner
+	pool     *appthread.Pool
 }
 
 // NewJavaRuntimeManager creates the remote Java application service.
-func NewJavaRuntimeManager(clock model.Clock, store repository.Store, clients *SSHClientFactory, settings *appsettings.Manager, catalog port.JDKCatalog, runner *OperationRunner) (*JavaRuntimeManager, error) {
+//
+// pool bounds the concurrent remote probes issued by Discover; a nil pool falls back to appthread.Default().
+func NewJavaRuntimeManager(clock model.Clock, store repository.Store, clients *SSHClientFactory, settings *appsettings.Manager, catalog port.JDKCatalog, runner *OperationRunner, pool *appthread.Pool) (*JavaRuntimeManager, error) {
 	if clock == nil || store == nil || clients == nil || settings == nil || catalog == nil || runner == nil {
 		return nil, apperror.New(apperror.CodeValidationRequired, "Java Runtime Manager 依赖不能为空")
 	}
-	return &JavaRuntimeManager{clock: clock, store: store, clients: clients, settings: settings, catalog: catalog, runner: runner}, nil
+	if pool == nil {
+		pool = appthread.Default()
+	}
+	return &JavaRuntimeManager{clock: clock, store: store, clients: clients, settings: settings, catalog: catalog, runner: runner, pool: pool}, nil
 }
 
 // Discover verifies managed, JAVA_HOME, PATH, and common Linux Java candidates in priority order.
 func (m *JavaRuntimeManager) Discover(ctx context.Context, sshSessionID model.ID) ([]JavaCandidate, error) {
-	sshSession, client, err := m.connect(ctx, sshSessionID)
+	_, client, err := m.connect(ctx, sshSessionID)
 	if err != nil {
 		return nil, err
 	}
 	defer func() { _ = client.Close() }()
-	_ = sshSession
-	home := strings.TrimSpace(m.commandOutput(ctx, client, RemoteCommand{Executable: "printenv", Arguments: []string{"HOME"}, Timeout: 5 * time.Second, MaximumOutput: 4096}))
-	javaHome := strings.TrimSpace(m.commandOutput(ctx, client, RemoteCommand{Executable: "printenv", Arguments: []string{"JAVA_HOME"}, Timeout: 5 * time.Second, MaximumOutput: 4096}))
-	pathJava := strings.TrimSpace(m.commandOutput(ctx, client, RemoteCommand{Executable: "which", Arguments: []string{"java"}, Timeout: 5 * time.Second, MaximumOutput: 4096}))
+	return m.DiscoverWithClient(ctx, client)
+}
+
+// DiscoverWithClient runs discovery on an already authenticated client so callers can reuse one SSH connection.
+//
+// 远程探测通过线程池并发执行:环境变量合并成一次往返,系统目录 find 与候选校验按输入顺序扇出,
+// 因此 Managed→JAVA_HOME→PATH→System 的优先级顺序与串行实现完全一致。
+func (m *JavaRuntimeManager) DiscoverWithClient(ctx context.Context, client *SSHClient) ([]JavaCandidate, error) {
+	if client == nil {
+		return nil, apperror.New(apperror.CodeValidationRequired, "Java 发现的 SSH Client 不能为空")
+	}
+	environment := m.discoverEnvironment(ctx, client)
 
 	type candidatePath struct {
 		value  string
 		source model.JavaRuntimeSource
 	}
 	paths := make([]candidatePath, 0, 32)
-	if home != "" {
-		managedRoot := path.Join(home, "MineOps/Runtime")
-		for _, value := range m.findJavaExecutables(ctx, client, managedRoot) {
+	systemRoots := []string{"/usr/lib/jvm", "/usr/local/lib/jvm", "/opt/java", "/opt/jdk"}
+	roots := make([]string, 0, len(systemRoots)+1)
+	managedRoot := ""
+	if environment.home != "" {
+		managedRoot = path.Join(environment.home, "MineOps/Runtime")
+		roots = append(roots, managedRoot)
+	}
+	roots = append(roots, systemRoots...)
+	found := appthread.Map(ctx, m.pool, roots, func(taskCtx context.Context, root string) []string {
+		return m.findJavaExecutables(taskCtx, client, root)
+	})
+
+	if managedRoot != "" {
+		for _, value := range found[0] {
 			paths = append(paths, candidatePath{value: value, source: model.JavaSourceManaged})
 		}
+		found = found[1:]
 	}
-	if javaHome != "" {
-		paths = append(paths, candidatePath{value: path.Join(javaHome, "bin/java"), source: model.JavaSourceJavaHome})
+	if environment.javaHome != "" {
+		paths = append(paths, candidatePath{value: path.Join(environment.javaHome, "bin/java"), source: model.JavaSourceJavaHome})
 	}
-	if pathJava != "" {
-		paths = append(paths, candidatePath{value: strings.Split(pathJava, "\n")[0], source: model.JavaSourcePath})
+	if environment.pathJava != "" {
+		paths = append(paths, candidatePath{value: environment.pathJava, source: model.JavaSourcePath})
 	}
-	for _, root := range []string{"/usr/lib/jvm", "/usr/local/lib/jvm", "/opt/java", "/opt/jdk"} {
-		for _, value := range m.findJavaExecutables(ctx, client, root) {
+	for _, values := range found {
+		for _, value := range values {
 			paths = append(paths, candidatePath{value: value, source: model.JavaSourceSystem})
 		}
 	}
 
 	seen := make(map[string]bool, len(paths))
-	result := make([]JavaCandidate, 0, len(paths))
+	unique := make([]candidatePath, 0, len(paths))
 	for _, candidate := range paths {
 		candidate.value = path.Clean(strings.TrimSpace(candidate.value))
 		if candidate.value == "." || seen[candidate.value] {
 			continue
 		}
 		seen[candidate.value] = true
-		verified, verifyErr := m.validateWithClient(ctx, client, candidate.value, candidate.source)
-		if verifyErr == nil {
-			result = append(result, verified)
+		unique = append(unique, candidate)
+	}
+
+	type verification struct {
+		candidate JavaCandidate
+		err       error
+	}
+	verified := appthread.Map(ctx, m.pool, unique, func(taskCtx context.Context, candidate candidatePath) verification {
+		value, verifyErr := m.validateWithClient(taskCtx, client, candidate.value, candidate.source)
+		return verification{candidate: value, err: verifyErr}
+	})
+	result := make([]JavaCandidate, 0, len(verified))
+	for _, item := range verified {
+		if item.err == nil {
+			result = append(result, item.candidate)
 		}
 	}
+	// appthread.Map 会吞掉任务错误。上下文已取消时结果必然不完整,
+	// 必须把取消传出去,否则调用方会把"发现被打断"误判成"这台机器没有 Java"而去装一份新的 JDK。
+	if ctx.Err() != nil {
+		return nil, apperror.Wrap(apperror.CodeProcessCancelled, "Java 发现已取消", ctx.Err())
+	}
 	return result, nil
+}
+
+type javaEnvironment struct {
+	home     string
+	javaHome string
+	pathJava string
+}
+
+// 固定输出三行(HOME、JAVA_HOME、PATH 中的 java),未设置的变量输出空行,便于按行位取值。
+const javaEnvironmentProbeScript = `printf '%s\n' "${HOME:-}"
+printf '%s\n' "${JAVA_HOME:-}"
+printf '%s\n' "$(command -v java 2>/dev/null || true)"`
+
+// discoverEnvironment reads HOME, JAVA_HOME, and the PATH java in one round trip instead of three.
+func (m *JavaRuntimeManager) discoverEnvironment(ctx context.Context, client *SSHClient) javaEnvironment {
+	output := m.commandOutput(ctx, client, RemoteCommand{
+		Executable: "sh", Arguments: []string{"-c", javaEnvironmentProbeScript},
+		Timeout: 10 * time.Second, MaximumOutput: 16 * 1024,
+	})
+	lines := strings.Split(output, "\n")
+	value := func(index int) string {
+		if index >= len(lines) {
+			return ""
+		}
+		return strings.TrimSpace(lines[index])
+	}
+	return javaEnvironment{home: value(0), javaHome: value(1), pathJava: value(2)}
 }
 
 // List returns persisted Java Runtimes using repository filters.
@@ -111,11 +182,30 @@ func (m *JavaRuntimeManager) Validate(ctx context.Context, sshSessionID model.ID
 	return m.validateWithClient(ctx, client, executablePath, source)
 }
 
+// ValidateWithClient verifies one Java executable on an already authenticated client.
+func (m *JavaRuntimeManager) ValidateWithClient(ctx context.Context, client *SSHClient, executablePath string, source model.JavaRuntimeSource) (JavaCandidate, error) {
+	if client == nil {
+		return JavaCandidate{}, apperror.New(apperror.CodeValidationRequired, "Java 校验的 SSH Client 不能为空")
+	}
+	return m.validateWithClient(ctx, client, executablePath, source)
+}
+
 // Import validates and transactionally registers one remote Java installation, deduplicated by path.
 func (m *JavaRuntimeManager) Import(ctx context.Context, sshSessionID model.ID, executablePath string, source model.JavaRuntimeSource) (*model.JavaRuntime, error) {
 	candidate, err := m.Validate(ctx, sshSessionID, executablePath, source)
 	if err != nil {
 		return nil, err
+	}
+	return m.registerCandidate(ctx, sshSessionID, candidate)
+}
+
+// ImportCandidate registers an already verified candidate without opening another SSH connection.
+//
+// Discover 返回的候选已经完成远程校验,重复 Import 会为每个候选再连一次并重跑 java -version;
+// 该入口让调用方直接复用校验结果,只做数据库写入。
+func (m *JavaRuntimeManager) ImportCandidate(ctx context.Context, sshSessionID model.ID, candidate JavaCandidate) (*model.JavaRuntime, error) {
+	if candidate.ExecutablePath == "" {
+		return nil, apperror.New(apperror.CodeValidationRequired, "Java 候选不能为空")
 	}
 	return m.registerCandidate(ctx, sshSessionID, candidate)
 }

@@ -314,14 +314,18 @@ func (c *MetricCollector) collectAll(ctx context.Context, interval time.Duration
 			})
 		} else {
 			for _, session := range sessions {
-				groups[session.ID] = groups[session.ID]
+				if _, exists := groups[session.ID]; !exists {
+					groups[session.ID] = nil
+				}
 				startupSweepSessions[session.ID] = true
 			}
 			c.markStartupSweepDone()
 		}
 	}
 	for _, sessionID := range c.activeSessionIDs() {
-		groups[sessionID] = groups[sessionID]
+		if _, exists := groups[sessionID]; !exists {
+			groups[sessionID] = nil
+		}
 	}
 
 	var wait sync.WaitGroup

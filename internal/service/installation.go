@@ -57,7 +57,15 @@ func NewInstallationManager(clock model.Clock, store repository.Store, settings 
 			return nil, err
 		}
 	}
+	if err := runner.SetSessionFactory(manager.newInstallationSession); err != nil {
+		return nil, err
+	}
 	return manager, nil
+}
+
+// newInstallationSession creates the shared SSH session a single installation task reuses across all steps.
+func (m *InstallationManager) newInstallationSession(serverID model.ID) *InstallationSession {
+	return newInstallationSession(m.clients, m.store, m.settings, serverID)
 }
 
 // ListDistributions returns the dynamic first-release server type registry.
@@ -227,29 +235,30 @@ func (m *InstallationManager) ResolveDirectoryConflict(ctx context.Context, task
 	return m.Retry(ctx, taskID)
 }
 
-func (m *InstallationManager) connectSSH(ctx context.Context, task model.InstallationTask, _ model.InstallationStep, reporter InstallationStepReporter) (map[string]any, error) {
-	_, session, client, err := m.connectServer(ctx, task.ServerID)
+func (m *InstallationManager) connectSSH(ctx context.Context, remote *InstallationSession, task model.InstallationTask, _ model.InstallationStep, reporter InstallationStepReporter) (map[string]any, error) {
+	// 建立本次安装共享的连接并预热 $HOME 缓存,后续步骤全部复用它。
+	sshSession, err := remote.SSHSession(ctx)
 	if err != nil {
 		return nil, err
 	}
-	defer func() { _ = client.Close() }()
+	if _, err := remote.Home(ctx); err != nil {
+		return nil, err
+	}
 	if err := reporter.SetProgress(1, "SSH 连接、认证、主机指纹与命令通道验证完成", 1); err != nil {
 		return nil, err
 	}
-	return map[string]any{"sshSessionID": session.ID.String(), "host": session.Host, "port": session.Port}, nil
+	return map[string]any{"sshSessionID": sshSession.ID.String(), "host": sshSession.Host, "port": sshSession.Port}, nil
 }
 
-func (m *InstallationManager) initializeDirectories(ctx context.Context, task model.InstallationTask, _ model.InstallationStep, reporter InstallationStepReporter) (map[string]any, error) {
-	_, _, client, err := m.connectServer(ctx, task.ServerID)
+func (m *InstallationManager) initializeDirectories(ctx context.Context, remote *InstallationSession, task model.InstallationTask, _ model.InstallationStep, reporter InstallationStepReporter) (map[string]any, error) {
+	client, err := remote.Client(ctx)
 	if err != nil {
 		return nil, err
 	}
-	defer func() { _ = client.Close() }()
-	homeResult, err := client.RunCommand(ctx, RemoteCommand{Executable: "printenv", Arguments: []string{"HOME"}, Timeout: 5 * time.Second, MaximumOutput: 4096})
-	if err != nil || strings.TrimSpace(homeResult.Stdout) == "" {
-		return nil, apperror.Wrap(apperror.CodeIOPermissionDenied, "无法解析远程 Home", err)
+	home, err := remote.Home(ctx)
+	if err != nil {
+		return nil, err
 	}
-	home := path.Clean(strings.TrimSpace(homeResult.Stdout))
 	directories := []string{"Servers", "Runtime", "Downloads", "Logs", "Backup", "Temp", "Agents"}
 	arguments := []string{"-p"}
 	for _, directory := range directories {
@@ -264,12 +273,15 @@ func (m *InstallationManager) initializeDirectories(ctx context.Context, task mo
 	return map[string]any{"home": home, "root": path.Join(home, "MineOps")}, nil
 }
 
-func (m *InstallationManager) createServerDirectory(ctx context.Context, task model.InstallationTask, step model.InstallationStep, reporter InstallationStepReporter) (map[string]any, error) {
-	server, _, client, err := m.connectServer(ctx, task.ServerID)
+func (m *InstallationManager) createServerDirectory(ctx context.Context, remote *InstallationSession, task model.InstallationTask, step model.InstallationStep, reporter InstallationStepReporter) (map[string]any, error) {
+	server, err := remote.Server(ctx)
 	if err != nil {
 		return nil, err
 	}
-	defer func() { _ = client.Close() }()
+	client, err := remote.Client(ctx)
+	if err != nil {
+		return nil, err
+	}
 	marker := path.Join(server.RemotePath, ".mineops-installation")
 	resolution := checkpointString(step.Checkpoint, "resolution")
 	initializeCheckpoint, checkpointErr := m.stepCheckpoint(ctx, task.ID, "initialize_directories")
@@ -307,8 +319,8 @@ printf '%s' "$task" > "$marker"`
 	return map[string]any{"remotePath": server.RemotePath, "marker": marker, "resolution": resolution, "backupPath": backupPath}, nil
 }
 
-func (m *InstallationManager) resolveJava(ctx context.Context, task model.InstallationTask, _ model.InstallationStep, reporter InstallationStepReporter) (map[string]any, error) {
-	server, err := m.store.MinecraftServers().Get(ctx, task.ServerID, false)
+func (m *InstallationManager) resolveJava(ctx context.Context, remote *InstallationSession, task model.InstallationTask, _ model.InstallationStep, reporter InstallationStepReporter) (map[string]any, error) {
+	server, err := remote.Server(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -325,15 +337,20 @@ func (m *InstallationManager) resolveJava(ctx context.Context, task model.Instal
 	} else {
 		runtime, err = m.javaRuntimes.Recommend(ctx, server.SSHSessionID, server.Type.String(), server.Version)
 		if err != nil && apperror.ToDTO(err).Code == apperror.CodeIONotFound.String() {
-			candidates, discoverErr := m.javaRuntimes.Discover(ctx, server.SSHSessionID)
+			client, clientErr := remote.Client(ctx)
+			if clientErr != nil {
+				return nil, clientErr
+			}
+			candidates, discoverErr := m.javaRuntimes.DiscoverWithClient(ctx, client)
 			if discoverErr != nil {
 				return nil, discoverErr
 			}
+			// Discover 已在共享连接上校验过每个候选,这里只做数据库注册,不再逐个重连重验。
 			for _, candidate := range candidates {
 				if !requirement.Compatible(candidate.Info.MajorVersion) {
 					continue
 				}
-				runtime, err = m.javaRuntimes.Import(ctx, server.SSHSessionID, candidate.ExecutablePath, candidate.Source)
+				runtime, err = m.javaRuntimes.ImportCandidate(ctx, server.SSHSessionID, candidate)
 				if err == nil {
 					break
 				}
@@ -361,12 +378,15 @@ func (m *InstallationManager) resolveJava(ctx context.Context, task model.Instal
 	return checkpoint, nil
 }
 
-func (m *InstallationManager) installJava(ctx context.Context, task model.InstallationTask, _ model.InstallationStep, reporter InstallationStepReporter) (map[string]any, error) {
-	server, _, client, err := m.connectServer(ctx, task.ServerID)
+func (m *InstallationManager) installJava(ctx context.Context, remote *InstallationSession, task model.InstallationTask, _ model.InstallationStep, reporter InstallationStepReporter) (map[string]any, error) {
+	server, err := remote.Server(ctx)
 	if err != nil {
 		return nil, err
 	}
-	defer func() { _ = client.Close() }()
+	client, err := remote.Client(ctx)
+	if err != nil {
+		return nil, err
+	}
 	resolveCheckpoint, err := m.stepCheckpoint(ctx, task.ID, "resolve_java")
 	if err != nil {
 		return nil, err
@@ -387,11 +407,10 @@ func (m *InstallationManager) installJava(ctx context.Context, task model.Instal
 	if err != nil {
 		return nil, err
 	}
-	homeResult, err := client.RunCommand(ctx, RemoteCommand{Executable: "printenv", Arguments: []string{"HOME"}, Timeout: 5 * time.Second, MaximumOutput: 4096})
+	home, err := remote.Home(ctx)
 	if err != nil {
 		return nil, err
 	}
-	home := path.Clean(strings.TrimSpace(homeResult.Stdout))
 	archive := path.Join(home, "MineOps", "Downloads", fmt.Sprintf("temurin-%d-%s.%s", major, architecture, artifact.ArchiveType))
 	target := path.Join(home, "MineOps", "Runtime", fmt.Sprintf("java-%d-%s", major, architecture))
 	script := `set -eu
@@ -430,7 +449,12 @@ printf '%s\n' "$actual_hash"`
 	if err != nil {
 		return nil, apperror.Wrap(apperror.CodeInstallationJavaFailed, "下载或安装 OpenJDK 失败", err).WithDetails(map[string]any{"stderr": result.Stderr})
 	}
-	runtime, err := m.javaRuntimes.Import(ctx, server.SSHSessionID, path.Join(target, "bin/java"), model.JavaSourceManaged)
+	// 在共享连接上校验后直接注册:Import 会自己再建一条 SSH 连接。
+	candidate, err := m.javaRuntimes.ValidateWithClient(ctx, client, path.Join(target, "bin/java"), model.JavaSourceManaged)
+	if err != nil {
+		return nil, err
+	}
+	runtime, err := m.javaRuntimes.ImportCandidate(ctx, server.SSHSessionID, candidate)
 	if err != nil {
 		return nil, err
 	}
@@ -448,17 +472,20 @@ printf '%s\n' "$actual_hash"`
 	}, nil
 }
 
-func (m *InstallationManager) downloadServer(ctx context.Context, task model.InstallationTask, _ model.InstallationStep, reporter InstallationStepReporter) (map[string]any, error) {
-	server, _, client, err := m.connectServer(ctx, task.ServerID)
+func (m *InstallationManager) downloadServer(ctx context.Context, remote *InstallationSession, task model.InstallationTask, _ model.InstallationStep, reporter InstallationStepReporter) (map[string]any, error) {
+	server, err := remote.Server(ctx)
 	if err != nil {
 		return nil, err
 	}
-	defer func() { _ = client.Close() }()
+	client, err := remote.Client(ctx)
+	if err != nil {
+		return nil, err
+	}
 	artifact, err := m.catalogs.ResolveArtifact(ctx, server.Type, server.Version, "")
 	if err != nil {
 		return nil, err
 	}
-	homeResult, err := client.RunCommand(ctx, RemoteCommand{Executable: "printenv", Arguments: []string{"HOME"}, Timeout: 5 * time.Second, MaximumOutput: 4096})
+	home, err := remote.Home(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -466,7 +493,7 @@ func (m *InstallationManager) downloadServer(ctx context.Context, task model.Ins
 	if fileName == "." || fileName == "/" || fileName == "" {
 		return nil, apperror.New(apperror.CodeValidationInvalidArgument, "Server Artifact 文件名无效")
 	}
-	destination := path.Join(strings.TrimSpace(homeResult.Stdout), "MineOps", "Downloads", fileName)
+	destination := path.Join(home, "MineOps", "Downloads", fileName)
 	script := `set -eu
 url=$1
 destination=$2
@@ -516,12 +543,15 @@ printf '%s %s downloaded\n' "$hash" "$size"`
 	}, nil
 }
 
-func (m *InstallationManager) installServer(ctx context.Context, task model.InstallationTask, _ model.InstallationStep, reporter InstallationStepReporter) (map[string]any, error) {
-	server, _, client, err := m.connectServer(ctx, task.ServerID)
+func (m *InstallationManager) installServer(ctx context.Context, remote *InstallationSession, task model.InstallationTask, _ model.InstallationStep, reporter InstallationStepReporter) (map[string]any, error) {
+	server, err := remote.Server(ctx)
 	if err != nil {
 		return nil, err
 	}
-	defer func() { _ = client.Close() }()
+	client, err := remote.Client(ctx)
+	if err != nil {
+		return nil, err
+	}
 	download, err := m.stepCheckpoint(ctx, task.ID, "download_server")
 	if err != nil {
 		return nil, err
@@ -642,12 +672,15 @@ printf '%s\n' "$actual"`
 	return map[string]any{"jarPath": destination, "artifactSHA256": strings.TrimSpace(result.Stdout)}, nil
 }
 
-func (m *InstallationManager) writeEULA(ctx context.Context, task model.InstallationTask, _ model.InstallationStep, reporter InstallationStepReporter) (map[string]any, error) {
-	server, _, client, err := m.connectServer(ctx, task.ServerID)
+func (m *InstallationManager) writeEULA(ctx context.Context, remote *InstallationSession, task model.InstallationTask, _ model.InstallationStep, reporter InstallationStepReporter) (map[string]any, error) {
+	server, err := remote.Server(ctx)
 	if err != nil {
 		return nil, err
 	}
-	defer func() { _ = client.Close() }()
+	client, err := remote.Client(ctx)
+	if err != nil {
+		return nil, err
+	}
 	profile := runtimeProfileForServerType(server.Type)
 	if !profile.requiresEULA {
 		if err := reporter.SetProgress(1, "当前服务端类型不需要 Minecraft EULA 文件", 8); err != nil {
@@ -674,8 +707,8 @@ mv -f -- "$temporary" "$1"`
 	return map[string]any{"eulaPath": eulaPath, "accepted": true}, nil
 }
 
-func (m *InstallationManager) configureFirewall(ctx context.Context, task model.InstallationTask, _ model.InstallationStep, reporter InstallationStepReporter) (map[string]any, error) {
-	server, err := m.store.MinecraftServers().Get(ctx, task.ServerID, false)
+func (m *InstallationManager) configureFirewall(ctx context.Context, remote *InstallationSession, task model.InstallationTask, _ model.InstallationStep, reporter InstallationStepReporter) (map[string]any, error) {
+	server, err := remote.Server(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -687,7 +720,11 @@ func (m *InstallationManager) configureFirewall(ctx context.Context, task model.
 		}
 		return map[string]any{"port": serverPort, "skipped": true}, nil
 	}
-	status, err := m.firewall.AcquirePort(ctx, server.ID, serverPort)
+	client, err := remote.Client(ctx)
+	if err != nil {
+		return nil, err
+	}
+	status, err := m.firewall.AcquirePortWithClient(ctx, client, server.ID, serverPort)
 	if err != nil {
 		return nil, err
 	}
@@ -700,15 +737,18 @@ func (m *InstallationManager) configureFirewall(ctx context.Context, task model.
 	}, nil
 }
 
-func (m *InstallationManager) firstStart(ctx context.Context, task model.InstallationTask, _ model.InstallationStep, reporter InstallationStepReporter) (map[string]any, error) {
+func (m *InstallationManager) firstStart(ctx context.Context, remote *InstallationSession, task model.InstallationTask, _ model.InstallationStep, reporter InstallationStepReporter) (map[string]any, error) {
 	if err := reporter.SetProgress(0.05, "正在准备 Minecraft 首次启动与实时日志", 0); err != nil {
 		return nil, err
 	}
-	server, _, client, err := m.connectServer(ctx, task.ServerID)
+	server, err := remote.Server(ctx)
 	if err != nil {
 		return nil, err
 	}
-	defer func() { _ = client.Close() }()
+	client, err := remote.Client(ctx)
+	if err != nil {
+		return nil, err
+	}
 	javaCheckpoint, err := m.stepCheckpoint(ctx, task.ID, "install_java")
 	if err != nil {
 		return nil, err
@@ -833,8 +873,8 @@ exit 32`
 	return map[string]any{"ready": true, "stopped": true, "evidence": strings.TrimSpace(result.Stdout)}, nil
 }
 
-func (m *InstallationManager) registerServer(ctx context.Context, task model.InstallationTask, _ model.InstallationStep, reporter InstallationStepReporter) (map[string]any, error) {
-	server, err := m.store.MinecraftServers().Get(ctx, task.ServerID, false)
+func (m *InstallationManager) registerServer(ctx context.Context, remote *InstallationSession, task model.InstallationTask, _ model.InstallationStep, reporter InstallationStepReporter) (map[string]any, error) {
+	server, err := remote.Server(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -925,6 +965,8 @@ func installationOutputReporter(reporter InstallationStepReporter, progress floa
 func downloadOutputReporter(reporter InstallationStepReporter, total int64, prefix string) func(RemoteCommandOutput) {
 	lastAt := time.Now()
 	var lastBytes int64
+	// 记住已上报的进度:非进度日志行不能用固定值把进度打回去,否则总进度会抖动。
+	lastProgress := float64(0.5)
 	return func(output RemoteCommandOutput) {
 		for _, line := range strings.Split(strings.ReplaceAll(output.Data, "\r", "\n"), "\n") {
 			fields := strings.Fields(line)
@@ -950,11 +992,11 @@ func downloadOutputReporter(reporter InstallationStepReporter, total int64, pref
 					message = fmt.Sprintf("%s: %.1f%% · %.1f MiB/s · 剩余 %s", prefix, progress*100, speed/1024/1024, remaining.Round(time.Second))
 				}
 				_ = reporter.SetProgress(progress, message, 0)
-				lastAt, lastBytes = now, downloaded
+				lastAt, lastBytes, lastProgress = now, downloaded, progress
 				continue
 			}
 			if strings.TrimSpace(line) != "" {
-				installationOutputReporter(reporter, 0.5, prefix)(RemoteCommandOutput{Stream: output.Stream, Data: line})
+				installationOutputReporter(reporter, lastProgress, prefix)(RemoteCommandOutput{Stream: output.Stream, Data: line})
 			}
 		}
 	}

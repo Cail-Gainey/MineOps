@@ -8,6 +8,9 @@ import AppDataTable from '../../shared/components/AppDataTable.vue'
 import { useInteractionStore } from '../../stores/interactions'
 import { useLocaleStore } from '../../stores/locale'
 
+// 与 Go 侧 model.InstallationStepCount 保持一致:安装流程固定 11 步。
+const installationStepCount = 11
+
 const props = defineProps<{ serverID: string }>()
 const interactions = useInteractionStore()
 const locale = useLocaleStore()
@@ -21,13 +24,17 @@ const installationStateLabels: Record<string, string> = {
   failed: '失败',
   cancelled: '已取消',
 }
+// 与 model.NewInstallationTask 的步骤名列表一一对应。
 const installationStepLabels: Record<string, string> = {
-  preflight: '安装前检查',
+  connect_ssh: '建立 SSH 连接',
+  initialize_directories: '初始化远程目录',
   create_server_directory: '创建服务器目录',
   resolve_java: '检测 Java 运行时',
+  install_java: '安装 OpenJDK',
   download_server: '下载服务端',
   install_server: '安装服务端',
   write_eula: '写入 EULA',
+  configure_firewall: '配置防火墙',
   first_start: '首次启动检查',
   register_server: '注册服务器',
 }
@@ -69,7 +76,7 @@ const columns: DataTableColumns<InstallationTask> = [
     width: 150,
     render: (row) =>
       h(NProgress, {
-        percentage: Math.min(100, Math.round((row.currentStep / 10) * 100)),
+        percentage: Math.min(100, Math.round((row.currentStep / installationStepCount) * 100)),
         showIndicator: false,
       }),
   },

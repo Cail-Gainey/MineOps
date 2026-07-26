@@ -67,6 +67,17 @@ const directoryConflict = computed(() =>
 const remainingSteps = computed(
   () => wizard.steps.filter((item) => item.state !== 'success' && item.state !== 'skipped').length,
 )
+// 安装步骤按波次并行执行,同一时刻可能有多个步骤处于 running。
+const runningSteps = computed(() => wizard.steps.filter((item) => item.state === 'running'))
+const completedStepCount = computed(
+  () => wizard.steps.filter((item) => item.state === 'success' || item.state === 'skipped').length,
+)
+const stepProgressText = computed(() => {
+  const summary = `已完成 ${completedStepCount.value}/${wizard.steps.length}`
+  return runningSteps.value.length > 1
+    ? `${summary} · 并行 ${runningSteps.value.length} 个步骤`
+    : summary
+})
 const elapsedText = computed(() => {
   const startedAt = wizard.task?.startedAt
   if (!startedAt) return '尚未开始'
@@ -87,9 +98,14 @@ const installationTerminalLines = computed(() => {
 })
 const installationTerminalStatus = computed(() => {
   if (!wizard.task) return '等待安装任务'
+  if (runningSteps.value.length > 0) {
+    return runningSteps.value
+      .map((step) => `${stepLabel(step.name)} · ${step.message || '正在执行'}`)
+      .join(' ｜ ')
+  }
   const current = wizard.steps.find((step) => step.order === wizard.task?.currentStep)
   if (!current) return `任务状态：${wizard.task.state}`
-  const message = current.message || (current.state === 'running' ? '正在执行' : '等待执行')
+  const message = current.message || '等待执行'
   return `${stepLabel(current.name)} · ${current.state} · ${message}`
 })
 
@@ -253,8 +269,8 @@ watch(
               <NText depth="3">关闭此窗口不会取消后台任务，重新打开后会从 SQLite 恢复状态。</NText>
               <div>
                 <NText depth="3"
-                  >当前步骤 {{ wizard.task.currentStep }}/{{ wizard.steps.length }} · 剩余
-                  {{ remainingSteps }} · 已用时 {{ elapsedText }}</NText
+                  >{{ stepProgressText }} · 剩余 {{ remainingSteps }} · 已用时
+                  {{ elapsedText }}</NText
                 >
               </div>
             </div>

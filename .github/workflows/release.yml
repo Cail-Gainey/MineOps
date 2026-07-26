@@ -30,7 +30,7 @@ jobs:
       prerelease: ${{ steps.tag.outputs.prerelease }}
       tag: ${{ steps.ref.outputs.tag }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.tag || github.ref_name }}
       - id: ref
@@ -74,19 +74,19 @@ jobs:
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.prepare.outputs.tag }}
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
           cache: true
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22.22.1
           cache: npm
           cache-dependency-path: frontend/package-lock.json
-      - uses: arduino/setup-task@v2
+      - uses: arduino/setup-task@v3
         with:
           version: 3.45.5
       - name: Install Linux packaging dependencies
@@ -224,13 +224,13 @@ jobs:
             -name 'MineOps-*-windows-*.exe' -o -name 'MineOps-*-darwin-*.zip' -o -name 'MineOps-*-linux-*' \
           \) ! -name '*-installer.exe' ! -name '*.AppImage' ! -name '*.deb' ! -name '*.rpm' -exec cp {} dist/updater/ \;
           test -n "$(find dist/packages -maxdepth 1 -type f -print -quit)"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: release-packages-${{ matrix.platform }}-${{ matrix.arch }}
           path: dist/packages/
           if-no-files-found: error
           retention-days: 7
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: release-updater-${{ matrix.platform }}-${{ matrix.arch }}
           path: dist/updater/
@@ -245,22 +245,22 @@ jobs:
       contents: write
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.prepare.outputs.tag }}
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
           cache: true
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22.22.1
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: release-packages-*
           path: dist/release
           merge-multiple: true
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: release-updater-*
           path: dist/release

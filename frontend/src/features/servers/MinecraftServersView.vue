@@ -17,7 +17,7 @@ import {
   NText,
   type DataTableColumns,
 } from 'naive-ui'
-import { h, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, h, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
 import type { MinecraftServerInput } from '../../../bindings/github.com/Cail-Gainey/MineOps/internal/desktop/services/models'
@@ -34,10 +34,12 @@ import {
   importRemoteMinecraftServer,
   inspectRemoteMinecraftServer,
 } from '../../services/minecraft-server-api'
+import { getLatestMetrics, subscribeMetricRealtime } from '../../services/metric-api'
 import { subscribeOperationProgress } from '../../services/operation-api'
 import AppDataTable from '../../shared/components/AppDataTable.vue'
 import AppIcon from '../../shared/components/AppIcon.vue'
 import { useInteractionStore } from '../../stores/interactions'
+import { useLocaleStore } from '../../stores/locale'
 import { useMinecraftServersStore } from '../../stores/minecraft-servers'
 import { useNotificationStore } from '../../stores/notifications'
 import { useSettingsStore } from '../../stores/settings'
@@ -48,6 +50,7 @@ const store = useMinecraftServersStore()
 const router = useRouter()
 const sshSessions = useSSHSessionsStore()
 const interactions = useInteractionStore()
+const locale = useLocaleStore()
 const notifications = useNotificationStore()
 const settings = useSettingsStore()
 const wizardVisible = ref(false)
@@ -76,9 +79,21 @@ const hardDeleteTarget = ref<MinecraftServer | null>(null)
 const confirmedDeleteName = ref('')
 const confirmedDeletePath = ref('')
 type LifecycleAction = 'start' | 'stop' | 'restart'
+interface ServerUptime {
+  seconds: number
+  sampledAt: number
+}
+
 const lifecycleActions = ref<Record<string, LifecycleAction>>({})
+const serverUptimes = ref<Record<string, ServerUptime>>({})
+const uptimeNow = ref(Date.now())
+const tableContainer = ref<HTMLElement | null>(null)
+const tableWidth = ref(1280)
 const pendingHardDeleteTargets = new Set<string>()
 let unsubscribeOperation: (() => void) | null = null
+let unsubscribeMetricRealtime: (() => void) | null = null
+let uptimeTimer: ReturnType<typeof setInterval> | null = null
+let tableResizeObserver: ResizeObserver | null = null
 const firewallPolicyOptions = [
   { label: '自动管理', value: 'automatic' },
   { label: '操作前确认', value: 'prompt' },
@@ -105,86 +120,107 @@ const serverTypeOptions = [
   'bungeecord',
 ].map((value) => ({ label: value, value }))
 
-const columns: DataTableColumns<MinecraftServer> = [
-  {
-    title: 'Server',
-    key: 'server',
-    sorter: (left, right) => left.name.localeCompare(right.name),
-    minWidth: 420,
-    render: (row) =>
-      h('div', { class: 'server-cell' }, [
-        h('div', { class: 'server-cell__title' }, [
-          h(NText, { strong: true }, { default: () => row.name }),
-          ...(row.favourite
-            ? [
-                h(
-                  NTag,
-                  { size: 'small', type: 'warning', bordered: false },
-                  { default: () => '收藏' },
-                ),
-              ]
-            : []),
-          ...(row.deletedAt
-            ? [h(NTag, { size: 'small', bordered: false }, { default: () => '已删除' })]
-            : []),
-        ]),
-        h('div', { class: 'server-cell__meta' }, [
-          h(NTag, { size: 'small', bordered: false }, { default: () => row.type }),
-          h(NTag, { size: 'small', bordered: false }, { default: () => row.version }),
-          ...(row.group
-            ? [h(NTag, { size: 'small', bordered: false }, { default: () => row.group })]
-            : []),
-        ]),
-        h(NText, { depth: 3, class: 'server-cell__path' }, { default: () => row.remotePath }),
-      ]),
-  },
-  {
-    title: '运行配置',
-    key: 'runtime',
-    width: 190,
-    render: (row) =>
-      h('div', { class: 'runtime-cell' }, [
-        h(NText, null, {
-          default: () => `${row.launchProfile.xmsMiB} / ${row.launchProfile.xmxMiB} MiB`,
-        }),
+type ServerColumn = DataTableColumns<MinecraftServer>[number]
+
+const serverColumn: ServerColumn = {
+  title: 'Server',
+  key: 'server',
+  sorter: (left, right) => left.name.localeCompare(right.name),
+  render: (row) =>
+    h('div', { class: 'server-cell' }, [
+      h('div', { class: 'server-cell__title' }, [
         h(
           NText,
-          { depth: 3, class: 'runtime-cell__jar' },
+          { strong: true, class: 'server-cell__name', title: row.name },
           {
-            default: () => row.launchProfile.jarPath || '未设置 Jar',
+            default: () => row.name,
           },
         ),
+        ...(row.favourite
+          ? [
+              h(
+                NTag,
+                { size: 'small', type: 'warning', bordered: false },
+                { default: () => '收藏' },
+              ),
+            ]
+          : []),
+        ...(row.deletedAt
+          ? [h(NTag, { size: 'small', bordered: false }, { default: () => '已删除' })]
+          : []),
       ]),
-  },
-  {
-    title: '状态',
-    key: 'state',
-    width: 112,
-    render: (row) =>
+      ...(tableWidth.value < 680
+        ? [
+            h('div', { class: 'server-cell__meta' }, [
+              h(NTag, { size: 'small', bordered: false }, { default: () => row.type }),
+              h(NTag, { size: 'small', bordered: false }, { default: () => row.version }),
+              ...(row.group
+                ? [h(NTag, { size: 'small', bordered: false }, { default: () => row.group })]
+                : []),
+            ]),
+          ]
+        : []),
       h(
-        NTag,
-        {
-          type:
-            row.state === 'running'
-              ? 'success'
-              : row.state === 'failed'
-                ? 'error'
-                : row.state === 'deleted'
-                  ? 'default'
-                  : 'info',
-          bordered: false,
-        },
-        { default: () => row.state },
+        NText,
+        { depth: 3, class: 'server-cell__path', title: row.remotePath },
+        { default: () => row.remotePath },
       ),
-  },
-  {
-    title: '操作',
-    key: 'actions',
-    width: 252,
-    fixed: 'right',
-    render: (row) =>
-      row.deletedAt
-        ? h(NFlex, { wrap: false, justify: 'end', class: 'row-actions' }, () => [
+    ]),
+}
+
+const runtimeColumn: ServerColumn = {
+  title: '运行配置',
+  key: 'runtime',
+  width: 190,
+  render: (row) =>
+    h('div', { class: 'runtime-cell' }, [
+      h(NText, null, {
+        default: () => `${row.launchProfile.xmsMiB} / ${row.launchProfile.xmxMiB} MiB`,
+      }),
+      h(
+        NText,
+        { depth: 3, class: 'runtime-cell__jar' },
+        {
+          default: () => row.launchProfile.jarPath || '未设置 Jar',
+        },
+      ),
+    ]),
+}
+
+const stateColumn: ServerColumn = {
+  title: '状态',
+  key: 'state',
+  width: 112,
+  render: (row) =>
+    h(
+      NTag,
+      {
+        type:
+          row.state === 'running'
+            ? 'success'
+            : row.state === 'failed'
+              ? 'error'
+              : row.state === 'deleted'
+                ? 'default'
+                : 'info',
+        bordered: false,
+      },
+      { default: () => row.state },
+    ),
+}
+
+const actionsColumn: ServerColumn = {
+  title: '操作',
+  key: 'actions',
+  render: (row) =>
+    row.deletedAt
+      ? h(
+          NFlex,
+          {
+            wrap: true,
+            class: ['row-actions', `row-actions--${serverActionCount(row)}`],
+          },
+          () => [
             h(
               NButton,
               { quaternary: true, circle: true, size: 'small', onClick: () => void restore(row) },
@@ -201,8 +237,15 @@ const columns: DataTableColumns<MinecraftServer> = [
               },
               { default: () => h(AppIcon, { icon: Trash2, label: '永久删除远程目录' }) },
             ),
-          ])
-        : h(NFlex, { wrap: false, justify: 'end', class: 'row-actions' }, () => [
+          ],
+        )
+      : h(
+          NFlex,
+          {
+            wrap: true,
+            class: ['row-actions', `row-actions--${serverActionCount(row)}`],
+          },
+          () => [
             h(
               NButton,
               {
@@ -286,13 +329,192 @@ const columns: DataTableColumns<MinecraftServer> = [
               },
               { default: () => h(AppIcon, { icon: Trash2, label: '软删除' }) },
             ),
-          ]),
-  },
-]
+          ],
+        ),
+}
+
+function serverActionCount(server: MinecraftServer): number {
+  if (server.deletedAt) return 2
+  let count = 3
+  if (['stopped', 'ready', 'failed'].includes(server.state)) count += 1
+  if (['running', 'starting', 'failed'].includes(server.state)) count += 1
+  if (server.state === 'running') count += 1
+  return count
+}
+
+const typeVersionColumn: ServerColumn = {
+  title: '类型 / 版本',
+  key: 'typeVersion',
+  width: 118,
+  sorter: (left, right) =>
+    left.type === right.type
+      ? left.version.localeCompare(right.version)
+      : left.type.localeCompare(right.type),
+  render: (row) =>
+    h('div', { class: 'metadata-cell' }, [
+      h(NTag, { size: 'small', bordered: false }, { default: () => row.type }),
+      h(NText, { depth: 3 }, { default: () => row.version }),
+    ]),
+}
+
+const uptimeColumn: ServerColumn = {
+  title: '已运行时长',
+  key: 'uptime',
+  width: 140,
+  sorter: (left, right) => uptimeSeconds(left) - uptimeSeconds(right),
+  render: (row) =>
+    h(
+      NText,
+      { depth: row.state === 'running' ? 1 : 3 },
+      { default: () => formatServerUptime(row) },
+    ),
+}
+
+const groupTagsColumn: ServerColumn = {
+  title: '分组 / 标签',
+  key: 'groupTags',
+  width: 170,
+  render: (row) =>
+    row.group || row.tags.length
+      ? h('div', { class: 'tag-cell' }, [
+          ...(row.group
+            ? [
+                h(
+                  NTag,
+                  { size: 'small', type: 'info', bordered: false },
+                  { default: () => row.group },
+                ),
+              ]
+            : []),
+          ...row.tags
+            .slice(0, 2)
+            .map((tag) =>
+              h(NTag, { size: 'small', bordered: false, title: tag }, { default: () => tag }),
+            ),
+          ...(row.tags.length > 2
+            ? [
+                h(
+                  NText,
+                  { depth: 3, title: row.tags.slice(2).join('、') },
+                  { default: () => `+${row.tags.length - 2}` },
+                ),
+              ]
+            : []),
+        ])
+      : h(NText, { depth: 3 }, { default: () => '—' }),
+}
+
+const updatedAtColumn: ServerColumn = {
+  title: '更新时间',
+  key: 'updatedAt',
+  width: 170,
+  sorter: (left, right) => left.updatedAt.localeCompare(right.updatedAt),
+  render: (row) => locale.formatDateTime(row.updatedAt),
+}
+
+const columns = computed<DataTableColumns<MinecraftServer>>(() => {
+  const responsiveActionsColumn = {
+    ...actionsColumn,
+    width: Math.min(180, Math.max(96, Math.round(tableWidth.value * 0.14))),
+  } as ServerColumn
+
+  if (tableWidth.value >= 1280) {
+    return [
+      serverColumn,
+      typeVersionColumn,
+      uptimeColumn,
+      groupTagsColumn,
+      runtimeColumn,
+      stateColumn,
+      updatedAtColumn,
+      responsiveActionsColumn,
+    ]
+  }
+  if (tableWidth.value >= 1050) {
+    return [
+      serverColumn,
+      typeVersionColumn,
+      uptimeColumn,
+      runtimeColumn,
+      stateColumn,
+      updatedAtColumn,
+      responsiveActionsColumn,
+    ]
+  }
+  if (tableWidth.value >= 820) {
+    return [
+      serverColumn,
+      typeVersionColumn,
+      uptimeColumn,
+      runtimeColumn,
+      stateColumn,
+      responsiveActionsColumn,
+    ]
+  }
+  if (tableWidth.value >= 680) {
+    return [serverColumn, typeVersionColumn, runtimeColumn, stateColumn, responsiveActionsColumn]
+  }
+  return [serverColumn, stateColumn, responsiveActionsColumn]
+})
+
+function uptimeSeconds(server: MinecraftServer): number {
+  if (server.state !== 'running') return 0
+  const uptime = serverUptimes.value[server.id]
+  if (!uptime) return 0
+  const elapsedSinceSample = Math.max(0, Math.floor((uptimeNow.value - uptime.sampledAt) / 1000))
+  return Math.max(0, Math.floor(uptime.seconds) + elapsedSinceSample)
+}
+
+function formatServerUptime(server: MinecraftServer): string {
+  if (server.state !== 'running') return '—'
+  const seconds = uptimeSeconds(server)
+  if (!serverUptimes.value[server.id]) return '采集中'
+  if (seconds < 60) return '< 1 分钟'
+  const totalMinutes = Math.floor(seconds / 60)
+  const days = Math.floor(totalMinutes / 1440)
+  const hours = Math.floor((totalMinutes % 1440) / 60)
+  const minutes = totalMinutes % 60
+  if (days > 0) return `${days} 天 ${hours} 小时`
+  if (hours > 0) return `${hours} 小时 ${minutes} 分钟`
+  return `${minutes} 分钟`
+}
+
+function updateServerUptime(serverID: string, seconds: number, timestamp: string): void {
+  const sampledAt = Date.parse(timestamp)
+  if (!Number.isFinite(sampledAt)) return
+  const current = serverUptimes.value[serverID]
+  if (current && current.sampledAt > sampledAt) return
+  serverUptimes.value = {
+    ...serverUptimes.value,
+    [serverID]: { seconds, sampledAt },
+  }
+}
+
+async function loadServerUptimes(): Promise<void> {
+  const runningServers = store.servers.filter((server) => server.state === 'running')
+  const runningIDs = new Set(runningServers.map((server) => server.id))
+  serverUptimes.value = Object.fromEntries(
+    Object.entries(serverUptimes.value).filter(([serverID]) => runningIDs.has(serverID)),
+  )
+  await Promise.all(
+    runningServers.map(async (server) => {
+      try {
+        const samples = await getLatestMetrics(server.id)
+        const uptimeSample = samples
+          .filter((sample) => sample.metric === 'process.uptime')
+          .sort((left, right) => Date.parse(right.timestamp) - Date.parse(left.timestamp))[0]
+        if (uptimeSample) updateServerUptime(server.id, uptimeSample.value, uptimeSample.timestamp)
+      } catch {
+        // Uptime is supplementary list data; the realtime metric stream may still populate it.
+      }
+    }),
+  )
+}
 
 async function refresh(): Promise<void> {
   try {
     await store.refresh()
+    await loadServerUptimes()
   } catch (error) {
     notifyError('加载 Minecraft Servers 失败', error)
   }
@@ -651,6 +873,26 @@ function notifyError(title: string, error: unknown): void {
 }
 
 onMounted(async () => {
+  if (tableContainer.value) {
+    tableWidth.value = tableContainer.value.clientWidth
+    if (typeof ResizeObserver !== 'undefined') {
+      tableResizeObserver = new ResizeObserver(([entry]) => {
+        if (entry) tableWidth.value = entry.contentRect.width
+      })
+      tableResizeObserver.observe(tableContainer.value)
+    }
+  }
+
+  uptimeTimer = setInterval(() => {
+    uptimeNow.value = Date.now()
+  }, 30_000)
+  unsubscribeMetricRealtime = subscribeMetricRealtime((event) => {
+    const uptimeSample = event.samples
+      .filter((sample) => sample.metric === 'process.uptime')
+      .sort((left, right) => Date.parse(right.timestamp) - Date.parse(left.timestamp))[0]
+    if (uptimeSample) updateServerUptime(event.serverID, uptimeSample.value, uptimeSample.timestamp)
+  })
+
   unsubscribeOperation = subscribeOperationProgress((operation) => {
     if (operation.targetType !== 'server') return
     const isLifecycleOperation = Boolean(lifecycleActions.value[operation.targetID])
@@ -666,11 +908,19 @@ onMounted(async () => {
     sshSessions.sessions.length ? Promise.resolve() : sshSessions.refresh(),
     store.refresh(),
   ])
-  if (serverResult.status === 'rejected')
+  if (serverResult.status === 'rejected') {
     notifyError('加载 Minecraft Servers 失败', serverResult.reason)
+  } else {
+    await loadServerUptimes()
+  }
 })
 
-onUnmounted(() => unsubscribeOperation?.())
+onUnmounted(() => {
+  tableResizeObserver?.disconnect()
+  unsubscribeMetricRealtime?.()
+  unsubscribeOperation?.()
+  if (uptimeTimer) clearInterval(uptimeTimer)
+})
 
 watch(importSSHSessionID, () => {
   inspection.value = null
@@ -681,10 +931,7 @@ watch(importSSHSessionID, () => {
 <template>
   <NCard>
     <NFlex justify="end" wrap class="page-actions">
-      <NButton
-        type="primary"
-        @click="wizardVisible = true"
-      >
+      <NButton type="primary" @click="wizardVisible = true">
         <template #icon><AppIcon :icon="Plus" label="创建" /></template>
         创建并安装 Server
       </NButton>
@@ -721,20 +968,21 @@ watch(importSSHSessionID, () => {
       <NButton :loading="store.loading" @click="refresh">刷新</NButton>
     </div>
 
-    <AppDataTable
-      :columns="columns"
-      :data="store.servers"
-      :loading="store.loading"
-      :error="store.error"
-      :scroll-x="974"
-      empty-description="尚未创建 Minecraft Server"
-      @retry="refresh"
-      @open="
-        (server) =>
-          !server.deletedAt &&
-          router.push({ name: 'server-detail', params: { serverID: server.id } })
-      "
-    />
+    <div ref="tableContainer" class="server-table">
+      <AppDataTable
+        :columns="columns"
+        :data="store.servers"
+        :loading="store.loading"
+        :error="store.error"
+        empty-description="尚未创建 Minecraft Server"
+        @retry="refresh"
+        @open="
+          (server) =>
+            !server.deletedAt &&
+            router.push({ name: 'server-detail', params: { serverID: server.id } })
+        "
+      />
+    </div>
   </NCard>
 
   <ServerWizard v-model:show="wizardVisible" />
@@ -968,8 +1216,10 @@ watch(importSSHSessionID, () => {
   white-space: nowrap;
 }
 
+.server-table,
 .server-cell,
-.runtime-cell {
+.runtime-cell,
+.metadata-cell {
   min-width: 0;
 }
 
@@ -988,6 +1238,17 @@ watch(importSSHSessionID, () => {
   gap: 6px;
 }
 
+.server-cell__title {
+  flex-wrap: wrap;
+}
+
+.server-cell__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .server-cell__path,
 .runtime-cell__jar {
   display: block;
@@ -997,14 +1258,47 @@ watch(importSSHSessionID, () => {
   white-space: nowrap;
 }
 
-.runtime-cell {
+.runtime-cell,
+.metadata-cell {
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
 
-.row-actions {
+.tag-cell {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
   gap: 4px;
+}
+
+.tag-cell :deep(.n-tag) {
+  max-width: 100%;
+}
+
+.row-actions {
+  width: 100%;
+  min-width: 0;
+  gap: 2px;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-content: center;
+}
+
+.row-actions--2,
+.row-actions--4 {
+  max-width: 58px;
+  margin-inline: auto;
+}
+
+.row-actions--3,
+.row-actions--5 {
+  max-width: 88px;
+  margin-inline: auto;
+}
+
+.row-actions :deep(.n-button) {
+  flex: 0 0 28px;
 }
 
 @media (max-width: 1100px) {

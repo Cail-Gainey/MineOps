@@ -29,6 +29,7 @@ import { useUnsavedGuard } from '../../composables/use-unsaved-guard'
 import { useNotificationStore } from '../../stores/notifications'
 import { useServerWizardStore } from '../../stores/server-wizard'
 import { useSSHSessionsStore } from '../../stores/ssh-sessions'
+import InstallationTerminal from './InstallationTerminal.vue'
 
 const show = defineModel<boolean>('show', { default: false })
 const wizard = useServerWizardStore()
@@ -73,6 +74,23 @@ const elapsedText = computed(() => {
   const seconds = Math.max(0, Math.floor((finishedAt - Date.parse(startedAt)) / 1000))
   const minutes = Math.floor(seconds / 60)
   return `${minutes}m ${seconds % 60}s`
+})
+const installationTerminalLines = computed(() => {
+  if (!wizard.task) return []
+  const lines = [`[MineOps] 安装任务 ${wizard.task.id}`]
+  for (const step of wizard.steps) {
+    const logs = step.checkpoint?.logs
+    if (!Array.isArray(logs)) continue
+    for (const line of logs) lines.push(`[${step.order}. ${stepLabel(step.name)}] ${String(line)}`)
+  }
+  return lines
+})
+const installationTerminalStatus = computed(() => {
+  if (!wizard.task) return '等待安装任务'
+  const current = wizard.steps.find((step) => step.order === wizard.task?.currentStep)
+  if (!current) return `任务状态：${wizard.task.state}`
+  const message = current.message || (current.state === 'running' ? '正在执行' : '等待执行')
+  return `${stepLabel(current.name)} · ${current.state} · ${message}`
 })
 
 async function initialize(): Promise<void> {
@@ -263,6 +281,11 @@ watch(
                   : 'default'
             "
           />
+          <InstallationTerminal
+            :task-id="wizard.task.id"
+            :lines="installationTerminalLines"
+            :status="installationTerminalStatus"
+          />
           <div v-for="item in wizard.steps" :key="item.id" class="installation-step">
             <NFlex align="center" justify="space-between">
               <div>
@@ -280,11 +303,7 @@ watch(
             <NAlert v-if="item.errorCode" type="error" :title="item.errorCode">{{
               item.message
             }}</NAlert>
-            <pre
-              v-if="Array.isArray(item.checkpoint?.logs) && item.checkpoint.logs.length"
-              class="installation-log"
-              >{{ item.checkpoint.logs.join('\n') }}</pre>
-            <pre v-if="item.errorDetails" class="installation-log error-details">{{
+            <pre v-if="item.errorDetails" class="installation-error-details">{{
               JSON.stringify(item.errorDetails, null, 2)
             }}</pre>
           </div>
@@ -541,23 +560,19 @@ watch(
   border-radius: 8px;
 }
 
-.installation-log {
+.installation-error-details {
   max-height: 180px;
   margin: 10px 0 0;
   padding: 10px;
   overflow: auto;
   border-radius: 6px;
   background: rgba(15, 23, 42, 0.8);
-  color: #d1fae5;
+  color: #fecaca;
   font:
     12px/1.5 ui-monospace,
     SFMono-Regular,
     Menlo,
     monospace;
   white-space: pre-wrap;
-}
-
-.error-details {
-  color: #fecaca;
 }
 </style>

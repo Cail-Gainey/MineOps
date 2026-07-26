@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -22,17 +21,7 @@ type DesktopPreferences struct {
 
 // SyncApplicationVersion updates platform installation metadata after a self-update.
 func (m *DesktopPreferences) SyncApplicationVersion(ctx context.Context) error {
-	if runtime.GOOS != "windows" {
-		return nil
-	}
-	arguments := []string{
-		"add", `HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\MineOpsMineOps`,
-		"/v", "DisplayVersion", "/t", "REG_SZ", "/d", constants.ApplicationVersion, "/f",
-	}
-	if output, err := exec.CommandContext(ctx, "reg", arguments...).CombinedOutput(); err != nil {
-		return apperror.Wrap(apperror.CodeIOWriteFailed, "同步 Windows MineOps 安装版本失败", err).WithDetails(map[string]any{"output": strings.TrimSpace(string(output))})
-	}
-	return nil
+	return syncWindowsApplicationVersion(ctx, constants.ApplicationVersion)
 }
 
 // NewDesktopPreferences resolves the current executable used for platform integration.
@@ -54,7 +43,7 @@ func (m *DesktopPreferences) ApplyGeneral(ctx context.Context, settings model.Ge
 	case "darwin":
 		return m.applyDarwinStartup(settings.LaunchAtStartup)
 	case "windows":
-		return m.applyWindowsStartup(ctx, settings.LaunchAtStartup)
+		return applyWindowsStartupPreference(ctx, m.executable, settings.LaunchAtStartup)
 	default:
 		return m.applyLinuxStartup(settings.LaunchAtStartup)
 	}
@@ -77,17 +66,6 @@ func (m *DesktopPreferences) applyDarwinStartup(enabled bool) error {
 <plist version="1.0"><dict><key>Label</key><string>com.gainey.mineops</string><key>ProgramArguments</key><array><string>%s</string></array><key>RunAtLoad</key><true/></dict></plist>
 `, xmlEscape(m.executable))
 	return writeDesktopPreference(path, []byte(payload))
-}
-
-func (m *DesktopPreferences) applyWindowsStartup(ctx context.Context, enabled bool) error {
-	arguments := []string{"delete", `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`, "/v", "MineOps", "/f"}
-	if enabled {
-		arguments = []string{"add", `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`, "/v", "MineOps", "/t", "REG_SZ", "/d", strconv.Quote(m.executable), "/f"}
-	}
-	if output, err := exec.CommandContext(ctx, "reg", arguments...).CombinedOutput(); err != nil {
-		return apperror.Wrap(apperror.CodeIOWriteFailed, "更新 Windows 开机启动失败", err).WithDetails(map[string]any{"output": strings.TrimSpace(string(output))})
-	}
-	return nil
 }
 
 func (m *DesktopPreferences) applyLinuxStartup(enabled bool) error {

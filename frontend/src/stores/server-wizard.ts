@@ -60,6 +60,7 @@ export const useServerWizardStore = defineStore('server-wizard', () => {
   const versionCache = new Map<string, ServerVersion[]>()
   const versionRequests = new Map<string, Promise<ServerVersion[]>>()
   let versionRequestGeneration = 0
+  let taskRefreshGeneration = 0
 
   const selectedSession = computed(() =>
     sshSessions.sessions.find((session) => session.id === selectedSSHSessionID.value),
@@ -251,8 +252,11 @@ export const useServerWizardStore = defineStore('server-wizard', () => {
 
   /** Refreshes the durable task so closing and reopening the Wizard does not lose state. */
   async function refreshTask(): Promise<void> {
-    if (!taskID.value) return
-    const aggregate = await getInstallation(taskID.value)
+    const requestedTaskID = taskID.value
+    if (!requestedTaskID) return
+    const refreshGeneration = ++taskRefreshGeneration
+    const aggregate = await getInstallation(requestedTaskID)
+    if (refreshGeneration !== taskRefreshGeneration || taskID.value !== requestedTaskID) return
     task.value = aggregate.task
     steps.value = aggregate.steps
   }
@@ -296,6 +300,7 @@ export const useServerWizardStore = defineStore('server-wizard', () => {
     steps.value = []
     taskID.value = ''
     operationID.value = ''
+    taskRefreshGeneration++
     connectionEvidence.value = ''
     sessionStorage.removeItem(storageKey)
   }
@@ -392,7 +397,12 @@ export const useServerWizardStore = defineStore('server-wizard', () => {
   )
 
   subscribeOperationProgress((operation) => {
-    if (operation.id === operationID.value) void refreshTask()
+    const matchesActiveOperation = operation.id === operationID.value
+    const matchesPendingInstallation =
+      Boolean(pendingServerID.value) &&
+      operation.type === 'install' &&
+      operation.targetID === pendingServerID.value
+    if (matchesActiveOperation || matchesPendingInstallation) void refreshTask()
   })
 
   return {

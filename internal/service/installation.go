@@ -701,6 +701,9 @@ func (m *InstallationManager) configureFirewall(ctx context.Context, task model.
 }
 
 func (m *InstallationManager) firstStart(ctx context.Context, task model.InstallationTask, _ model.InstallationStep, reporter InstallationStepReporter) (map[string]any, error) {
+	if err := reporter.SetProgress(0.05, "正在准备 Minecraft 首次启动与实时日志", 0); err != nil {
+		return nil, err
+	}
 	server, _, client, err := m.connectServer(ctx, task.ServerID)
 	if err != nil {
 		return nil, err
@@ -736,6 +739,7 @@ rm -f -- "$fifo"
 mkfifo "$fifo"
 exec 3<> "$fifo"
 pid=''
+stream_pid=''
 cleanup() {
   status=$?
   trap - EXIT HUP INT TERM
@@ -747,9 +751,24 @@ cleanup() {
     if kill -0 "$pid" 2>/dev/null; then kill -KILL -- "-$pid" 2>/dev/null || true; fi
     wait "$pid" 2>/dev/null || true
   fi
+  if [ -n "$stream_pid" ]; then wait "$stream_pid" 2>/dev/null || true; fi
   exec 3>&- 3<&-
   rm -f -- "$fifo"
   exit "$status"
+}
+stream_output() {
+  emitted=0
+  while :; do
+    lines=$(wc -l < "$output" 2>/dev/null | tr -d ' ' || printf '0')
+    case "$lines" in ''|*[!0-9]*) lines=$emitted ;; esac
+    if [ "$lines" -gt "$emitted" ]; then
+      start=$((emitted + 1))
+      sed -n "${start},${lines}p" "$output" || true
+      emitted=$lines
+    fi
+    kill -0 "$pid" 2>/dev/null || break
+    sleep 1
+  done
 }
 trap cleanup EXIT
 trap 'exit 129' HUP
@@ -761,9 +780,18 @@ $arguments
 EOF
 setsid "$executable" "$@" <&3 > "$output" 2>&1 &
 pid=$!
+stream_output &
+stream_pid=$!
+printf '[MineOps] Minecraft 首次启动进程已创建，正在等待就绪日志\n'
 ready=0
 for attempt in $(seq 1 180); do
-  if ! kill -0 "$pid" 2>/dev/null; then wait "$pid" || true; tail -c 65536 "$output" >&2 || true; exit 31; fi
+  if ! kill -0 "$pid" 2>/dev/null; then
+    wait "$pid" || true
+    wait "$stream_pid" 2>/dev/null || true
+    stream_pid=''
+    tail -c 65536 "$output" >&2 || true
+    exit 31
+  fi
   while IFS= read -r pattern; do
     [ -n "$pattern" ] || continue
     if grep -Fq -- "$pattern" "$output"; then ready=1; break; fi
@@ -774,10 +802,13 @@ EOF
   sleep 1
 done
 [ "$ready" = "1" ] || { tail -c 65536 "$output" >&2 || true; exit 33; }
+printf '[MineOps] 已检测到就绪标记，正在发送正常停止命令\n'
 printf '%s\n' "$stop_command" >&3
 for attempt in $(seq 1 60); do
   if ! kill -0 "$pid" 2>/dev/null; then
     wait "$pid" || { tail -c 65536 "$output" >&2 || true; exit 34; }
+    wait "$stream_pid" 2>/dev/null || true
+    stream_pid=''
     test -f "$configuration" && test ! -L "$configuration" || { printf 'missing-configuration:%s\n' "$configuration" >&2; exit 35; }
     printf 'ready-and-stopped configuration=%s\n' "$configuration"
     exit 0

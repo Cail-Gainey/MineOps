@@ -38,6 +38,19 @@ export function Delete(id) {
 }
 
 /**
+ * EnsureHostSpecs collects host capacity facts for a Session that has none and persists them.
+ * 这是主机规格唯一的采集入口:新建 Session、连接目标变更清空规格、以及迁移前的历史 Session 都走它,
+ * 每个 Session 最多采集一次。它与 Create/Update 分离,保证保存操作不会阻塞在一次完整 SSH 往返上。
+ * @param {string} id
+ * @returns {$CancellablePromise<$models.SSHSessionResult>}
+ */
+export function EnsureHostSpecs(id) {
+    return $Call.ByID(691416428, id).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType0($result);
+    }));
+}
+
+/**
  * Get returns one SSH Session without secret material.
  * @param {string} id
  * @returns {$CancellablePromise<$models.SSHSessionResult>}

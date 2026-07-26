@@ -34,6 +34,12 @@ export const useSSHSessionsStore = defineStore('ssh-sessions', () => {
     }
   }
 
+  /** Replaces one cached row after a targeted backend refresh, such as host spec collection. */
+  function apply(session: SSHSessionDTO): void {
+    const index = sessions.value.findIndex((item) => item.id === session.id)
+    if (index >= 0) sessions.value[index] = session
+  }
+
   /** Toggles a session favourite flag while retaining its current credential. */
   async function toggleFavourite(session: SSHSessionDTO): Promise<void> {
     await updateSSHSession(session.id, {
@@ -64,6 +70,7 @@ export const useSSHSessionsStore = defineStore('ssh-sessions', () => {
   }
 
   return {
+    apply,
     error,
     favouriteOnly,
     group,

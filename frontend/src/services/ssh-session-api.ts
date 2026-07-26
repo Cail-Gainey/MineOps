@@ -7,6 +7,7 @@ import type {
 import {
   Create,
   Delete,
+  EnsureHostSpecs,
   Get,
   List,
   Preflight,
@@ -56,6 +57,17 @@ export async function updateSSHSession(id: string, input: SSHSessionInput): Prom
 export async function deleteSSHSession(id: string): Promise<void> {
   const result = await Delete(id)
   throwIfError(result.error)
+}
+
+/**
+ * Collects host capacity facts once for a Session that has none and persists them on the Session row.
+ * 迁移前创建的历史 Session 用它补采;规格已存在时后端不会再连接 SSH。
+ */
+export async function ensureSSHSessionHostSpecs(id: string): Promise<SSHSessionDTO> {
+  const result = await EnsureHostSpecs(id)
+  throwIfError(result.error)
+  if (!result.session) throw new Error('SSH 主机规格响应为空')
+  return result.session
 }
 
 /** Authenticates through the configured SSH route and measures encrypted request round-trip latency. */

@@ -29,8 +29,38 @@ type SSHSession struct {
 	KeepAliveSec        int                    `json:"keepAliveSec"`
 	Compression         bool                   `json:"compression"`
 	OverrideSettings    bool                   `json:"overrideSettings"`
+	HostSpecs           SSHHostSpecs           `json:"hostSpecs"`
 	CreatedAt           time.Time              `json:"createdAt"`
 	UpdatedAt           time.Time              `json:"updatedAt"`
+}
+
+// SSHHostSpecs contains host capacity facts collected once over SSH and persisted with the Session.
+type SSHHostSpecs struct {
+	CPUCount    int        `json:"cpuCount"`
+	MemoryBytes int64      `json:"memoryBytes"`
+	DiskBytes   int64      `json:"diskBytes"`
+	CollectedAt *time.Time `json:"collectedAt,omitempty"`
+}
+
+// Empty reports whether a Session has no persisted host specs, which is the state of pre-migration rows.
+func (s SSHHostSpecs) Empty() bool {
+	return s.CollectedAt == nil && s.CPUCount == 0 && s.MemoryBytes == 0 && s.DiskBytes == 0
+}
+
+// Collected reports whether persisted host specs are complete and can be listed without another SSH probe.
+func (s SSHHostSpecs) Collected() bool {
+	return s.CollectedAt != nil && !s.CollectedAt.IsZero() && s.CPUCount > 0 && s.MemoryBytes > 0 && s.DiskBytes > 0
+}
+
+// Validate rejects partially collected or non-positive host capacity facts.
+func (s SSHHostSpecs) Validate() error {
+	if s.CPUCount < 1 || s.MemoryBytes < 1 || s.DiskBytes < 1 {
+		return apperror.New(apperror.CodeValidationInvalidArgument, "SSH 主机规格必须为正数")
+	}
+	if s.CollectedAt == nil || s.CollectedAt.IsZero() {
+		return apperror.New(apperror.CodeValidationRequired, "SSH 主机规格采集时间不能为空")
+	}
+	return nil
 }
 
 // EffectiveSSHConfig contains resolved connection values after applying global defaults and Session overrides.
@@ -134,6 +164,9 @@ func (s SSHSession) Validate() error {
 	}
 	if s.ConnectTimeoutSec < 1 || s.HandshakeTimeoutSec < 1 || s.KeepAliveSec < 0 {
 		return apperror.New(apperror.CodeValidationInvalidArgument, "SSH 超时或 KeepAlive 配置无效")
+	}
+	if !s.HostSpecs.Empty() {
+		return s.HostSpecs.Validate()
 	}
 	return nil
 }

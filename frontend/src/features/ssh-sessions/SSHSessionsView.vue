@@ -12,11 +12,15 @@ import {
   type DataTableColumns,
   type DropdownOption,
 } from 'naive-ui'
-import { h, onMounted, onUnmounted, ref } from 'vue'
+import { computed, h, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import type { SSHSessionDTO } from '../../../bindings/github.com/Cail-Gainey/MineOps/internal/desktop/services/models'
-import { preflightSSHSession, testSSHSessionConnection } from '../../services/ssh-session-api'
+import {
+  ensureSSHSessionHostSpecs,
+  preflightSSHSession,
+  testSSHSessionConnection,
+} from '../../services/ssh-session-api'
 import AppDataTable from '../../shared/components/AppDataTable.vue'
 import AppIcon from '../../shared/components/AppIcon.vue'
 import { useInteractionStore } from '../../stores/interactions'
@@ -39,138 +43,245 @@ interface ConnectionStatus {
   latencyMs?: number
 }
 const connectionStates = ref<Record<string, ConnectionStatus>>({})
+// 主机规格是 SSH Session 的持久化元数据,这里只跟踪历史会话补采一次的进行状态。
+type HostSpecsState = 'collecting' | 'failed'
+const hostSpecsStates = ref<Record<string, HostSpecsState>>({})
+const hostSpecsConcurrency = 3
+let hostSpecsGeneration = 0
+const tableContainer = ref<HTMLElement | null>(null)
+const tableWidth = ref(1280)
 const latencyRefreshIntervalMs = 30_000
 let measureGeneration = 0
 let activeMeasureAllRuns = 0
 let latencyRefreshTimer: ReturnType<typeof setInterval> | undefined
+let tableResizeObserver: ResizeObserver | null = null
 
-const columns: DataTableColumns<SSHSessionDTO> = [
-  {
-    title: 'Session',
-    key: 'session',
-    sorter: (left, right) => left.name.localeCompare(right.name),
-    minWidth: 520,
-    render: (row) =>
-      h('div', { class: 'session-cell' }, [
-        h('div', { class: 'session-cell__title' }, [
-          h(NText, { strong: true }, { default: () => row.name }),
-          ...(row.favourite
-            ? [
-                h(
-                  NTag,
-                  { size: 'small', type: 'warning', bordered: false },
-                  { default: () => '收藏' },
-                ),
-              ]
-            : []),
-        ]),
+type SessionColumn = DataTableColumns<SSHSessionDTO>[number]
+
+const sessionColumn: SessionColumn = {
+  title: '名称',
+  key: 'session',
+  width: 180,
+  sorter: (left, right) => left.name.localeCompare(right.name),
+  render: (row) =>
+    h('div', { class: 'session-cell' }, [
+      h('div', { class: 'session-cell__title' }, [
         h(
           NText,
-          { class: 'session-cell__target' },
-          {
-            default: () => `${row.username}@${row.host}:${row.port}`,
-          },
+          { strong: true, class: 'session-cell__name', title: row.name },
+          { default: () => row.name },
         ),
-        h('div', { class: 'session-cell__meta' }, [
-          h(NTag, { size: 'small', bordered: false }, { default: () => row.authType }),
-          h(
-            NTag,
-            {
-              size: 'small',
-              type: row.hostKeyPolicy === 'strict' ? 'success' : 'warning',
-              bordered: false,
-            },
-            { default: () => (row.hostKeyPolicy === 'strict' ? '严格校验' : '首次确认') },
-          ),
-          h(
-            NTag,
-            { size: 'small', bordered: false },
-            { default: () => `${row.serverCount} Server` },
-          ),
-          ...(row.group
-            ? [h(NTag, { size: 'small', bordered: false }, { default: () => row.group })]
-            : []),
-          ...(row.overrideSettings
-            ? [h(NTag, { size: 'small', bordered: false }, { default: () => '连接覆盖' })]
-            : []),
-        ]),
-        ...(row.remark
-          ? [h(NText, { depth: 3, class: 'session-cell__remark' }, { default: () => row.remark })]
+        ...(row.favourite
+          ? [
+              h(
+                NTag,
+                { size: 'small', type: 'warning', bordered: false },
+                { default: () => '收藏' },
+              ),
+            ]
           : []),
       ]),
+
+      ...(tableWidth.value < 680
+        ? [
+            h(
+              NText,
+              { class: 'session-cell__target', title: `${row.username}@${row.host}:${row.port}` },
+              { default: () => `${row.username}@${row.host}:${row.port}` },
+            ),
+            h('div', { class: 'session-cell__meta' }, [
+              h(NTag, { size: 'small', bordered: false }, { default: () => row.authType }),
+              ...(row.group
+                ? [h(NTag, { size: 'small', bordered: false }, { default: () => row.group })]
+                : []),
+              h(
+                NTag,
+                { size: 'small', bordered: false },
+                { default: () => `${row.serverCount} Server` },
+              ),
+            ]),
+            ...(row.remark
+              ? [
+                  h(
+                    NText,
+                    { depth: 3, class: 'session-cell__remark', title: row.remark },
+                    { default: () => row.remark },
+                  ),
+                ]
+              : []),
+          ]
+        : []),
+    ]),
+}
+
+const connectionStatusColumn: SessionColumn = {
+  title: '延迟',
+  key: 'connectionStatus',
+  width: 90,
+  render: (row) => {
+    const status = connectionStates.value[row.id]
+    if (!status) {
+      return h(NTag, { bordered: false, title: '等待自动延迟测量。' }, { default: () => '待测量' })
+    }
+    const label =
+      status.state === 'latency'
+        ? `${Math.round(status.latencyMs ?? 0)} ms`
+        : status.state === 'measuring'
+          ? '测量中'
+          : '不可达'
+    const type =
+      status.state === 'latency' ? 'success' : status.state === 'measuring' ? 'info' : 'error'
+    return h(
+      NTag,
+      { type, size: 'small', bordered: false, title: status.message },
+      { default: () => label },
+    )
   },
-  {
-    title: '连接状态',
-    key: 'connectionStatus',
-    width: 126,
-    render: (row) => {
-      const status = connectionStates.value[row.id]
-      if (!status) {
-        return h(
-          NTag,
-          { bordered: false, title: '等待自动延迟测量。' },
-          { default: () => '待测量' },
-        )
-      }
-      const label =
-        status.state === 'latency'
-          ? `${status.latencyMs} ms`
-          : status.state === 'measuring'
-            ? '测量中'
-            : '不可达'
-      const type =
-        status.state === 'latency' ? 'success' : status.state === 'measuring' ? 'info' : 'error'
-      return h(NTag, { type, bordered: false, title: status.message }, { default: () => label })
-    },
+}
+
+const actionsColumn: SessionColumn = {
+  title: '操作',
+  key: 'actions',
+  render: (row) =>
+    h(NFlex, { wrap: true, class: 'row-actions' }, () => [
+      h(
+        NButton,
+        { quaternary: true, circle: true, size: 'small', onClick: () => openTerminal(row) },
+        { default: () => h(AppIcon, { icon: TerminalSquare, label: '打开 Terminal' }) },
+      ),
+      h(
+        NButton,
+        { quaternary: true, circle: true, size: 'small', onClick: () => openFiles(row) },
+        { default: () => h(AppIcon, { icon: FolderOpen, label: '文件' }) },
+      ),
+      h(
+        NButton,
+        {
+          quaternary: true,
+          circle: true,
+          size: 'small',
+          onClick: () => void toggleFavourite(row),
+        },
+        {
+          default: () => h(AppIcon, { icon: row.favourite ? Star : StarOff, label: '切换收藏' }),
+        },
+      ),
+      h(
+        NButton,
+        { quaternary: true, circle: true, size: 'small', onClick: () => openEdit(row) },
+        { default: () => h(AppIcon, { icon: Edit3, label: '编辑' }) },
+      ),
+      h(
+        NButton,
+        {
+          quaternary: true,
+          circle: true,
+          size: 'small',
+          type: 'error',
+          onClick: () => void remove(row),
+        },
+        { default: () => h(AppIcon, { icon: Trash2, label: '删除' }) },
+      ),
+    ]),
+}
+
+const targetColumn: SessionColumn = {
+  title: '地址',
+  key: 'target',
+  width: 230,
+  sorter: (left, right) =>
+    left.host === right.host
+      ? left.username.localeCompare(right.username)
+      : left.host.localeCompare(right.host),
+  render: (row) => {
+    const target = `${row.username}@${row.host}:${row.port}`
+    return h(NText, { class: 'ellipsis-cell', title: target }, { default: () => target })
   },
-  {
-    title: '操作',
-    key: 'actions',
-    width: 248,
-    fixed: 'right',
-    render: (row) =>
-      h(NFlex, { wrap: false, justify: 'end', class: 'row-actions' }, () => [
-        h(
-          NButton,
-          { quaternary: true, circle: true, size: 'small', onClick: () => openTerminal(row) },
-          { default: () => h(AppIcon, { icon: TerminalSquare, label: '打开 Terminal' }) },
-        ),
-        h(
-          NButton,
-          { quaternary: true, circle: true, size: 'small', onClick: () => openFiles(row) },
-          { default: () => h(AppIcon, { icon: FolderOpen, label: '文件' }) },
-        ),
-        h(
-          NButton,
-          {
-            quaternary: true,
-            circle: true,
-            size: 'small',
-            onClick: () => void toggleFavourite(row),
-          },
-          {
-            default: () => h(AppIcon, { icon: row.favourite ? Star : StarOff, label: '切换收藏' }),
-          },
-        ),
-        h(
-          NButton,
-          { quaternary: true, circle: true, size: 'small', onClick: () => openEdit(row) },
-          { default: () => h(AppIcon, { icon: Edit3, label: '编辑' }) },
-        ),
-        h(
-          NButton,
-          {
-            quaternary: true,
-            circle: true,
-            size: 'small',
-            type: 'error',
-            onClick: () => void remove(row),
-          },
-          { default: () => h(AppIcon, { icon: Trash2, label: '删除' }) },
-        ),
-      ]),
+}
+
+const informationColumn: SessionColumn = {
+  title: '信息',
+  key: 'information',
+  width: 260,
+  render: (row) => {
+    const { cpuCount, memoryBytes, diskBytes, specsCollectedAt } = row
+    if (!specsCollectedAt || !cpuCount || !memoryBytes || !diskBytes) {
+      const collecting = hostSpecsStates.value[row.id] === 'collecting'
+      return h(
+        NText,
+        { depth: 3, title: collecting ? '正在采集主机规格。' : '尚未采集主机规格,刷新可重试。' },
+        { default: () => (collecting ? '采集中' : '—') },
+      )
+    }
+    return h('div', { class: 'tag-cell', title: `采集于 ${formatCollectedAt(specsCollectedAt)}` }, [
+      h(NTag, { size: 'small', bordered: false }, { default: () => `${cpuCount} 核` }),
+      h(
+        NTag,
+        { size: 'small', bordered: false },
+        { default: () => `${formatCapacity(memoryBytes)} 内存` },
+      ),
+      h(
+        NTag,
+        { size: 'small', bordered: false },
+        { default: () => `${formatCapacity(diskBytes)} 硬盘` },
+      ),
+    ])
   },
-]
+}
+
+const remarkColumn: SessionColumn = {
+  title: '备注',
+  key: 'remark',
+  sorter: (left, right) => left.remark.localeCompare(right.remark),
+  render: (row) =>
+    h(
+      NText,
+      { depth: row.remark ? 1 : 3, class: 'ellipsis-cell', title: row.remark || '无备注' },
+      { default: () => row.remark || '—' },
+    ),
+}
+
+const columns = computed<DataTableColumns<SSHSessionDTO>>(() => {
+  const responsiveActionsColumn = {
+    ...actionsColumn,
+    width: Math.min(180, Math.max(96, Math.round(tableWidth.value * 0.14))),
+  } as SessionColumn
+
+  if (tableWidth.value >= 1100) {
+    return [
+      connectionStatusColumn,
+      sessionColumn,
+      targetColumn,
+      informationColumn,
+      remarkColumn,
+      responsiveActionsColumn,
+    ]
+  }
+  if (tableWidth.value >= 850) {
+    return [
+      connectionStatusColumn,
+      sessionColumn,
+      targetColumn,
+      informationColumn,
+      responsiveActionsColumn,
+    ]
+  }
+  if (tableWidth.value >= 680) {
+    return [connectionStatusColumn, sessionColumn, targetColumn, responsiveActionsColumn]
+  }
+  return [sessionColumn, connectionStatusColumn, responsiveActionsColumn]
+})
+
+function formatCapacity(bytes: number): string {
+  const gibibytes = bytes / 1024 / 1024 / 1024
+  if (gibibytes >= 1) return `${Math.round(gibibytes)}G`
+  return `${gibibytes.toFixed(1)}G`
+}
+
+function formatCollectedAt(value: string): string {
+  const collectedAt = new Date(value)
+  return Number.isNaN(collectedAt.getTime()) ? value : collectedAt.toLocaleString()
+}
 
 function contextOptions(row: SSHSessionDTO): DropdownOption[] {
   return [
@@ -199,8 +310,8 @@ async function measure(session: SSHSessionDTO, generation: number): Promise<void
     if (generation !== measureGeneration) return
     connectionStates.value[session.id] = {
       state: 'latency',
-      latencyMs: result.latencyMs,
-      message: `SSH RTT 中位数 ${result.latencyMs} ms · 最小 ${result.minLatencyMs} ms · 平均 ${result.averageLatencyMs} ms · 最大 ${result.maxLatencyMs} ms · ${result.sampleCount} 次采样 · ${result.connectedAddress}`,
+      latencyMs: Math.round(result.latencyMs),
+      message: `SSH RTT 中位数 ${Math.round(result.latencyMs)} ms · 最小 ${Math.round(result.minLatencyMs)} ms · 平均 ${Math.round(result.averageLatencyMs)} ms · 最大 ${Math.round(result.maxLatencyMs)} ms · ${result.sampleCount} 次采样 · ${result.connectedAddress}`,
     }
   } catch (error) {
     if (generation !== measureGeneration) return
@@ -229,6 +340,30 @@ async function measureAll(): Promise<void> {
   }
 }
 
+// 主机规格惰性补采:只对迁移前遗留的、尚未采集过的会话各连一次 SSH,结果由后端落库后写回本行。
+async function backfillHostSpecs(): Promise<void> {
+  const generation = ++hostSpecsGeneration
+  const queue = store.sessions.filter((session) => !session.specsCollectedAt)
+  if (queue.length === 0) return
+  for (const session of queue) hostSpecsStates.value[session.id] = 'collecting'
+  const workers = Array.from({ length: Math.min(hostSpecsConcurrency, queue.length) }, async () => {
+    while (queue.length > 0 && generation === hostSpecsGeneration) {
+      const session = queue.shift()
+      if (!session) continue
+      try {
+        const collected = await ensureSSHSessionHostSpecs(session.id)
+        if (generation !== hostSpecsGeneration) return
+        store.apply(collected)
+        delete hostSpecsStates.value[session.id]
+      } catch {
+        if (generation !== hostSpecsGeneration) return
+        hostSpecsStates.value[session.id] = 'failed'
+      }
+    }
+  })
+  await Promise.all(workers)
+}
+
 function openCreate(): void {
   editing.value = null
   formVisible.value = true
@@ -242,7 +377,9 @@ function openEdit(session: SSHSessionDTO): void {
 async function refresh(): Promise<void> {
   try {
     await store.refresh()
+    hostSpecsStates.value = {}
     void measureAll()
+    void backfillHostSpecs()
   } catch (error) {
     notifications.push({
       kind: 'error',
@@ -280,6 +417,7 @@ async function remove(session: SSHSessionDTO): Promise<void> {
     await store.remove(session.id)
     terminalTabs.closeForSSHSession(session.id)
     delete connectionStates.value[session.id]
+    delete hostSpecsStates.value[session.id]
     notifications.push({
       kind: 'success',
       title: 'SSH Session 已删除',
@@ -305,6 +443,7 @@ function handleContextAction(key: string | number, session: SSHSessionDTO): void
 
 async function saved(session: SSHSessionDTO): Promise<void> {
   delete connectionStates.value[session.id]
+  delete hostSpecsStates.value[session.id]
   const action = editing.value ? '更新' : '创建'
   try {
     const result = await testSSHSessionConnection(session.id)
@@ -335,6 +474,16 @@ function saveFailed(error: unknown): void {
 }
 
 onMounted(() => {
+  if (tableContainer.value) {
+    tableWidth.value = tableContainer.value.clientWidth
+    if (typeof ResizeObserver !== 'undefined') {
+      tableResizeObserver = new ResizeObserver(([entry]) => {
+        if (entry) tableWidth.value = entry.contentRect.width
+      })
+      tableResizeObserver.observe(tableContainer.value)
+    }
+  }
+
   void refresh()
   latencyRefreshTimer = setInterval(() => {
     if (document.visibilityState === 'visible' && !store.loading && activeMeasureAllRuns === 0) {
@@ -343,7 +492,9 @@ onMounted(() => {
   }, latencyRefreshIntervalMs)
 })
 onUnmounted(() => {
+  tableResizeObserver?.disconnect()
   measureGeneration++
+  hostSpecsGeneration++
   if (latencyRefreshTimer !== undefined) clearInterval(latencyRefreshTimer)
 })
 </script>
@@ -381,22 +532,23 @@ onUnmounted(() => {
       <NButton :loading="store.loading" @click="refresh">刷新</NButton>
     </NFlex>
 
-    <AppDataTable
-      :columns="columns"
-      :data="store.sessions"
-      :loading="store.loading"
-      :error="store.error"
-      :partial-message="store.partialMessage"
-      :context-options="contextOptions"
-      :scroll-x="930"
-      empty-description="尚未创建 SSH Session"
-      @retry="refresh"
-      @context-action="handleContextAction"
-    >
-      <template #empty-action>
-        <NButton type="primary" @click="openCreate">创建第一个 Session</NButton>
-      </template>
-    </AppDataTable>
+    <div ref="tableContainer" class="session-table">
+      <AppDataTable
+        :columns="columns"
+        :data="store.sessions"
+        :loading="store.loading"
+        :error="store.error"
+        :partial-message="store.partialMessage"
+        :context-options="contextOptions"
+        empty-description="尚未创建 SSH Session"
+        @retry="refresh"
+        @context-action="handleContextAction"
+      >
+        <template #empty-action>
+          <NButton type="primary" @click="openCreate">创建第一个 Session</NButton>
+        </template>
+      </AppDataTable>
+    </div>
   </NCard>
 
   <SSHSessionForm
@@ -431,9 +583,14 @@ onUnmounted(() => {
   white-space: nowrap;
 }
 
+.session-table,
+.session-cell,
+.metadata-cell {
+  min-width: 0;
+}
+
 .session-cell {
   display: flex;
-  min-width: 0;
   flex-direction: column;
   gap: 6px;
   padding: 4px 0;
@@ -447,8 +604,10 @@ onUnmounted(() => {
   gap: 6px;
 }
 
+.session-cell__name,
 .session-cell__target,
-.session-cell__remark {
+.session-cell__remark,
+.ellipsis-cell {
   display: block;
   max-width: 100%;
   overflow: hidden;
@@ -456,7 +615,31 @@ onUnmounted(() => {
   white-space: nowrap;
 }
 
-.row-actions {
+.metadata-cell {
+  display: flex;
+  flex-direction: column;
   gap: 4px;
+}
+
+.tag-cell {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.row-actions {
+  width: 100%;
+  max-width: 88px;
+  min-width: 0;
+  margin-inline: auto;
+  gap: 2px;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-content: center;
+}
+
+.row-actions :deep(.n-button) {
+  flex: 0 0 28px;
 }
 </style>

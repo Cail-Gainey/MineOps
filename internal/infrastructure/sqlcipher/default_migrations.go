@@ -175,5 +175,14 @@ func DefaultMigrations() []Migration {
 				return nil
 			},
 		},
+		{
+			Version: 22,
+			Name:    "add_ssh_session_host_specs",
+			// 主机规格改为 SSH Session 持久化元数据。新增列带 NOT NULL DEFAULT 0,
+			// 采集时间可为 NULL,已有 Session 升级后规格为空并在首次读取时惰性补采。
+			Apply: func(database *gorm.DB) error {
+				return database.AutoMigrate(&gormrepo.SSHSessionRecord{})
+			},
+		},
 	}
 }

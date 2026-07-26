@@ -103,6 +103,10 @@ func (m *SSHSessionManager) Update(ctx context.Context, id model.ID, command SSH
 	updated.ID = existing.ID
 	updated.CreatedAt = existing.CreatedAt
 	updated.UpdatedAt = m.clock.Now().UTC()
+	// 主机规格属于目标主机账户,连接目标不变则原样保留,变更则清空并等待下一次采集。
+	if !sshTargetChanged(*existing, updated) {
+		updated.HostSpecs = existing.HostSpecs
+	}
 	if err := updated.Validate(); err != nil {
 		return nil, err
 	}
@@ -225,6 +229,18 @@ func (m *SSHSessionManager) PrepareConnectionTest(ctx context.Context, id model.
 		return nil, nil, err
 	}
 	return &draft, credential, nil
+}
+
+// sshTargetChanged reports whether an edit points the Session at a different host account.
+// 端口只有在启用 per-connection 覆盖时才决定拨号目标,否则由全局 Settings 解析,改它不算目标变更。
+func sshTargetChanged(existing, updated model.SSHSession) bool {
+	if existing.Host != updated.Host || existing.Username != updated.Username {
+		return true
+	}
+	if existing.OverrideSettings != updated.OverrideSettings {
+		return true
+	}
+	return updated.OverrideSettings && existing.Port != updated.Port
 }
 
 func (c SSHSessionCommand) toSession(credentialID *model.ID) model.SSHSession {

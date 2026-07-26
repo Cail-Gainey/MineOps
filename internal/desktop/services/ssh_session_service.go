@@ -33,6 +33,10 @@ type SSHSessionDTO struct {
 	Compression         bool   `json:"compression"`
 	OverrideSettings    bool   `json:"overrideSettings"`
 	ServerCount         int64  `json:"serverCount"`
+	CPUCount            int    `json:"cpuCount"`
+	MemoryBytes         int64  `json:"memoryBytes"`
+	DiskBytes           int64  `json:"diskBytes"`
+	SpecsCollectedAt    string `json:"specsCollectedAt"`
 	CreatedAt           string `json:"createdAt"`
 	UpdatedAt           string `json:"updatedAt"`
 }
@@ -70,6 +74,7 @@ type SSHSessionListResult struct {
 }
 
 // SSHPreflightDTO contains authenticated SSH request round-trip statistics through the configured route.
+// 主机规格不在预检中返回:它随 SSH Session 持久化,由 List/Get 直接读取。
 type SSHPreflightDTO struct {
 	Addresses        []string      `json:"addresses"`
 	ConnectedAddress string        `json:"connectedAddress"`
@@ -176,6 +181,27 @@ func (s *SSHSessionService) Update(ctx context.Context, id string, input SSHSess
 	defer clear(command.Passphrase)
 	session, err := s.manager.Update(ctx, model.ID(id), command)
 	if err != nil {
+		dto := apperror.ToDTO(err)
+		return SSHSessionResult{Error: &dto}
+	}
+	dto := s.toDTO(ctx, session)
+	return SSHSessionResult{Session: &dto}
+}
+
+// EnsureHostSpecs collects host capacity facts for a Session that has none and persists them.
+// 这是主机规格唯一的采集入口:新建 Session、连接目标变更清空规格、以及迁移前的历史 Session 都走它,
+// 每个 Session 最多采集一次。它与 Create/Update 分离,保证保存操作不会阻塞在一次完整 SSH 往返上。
+func (s *SSHSessionService) EnsureHostSpecs(ctx context.Context, id string) (result SSHSessionResult) {
+	defer s.recoverOne(ctx, "SSHSessionService.EnsureHostSpecs", &result)
+	session, err := s.store.SSHSessions().Get(ctx, model.ID(id))
+	if err != nil {
+		dto := apperror.ToDTO(err)
+		return SSHSessionResult{Error: &dto}
+	}
+	if _, err := s.manager.EnsureHostSpecs(ctx, s.clients, session, s.settings.Snapshot().SSH); err != nil {
+		s.logger.Warn(ctx, "采集 SSH 主机规格失败", applog.Fields{
+			"ssh_session_id": session.ID.String(), "error": err.Error(),
+		})
 		dto := apperror.ToDTO(err)
 		return SSHSessionResult{Error: &dto}
 	}
@@ -316,8 +342,18 @@ func (s *SSHSessionService) toDTO(ctx context.Context, session *model.SSHSession
 		HandshakeTimeoutSec: session.HandshakeTimeoutSec, KeepAliveSec: session.KeepAliveSec,
 		Compression: session.Compression, ServerCount: serverCount,
 		OverrideSettings: session.OverrideSettings,
-		CreatedAt:        session.CreatedAt.UTC().Format(time.RFC3339Nano), UpdatedAt: session.UpdatedAt.UTC().Format(time.RFC3339Nano),
+		CPUCount:         session.HostSpecs.CPUCount, MemoryBytes: session.HostSpecs.MemoryBytes,
+		DiskBytes: session.HostSpecs.DiskBytes, SpecsCollectedAt: formatOptionalTime(session.HostSpecs.CollectedAt),
+		CreatedAt: session.CreatedAt.UTC().Format(time.RFC3339Nano), UpdatedAt: session.UpdatedAt.UTC().Format(time.RFC3339Nano),
 	}
+}
+
+// formatOptionalTime renders an absent timestamp as an empty string so the UI can detect uncollected specs.
+func formatOptionalTime(value *time.Time) string {
+	if value == nil || value.IsZero() {
+		return ""
+	}
+	return value.UTC().Format(time.RFC3339Nano)
 }
 
 func (i SSHSessionInput) command() service.SSHSessionCommand {

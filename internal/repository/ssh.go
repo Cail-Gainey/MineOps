@@ -21,6 +21,7 @@ type SSHSessionRepository interface {
 	Update(context.Context, *model.SSHSession) error
 	Get(context.Context, model.ID) (*model.SSHSession, error)
 	List(context.Context, SSHSessionQuery) ([]model.SSHSession, error)
+	UpdateHostSpecs(context.Context, model.ID, model.SSHHostSpecs) error
 	Delete(context.Context, model.ID) error
 	CountServerReferences(context.Context, model.ID) (int64, error)
 }

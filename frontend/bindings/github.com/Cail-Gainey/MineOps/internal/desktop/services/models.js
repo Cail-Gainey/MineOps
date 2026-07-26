@@ -3099,6 +3099,7 @@ export class SSHConnectionTestDTO {
 
 /**
  * SSHPreflightDTO contains authenticated SSH request round-trip statistics through the configured route.
+ * 主机规格不在预检中返回:它随 SSH Session 持久化,由 List/Get 直接读取。
  */
 export class SSHPreflightDTO {
     /**
@@ -3330,6 +3331,34 @@ export class SSHSessionDTO {
              * @type {number}
              */
             this["serverCount"] = 0;
+        }
+        if (!("cpuCount" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["cpuCount"] = 0;
+        }
+        if (!("memoryBytes" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["memoryBytes"] = 0;
+        }
+        if (!("diskBytes" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["diskBytes"] = 0;
+        }
+        if (!("specsCollectedAt" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["specsCollectedAt"] = "";
         }
         if (!("createdAt" in $$source)) {
             /**

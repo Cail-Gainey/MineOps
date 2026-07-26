@@ -22,6 +22,7 @@ type SSHLatencyResult struct {
 }
 
 // SSHPreflightResult contains route-aware DNS and authenticated SSH latency evidence.
+// 主机规格不在此采集:它是 SSH Session 的持久化元数据,仅在创建或连接目标变更时采集一次。
 type SSHPreflightResult struct {
 	Addresses   []string
 	Address     string

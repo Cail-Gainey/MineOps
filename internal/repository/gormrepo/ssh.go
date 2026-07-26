@@ -31,8 +31,14 @@ type SSHSessionRecord struct {
 	KeepAliveSec        int
 	Compression         bool
 	OverrideSettings    bool
-	CreatedAt           time.Time
-	UpdatedAt           time.Time `gorm:"index"`
+	// 主机规格为持久化元数据:仅在创建或连接目标变更时通过 SSH 采集一次,列表直接读取。
+	// 迁移前的历史行没有这些列,新增列带 NOT NULL DEFAULT 0 并允许采集时间为 NULL。
+	HostCPUCount         int   `gorm:"not null;default:0"`
+	HostMemoryBytes      int64 `gorm:"not null;default:0"`
+	HostDiskBytes        int64 `gorm:"not null;default:0"`
+	HostSpecsCollectedAt *time.Time
+	CreatedAt            time.Time
+	UpdatedAt            time.Time `gorm:"index"`
 }
 
 // SSHCredentialRecord stores secret bytes only inside the SQLCipher-encrypted database.
@@ -139,6 +145,25 @@ func (r *sshSessionRepository) Delete(ctx context.Context, id model.ID) error {
 	result := r.database.WithContext(ctx).Delete(&SSHSessionRecord{}, "id = ?", id.String())
 	if result.Error != nil {
 		return apperror.Wrap(apperror.CodeIOWriteFailed, "删除 SSH Session 失败", result.Error)
+	}
+	if result.RowsAffected != 1 {
+		return apperror.New(apperror.CodeIONotFound, "SSH Session 不存在")
+	}
+	return nil
+}
+
+func (r *sshSessionRepository) UpdateHostSpecs(ctx context.Context, id model.ID, specs model.SSHHostSpecs) error {
+	if err := specs.Validate(); err != nil {
+		return err
+	}
+	result := r.database.WithContext(ctx).Model(&SSHSessionRecord{}).Where("id = ?", id.String()).
+		Select("HostCPUCount", "HostMemoryBytes", "HostDiskBytes", "HostSpecsCollectedAt").
+		UpdateColumns(&SSHSessionRecord{
+			HostCPUCount: specs.CPUCount, HostMemoryBytes: specs.MemoryBytes,
+			HostDiskBytes: specs.DiskBytes, HostSpecsCollectedAt: copyTime(specs.CollectedAt),
+		})
+	if result.Error != nil {
+		return apperror.Wrap(apperror.CodeIOWriteFailed, "更新 SSH 主机规格失败", result.Error)
 	}
 	if result.RowsAffected != 1 {
 		return apperror.New(apperror.CodeIONotFound, "SSH Session 不存在")
@@ -322,6 +347,8 @@ func sshSessionToRecord(session *model.SSHSession) SSHSessionRecord {
 		HandshakeTimeoutSec: session.HandshakeTimeoutSec, KeepAliveSec: session.KeepAliveSec,
 		Compression: session.Compression, CreatedAt: session.CreatedAt, UpdatedAt: session.UpdatedAt,
 		OverrideSettings: session.OverrideSettings,
+		HostCPUCount:     session.HostSpecs.CPUCount, HostMemoryBytes: session.HostSpecs.MemoryBytes,
+		HostDiskBytes: session.HostSpecs.DiskBytes, HostSpecsCollectedAt: copyTime(session.HostSpecs.CollectedAt),
 	}
 }
 
@@ -339,7 +366,20 @@ func recordToSSHSession(record SSHSessionRecord) model.SSHSession {
 		HandshakeTimeoutSec: record.HandshakeTimeoutSec, KeepAliveSec: record.KeepAliveSec,
 		Compression: record.Compression, CreatedAt: record.CreatedAt, UpdatedAt: record.UpdatedAt,
 		OverrideSettings: record.OverrideSettings,
+		HostSpecs: model.SSHHostSpecs{
+			CPUCount: record.HostCPUCount, MemoryBytes: record.HostMemoryBytes,
+			DiskBytes: record.HostDiskBytes, CollectedAt: copyTime(record.HostSpecsCollectedAt),
+		},
 	}
+}
+
+// copyTime clones an optional timestamp so records and domain values never share mutable state.
+func copyTime(value *time.Time) *time.Time {
+	if value == nil {
+		return nil
+	}
+	cloned := *value
+	return &cloned
 }
 
 func sshCredentialToRecord(credential *model.SSHCredential) SSHCredentialRecord {

@@ -77,7 +77,9 @@ export async function runWithHostKeyTrustConfirmation<T>(operation: () => Promis
   } catch (error) {
     if (!isHostKeyRejected(error)) throw error
     const trusted = await confirmAndTrustHostKey(error)
-    if (!trusted) throw new Error('SSH 主机指纹未被信任，连接已停止')
+    if (!trusted) {
+      throw new Error('SSH 主机指纹未被信任，连接已停止', { cause: error })
+    }
     return operation()
   }
 }

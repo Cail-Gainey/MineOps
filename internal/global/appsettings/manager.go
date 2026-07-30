@@ -20,6 +20,13 @@ type Change struct {
 	Snapshot model.SettingsSnapshot
 }
 
+// 旧监控默认值,仅用于识别「用户从未改过」的库并升级到新默认值,不要复用于校验。
+const (
+	legacyMonitoringIntervalSeconds     = 5
+	legacyMonitoringOfflineAfterSeconds = 30
+	legacyMonitoringRawRetentionDays    = 7
+)
+
 // Subscriber receives committed settings changes synchronously after the transaction succeeds.
 type Subscriber func(Change)
 
@@ -70,6 +77,21 @@ func (m *Manager) Load(ctx context.Context) (model.SettingsSnapshot, error) {
 		if source.Official && source.Provider == "forge" && strings.HasSuffix(source.ProbeURL, "/net/minecraftforge/forge/maven-metadata.json") {
 			source.ProbeURL = strings.TrimSuffix(source.ProbeURL, "maven-metadata.json") + "maven-metadata.xml"
 		}
+	}
+	// 旧默认值升级:5s 采集 + 7 天原始保留会让单台 Server 每周堆出百万级原始样本(GB 量级库的主因)。
+	// 只在值仍等于旧默认值时改写,用户显式调过的采样周期和保留期原样保留,改完仍可在设置页随时改回。
+	defaults := model.DefaultSettings()
+	if snapshot.Monitoring.IntervalSeconds == legacyMonitoringIntervalSeconds {
+		snapshot.Monitoring.IntervalSeconds = defaults.Monitoring.IntervalSeconds
+		// 离线判定窗口一并抬高:旧默认 30s 在 15s 采样下只等于两个周期,漏一个 tick 就会误判数据陈旧;
+		// 低于两个周期的自定义值(例如 20s)在 5s 档合法但 15s 档非法,不改写会让 Validate 失败、应用直接拒绝启动。
+		if snapshot.Monitoring.OfflineAfterSeconds == legacyMonitoringOfflineAfterSeconds ||
+			snapshot.Monitoring.OfflineAfterSeconds < snapshot.Monitoring.IntervalSeconds*2 {
+			snapshot.Monitoring.OfflineAfterSeconds = defaults.Monitoring.OfflineAfterSeconds
+		}
+	}
+	if snapshot.Monitoring.RawRetentionDays == legacyMonitoringRawRetentionDays {
+		snapshot.Monitoring.RawRetentionDays = defaults.Monitoring.RawRetentionDays
 	}
 	if err := snapshot.Validate(); err != nil {
 		return model.SettingsSnapshot{}, err

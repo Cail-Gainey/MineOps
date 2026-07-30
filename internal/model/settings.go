@@ -217,8 +217,8 @@ func DefaultSettings() SettingsSnapshot {
 		Paths:   PathSettings{ServersDirectory: "MineOps/Servers", DownloadsDirectory: "MineOps/Downloads"},
 		Logging: LoggingSettings{Level: "info", MaxFileMiB: 20, RetentionDays: 14, TotalCapacityMiB: 500},
 		Monitoring: MonitoringSettings{
-			IntervalSeconds: 5, RealtimeThrottleMillis: 1000, OfflineAfterSeconds: 30,
-			RawRetentionDays: 7, MinuteRetentionDays: 90, HourRetentionDays: 730,
+			IntervalSeconds: 15, RealtimeThrottleMillis: 1000, OfflineAfterSeconds: 60,
+			RawRetentionDays: 3, MinuteRetentionDays: 90, HourRetentionDays: 730,
 			DatabaseCapacityMiB: 2048, MinimumFreeDiskMiB: 256, MaintenanceIntervalSeconds: 60,
 			SparkIntervalSeconds: 15, ProfilerDefaultSeconds: 60, ReportPrivacyConfirmation: true,
 			AlertCooldownSeconds: 300, AlertNotifications: []string{"desktop"},

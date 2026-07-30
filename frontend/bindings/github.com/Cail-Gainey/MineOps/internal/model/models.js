@@ -647,6 +647,15 @@ export class GeneralSettings {
              */
             this["updatePolicy"] = "";
         }
+        if (!("hardwareAcceleration" in $$source)) {
+            /**
+             * HardwareAcceleration 控制 Webview GPU 硬件加速与图表 GPU 合成,默认开启。
+             * 旧库的 general 分类没有该键,反序列化会保留 DefaultSettings 的 true,升级后无需迁移。
+             * @member
+             * @type {boolean}
+             */
+            this["hardwareAcceleration"] = false;
+        }
 
         Object.assign(this, $$source);
     }

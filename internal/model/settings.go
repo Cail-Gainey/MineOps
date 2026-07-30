@@ -37,6 +37,9 @@ type GeneralSettings struct {
 	UpdateChannel    string `json:"updateChannel"`
 	AutoCheckUpdates bool   `json:"autoCheckUpdates"`
 	UpdatePolicy     string `json:"updatePolicy"`
+	// HardwareAcceleration 控制 Webview GPU 硬件加速与图表 GPU 合成,默认开启。
+	// 旧库的 general 分类没有该键,反序列化会保留 DefaultSettings 的 true,升级后无需迁移。
+	HardwareAcceleration bool `json:"hardwareAcceleration"`
 }
 
 // ThemeSettings contains the persisted semantic theme selection.
@@ -205,6 +208,7 @@ func DefaultSettings() SettingsSnapshot {
 		General: GeneralSettings{
 			Language: "zh-CN", CloseBehavior: "quit", TimeFormat: "24h",
 			UpdateChannel: "stable", AutoCheckUpdates: true, UpdatePolicy: "notify",
+			HardwareAcceleration: true,
 		},
 		Theme: ThemeSettings{
 			Mode: "system", Preset: "mineops", Accent: "emerald", BackgroundMode: "theme", BackgroundColor: "#0f172a",

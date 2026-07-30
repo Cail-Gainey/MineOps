@@ -39,7 +39,7 @@ import type {
   DesktopUpdateStatus,
   LogStatus,
   StorageStatus,
-} from '../../../bindings/github.com/Cail-Gainey/MineOps/internal/service/models'
+} from '../../../bindings/github.com/Cail-Gainey/MineOps/internal/service'
 import { clearArchivedLogs, getLogStatus, openLogDirectory } from '../../services/logging-api'
 import { exportDiagnosticPackage } from '../../services/diagnostic-api'
 import { listSSHSessions } from '../../services/ssh-session-api'
@@ -63,7 +63,7 @@ import type {
   DownloadCacheStatus,
   DownloadSourceStatus,
   ProxyCredentialStatus,
-} from '../../../bindings/github.com/Cail-Gainey/MineOps/internal/service/models'
+} from '../../../bindings/github.com/Cail-Gainey/MineOps/internal/service'
 import { enumerateMonospaceFonts, type FontOption } from '../../services/font-catalog'
 import {
   cancelDesktopUpdate,
@@ -972,6 +972,11 @@ async function cancelPendingMaintenance(): Promise<void> {
             </AppFormField>
             <AppFormField label="时间格式">
               <NSelect v-model:value="draft.general.timeFormat" :options="timeFormatOptions" />
+            </AppFormField>
+            <AppFormField label="GPU 硬件加速" help="重启生效">
+              <NCheckbox v-model:checked="draft.general.hardwareAcceleration"
+                >启用 GPU 硬件加速渲染</NCheckbox
+              >
             </AppFormField>
             <AppFormField label="更新通道">
               <NSelect

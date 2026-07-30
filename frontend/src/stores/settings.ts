@@ -10,6 +10,7 @@ import {
   subscribeSettingsChanged,
 } from '../services/settings-api'
 import { getBackgroundResource } from '../services/background-api'
+import { applyHardwareAccelerationAttribute } from '../shared/charts/render-options'
 import type { AccentName, ThemePresetName } from '../themes/tokens'
 import { type ThemeMode, useThemeStore } from './theme'
 import { useLayoutStore } from './layout'
@@ -108,10 +109,12 @@ export const useSettingsStore = defineStore('settings', () => {
     layoutStore.bottomBarVisible = snapshot.layout.bottomBarVisible
   }
 
-  function applyLocale(snapshot: SettingsSnapshot): void {
+  function applyGeneral(snapshot: SettingsSnapshot): void {
     const localeStore = useLocaleStore()
     localeStore.setLocale(snapshot.general.language)
     localeStore.setTimeFormat(snapshot.general.timeFormat)
+    // Webview 的 GPU 策略只能在窗口创建时决定（需重启生效），图表像素比与合成提示可以立即跟随。
+    applyHardwareAccelerationAttribute(snapshot.general.hardwareAcceleration !== false)
   }
 
   async function load(): Promise<void> {
@@ -125,7 +128,7 @@ export const useSettingsStore = defineStore('settings', () => {
         draft.value = cloneSettings(snapshot)
         applyTheme(snapshot)
         applyLayout(snapshot)
-        applyLocale(snapshot)
+        applyGeneral(snapshot)
         await applyBackgroundResource()
       } catch (reason) {
         error.value = reason
@@ -159,7 +162,7 @@ export const useSettingsStore = defineStore('settings', () => {
         draft.value = cloneSettings(snapshot)
         applyTheme(snapshot)
         applyLayout(snapshot)
-        applyLocale(snapshot)
+        applyGeneral(snapshot)
         await applyBackgroundResource()
       } catch (reason) {
         error.value = reason
@@ -180,7 +183,7 @@ export const useSettingsStore = defineStore('settings', () => {
         draft.value = cloneSettings(snapshot)
         applyTheme(snapshot)
         applyLayout(snapshot)
-        applyLocale(snapshot)
+        applyGeneral(snapshot)
         await applyBackgroundResource()
       } catch (reason) {
         error.value = reason
@@ -281,7 +284,7 @@ export const useSettingsStore = defineStore('settings', () => {
       draft.value = cloneSettings(committed.value)
       applyTheme(committed.value)
       applyLayout(committed.value)
-      applyLocale(committed.value)
+      applyGeneral(committed.value)
     }
   }
 

@@ -63,6 +63,16 @@ func NewApplication(assets embed.FS, runtime *Runtime, logger *applog.Logger) *a
 		}
 		return allowed
 	}
+	// GPU 硬件加速开关(Settings.General.HardwareAcceleration,默认开启)在窗口创建时读取一次:
+	// Linux WebKitGTK 用 WebviewGpuPolicy 切换,Windows WebView2 用 Chromium 启动参数切换,
+	// macOS WKWebView 始终由系统合成、没有可切换的开关,该平台只影响前端图表的 GPU 合成与像素比。
+	hardwareAcceleration := runtime.Settings.Snapshot().General.HardwareAcceleration
+	webview2BrowserArgs := []string{"--disable-gpu", "--disable-gpu-compositing"}
+	webviewGpuPolicy := application.WebviewGpuPolicyNever
+	if hardwareAcceleration {
+		webview2BrowserArgs = []string{"--enable-gpu-rasterization", "--enable-zero-copy", "--ignore-gpu-blocklist"}
+		webviewGpuPolicy = application.WebviewGpuPolicyAlways
+	}
 	app = application.New(application.Options{
 		Name:        constants.ApplicationName,
 		Description: "Minecraft server operations desktop console",
@@ -109,6 +119,7 @@ func NewApplication(assets embed.FS, runtime *Runtime, logger *applog.Logger) *a
 		Mac: application.MacOptions{
 			ApplicationShouldTerminateAfterLastWindowClosed: true,
 		},
+		Windows: application.WindowsOptions{AdditionalBrowserArgs: webview2BrowserArgs},
 		SingleInstance: &application.SingleInstanceOptions{
 			UniqueID:      "com.gainey.mineops",
 			ExitCode:      0,
@@ -200,6 +211,7 @@ func NewApplication(assets embed.FS, runtime *Runtime, logger *applog.Logger) *a
 			TitleBar:                application.MacTitleBarHiddenInset,
 			WebviewPreferences:      macPreferences,
 		},
+		Linux: application.LinuxWindow{WebviewGpuPolicy: webviewGpuPolicy},
 	})
 	mainWindow.RegisterHook(events.Common.WindowClosing, func(event *application.WindowEvent) {
 		if quitting.Load() {

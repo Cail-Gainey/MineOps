@@ -462,6 +462,15 @@ onUnmounted(() => {
   -webkit-backdrop-filter: blur(18px) saturate(1.08);
 }
 
+/* 关闭 GPU 硬件加速时去掉背景模糊：backdrop-filter 依赖 GPU 合成，
+   退回 CPU 光栅化后，正文每次滚动或重绘都要重新模糊整条顶栏/侧栏/底栏区域。 */
+html[data-hardware-acceleration='off'] .topbar,
+html[data-hardware-acceleration='off'] .sidebar,
+html[data-hardware-acceleration='off'] .bottombar {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
 .topbar,
 .bottombar {
   border-color: var(--chrome-border, var(--border-default));

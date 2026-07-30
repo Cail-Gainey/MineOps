@@ -50,8 +50,10 @@ import { useInteractionStore } from '../../stores/interactions'
 import { useLocaleStore } from '../../stores/locale'
 import { useNotificationStore } from '../../stores/notifications'
 import { usePerformanceStore } from '../../stores/performance'
+import { useSettingsStore } from '../../stores/settings'
 import { useThemeStore } from '../../stores/theme'
 import { accentColours } from '../../themes/tokens'
+import { chartInitOptions } from '../../shared/charts/render-options'
 
 use([
   CanvasRenderer,
@@ -87,9 +89,13 @@ const performance = usePerformanceStore()
 const interactions = useInteractionStore()
 const locale = useLocaleStore()
 const notifications = useNotificationStore()
+const settings = useSettingsStore()
 const theme = useThemeStore()
 const route = useRoute()
 const router = useRouter()
+const chartInit = computed(() =>
+  chartInitOptions(settings.committed?.general.hardwareAcceleration !== false),
+)
 const {
   capability,
   collectorPaused,
@@ -789,6 +795,7 @@ watch(
                 v-if="snapshots.length"
                 class="trend-chart"
                 :option="trendOption"
+                :init-options="chartInit"
                 autoresize
               />
               <NEmpty v-else description="尚无 Spark Snapshot" />
@@ -800,6 +807,7 @@ watch(
                 v-if="latestSnapshot?.msptAvailable"
                 class="trend-chart"
                 :option="distributionOption"
+                :init-options="chartInit"
                 autoresize
               />
               <NEmpty v-else description="当前平台或响应没有 MSPT 分布" />

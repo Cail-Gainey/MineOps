@@ -13,12 +13,14 @@ import (
 const (
 	pendingRestoreFilename     = ".pending-restore.mineops-backup"
 	pendingKeyRotationFilename = ".pending-key-rotation"
+	pendingVacuumFilename      = ".pending-vacuum"
 )
 
 // PendingMaintenance describes offline database work staged for the next application start.
 type PendingMaintenance struct {
 	RestorePending     bool        `json:"restorePending"`
 	KeyRotationPending bool        `json:"keyRotationPending"`
+	VacuumPending      bool        `json:"vacuumPending"`
 	RestoreBackup      *BackupInfo `json:"restoreBackup,omitempty"`
 }
 
@@ -76,6 +78,22 @@ func StageKeyRotation(dataDirectory string) error {
 	return file.Close()
 }
 
+// StageVacuum requests an offline VACUUM before the next database open.
+// SQLite 的空闲页永远不会自动还给文件系统,删除历史数据只会让文件保持在历史高水位;
+// VACUUM 需要独占锁并临时占用与库等大的磁盘空间,GB 级库会跑上几分钟,
+// 因此和恢复、密钥轮换一样排队到下次启动、在数据库投入正常使用之前离线执行。
+func StageVacuum(dataDirectory string) error {
+	if err := os.MkdirAll(dataDirectory, 0o700); err != nil {
+		return apperror.Wrap(apperror.CodeIOWriteFailed, "创建数据目录失败", err)
+	}
+	marker := filepath.Join(dataDirectory, pendingVacuumFilename)
+	file, err := os.OpenFile(marker, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o600)
+	if err != nil {
+		return apperror.Wrap(apperror.CodeIOWriteFailed, "创建存储整理排队标记失败", err)
+	}
+	return file.Close()
+}
+
 // ReadPendingMaintenance returns staged offline work without changing it.
 func ReadPendingMaintenance(dataDirectory string) (PendingMaintenance, error) {
 	result := PendingMaintenance{}
@@ -95,13 +113,18 @@ func ReadPendingMaintenance(dataDirectory string) (PendingMaintenance, error) {
 	} else if !os.IsNotExist(err) {
 		return PendingMaintenance{}, apperror.Wrap(apperror.CodeIOReadFailed, "读取密钥轮换排队状态失败", err)
 	}
+	if _, err := os.Stat(filepath.Join(dataDirectory, pendingVacuumFilename)); err == nil {
+		result.VacuumPending = true
+	} else if !os.IsNotExist(err) {
+		return PendingMaintenance{}, apperror.Wrap(apperror.CodeIOReadFailed, "读取存储整理排队状态失败", err)
+	}
 	return result, nil
 }
 
-// CancelPendingMaintenance removes staged restore and key-rotation work.
+// CancelPendingMaintenance removes staged restore, key-rotation, and vacuum work.
 func CancelPendingMaintenance(dataDirectory string) error {
 	var firstError error
-	for _, name := range []string{pendingRestoreFilename, pendingKeyRotationFilename} {
+	for _, name := range []string{pendingRestoreFilename, pendingKeyRotationFilename, pendingVacuumFilename} {
 		if err := os.Remove(filepath.Join(dataDirectory, name)); err != nil && !os.IsNotExist(err) && firstError == nil {
 			firstError = err
 		}
@@ -109,7 +132,7 @@ func CancelPendingMaintenance(dataDirectory string) error {
 	return firstError
 }
 
-// ApplyPendingMaintenance performs staged restore and key rotation before opening the active database.
+// ApplyPendingMaintenance performs staged restore, key rotation, and vacuum before opening the active database.
 func ApplyPendingMaintenance(ctx context.Context, dataDirectory, databasePath string, keyStore KeyStore) error {
 	pending, err := ReadPendingMaintenance(dataDirectory)
 	if err != nil {
@@ -130,6 +153,42 @@ func ApplyPendingMaintenance(ctx context.Context, dataDirectory, databasePath st
 		if err := os.Remove(filepath.Join(dataDirectory, pendingKeyRotationFilename)); err != nil && !os.IsNotExist(err) {
 			return apperror.Wrap(apperror.CodeIOWriteFailed, "清理密钥轮换排队标记失败", err)
 		}
+	}
+	if pending.VacuumPending {
+		// 排队标记先删再执行:VACUUM 失败(多为磁盘空间不足)时数据库本身完好无损,
+		// 保留标记只会让每次启动都重试同一个必然失败的长操作,把应用永久卡在启动阶段。
+		if err := os.Remove(filepath.Join(dataDirectory, pendingVacuumFilename)); err != nil && !os.IsNotExist(err) {
+			return apperror.Wrap(apperror.CodeIOWriteFailed, "清理存储整理排队标记失败", err)
+		}
+		if err := vacuumDatabaseOffline(ctx, databasePath, keyStore); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func vacuumDatabaseOffline(ctx context.Context, databasePath string, keyStore KeyStore) error {
+	material, err := keyStore.Load(ctx)
+	if err != nil {
+		return err
+	}
+	if !material.DatabaseCreated {
+		return apperror.New(apperror.CodeValidationConflict, "数据库尚未完成初始化")
+	}
+	connection, err := OpenConnection(ctx, ConnectionOptions{Path: databasePath, Key: material.Key, MaxOpenConns: 1, MaxIdleConns: 1})
+	if err != nil {
+		return err
+	}
+	if _, err := connection.pool.ExecContext(ctx, "PRAGMA wal_checkpoint(TRUNCATE)"); err != nil {
+		_ = connection.Close()
+		return apperror.Wrap(apperror.CodeIOWriteFailed, "存储整理前 WAL Checkpoint 失败", err)
+	}
+	if _, err := connection.pool.ExecContext(ctx, "VACUUM"); err != nil {
+		_ = connection.Close()
+		return apperror.Wrap(apperror.CodeIOWriteFailed, "存储整理 VACUUM 失败", err)
+	}
+	if err := connection.Close(); err != nil {
+		return apperror.Wrap(apperror.CodeIOWriteFailed, "关闭存储整理连接失败", err)
 	}
 	return nil
 }

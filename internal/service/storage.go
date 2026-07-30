@@ -74,6 +74,11 @@ func (m *StorageManager) ScheduleKeyRotation() error {
 	return sqlcipher.StageKeyRotation(m.dataDirectory)
 }
 
+// ScheduleVacuum requests a VACUUM before the next database open to release SQLite free pages.
+func (m *StorageManager) ScheduleVacuum() error {
+	return sqlcipher.StageVacuum(m.dataDirectory)
+}
+
 // CancelPendingMaintenance removes all staged offline database work.
 func (m *StorageManager) CancelPendingMaintenance() error {
 	return sqlcipher.CancelPendingMaintenance(m.dataDirectory)

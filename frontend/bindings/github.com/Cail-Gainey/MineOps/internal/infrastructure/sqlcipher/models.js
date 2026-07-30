@@ -95,6 +95,13 @@ export class PendingMaintenance {
              */
             this["keyRotationPending"] = false;
         }
+        if (!("vacuumPending" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["vacuumPending"] = false;
+        }
         if (/** @type {any} */(false)) {
             /**
              * @member
@@ -112,10 +119,10 @@ export class PendingMaintenance {
      * @returns {PendingMaintenance}
      */
     static createFrom($$source = {}) {
-        const $$createField2_0 = $$createType1;
+        const $$createField3_0 = $$createType1;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("restoreBackup" in $$parsedSource) {
-            $$parsedSource["restoreBackup"] = $$createField2_0($$parsedSource["restoreBackup"]);
+            $$parsedSource["restoreBackup"] = $$createField3_0($$parsedSource["restoreBackup"]);
         }
         return new PendingMaintenance(/** @type {Partial<PendingMaintenance>} */($$parsedSource));
     }

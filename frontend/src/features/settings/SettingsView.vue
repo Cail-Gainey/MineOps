@@ -49,6 +49,7 @@ import {
   getStorageStatus,
   openDataDirectory,
   scheduleDatabaseKeyRotation,
+  scheduleDatabaseVacuum,
   schedulePortableRestore,
 } from '../../services/storage-api'
 import {
@@ -198,7 +199,10 @@ const updatePolicyOptions = [
   { label: '自动下载并提示重启', value: 'prompt_restart' },
 ]
 const settingsSearchOptions = [
-  { label: '通用 · 语言、开机启动、窗口关闭、时间格式、Desktop 更新', value: 'general' },
+  {
+    label: '通用 · 语言、开机启动、窗口关闭、时间格式、GPU 硬件加速、Desktop 更新',
+    value: 'general',
+  },
   { label: '主题 · 套装、模式、强调色、图片显示、透明度、高对比度', value: 'theme' },
   { label: '目录 · Server 目录、下载目录', value: 'paths' },
   { label: '镜像 · Java、Minecraft、Spark', value: 'mirrors' },
@@ -209,7 +213,7 @@ const settingsSearchOptions = [
   { label: '布局 · TopBar、BottomBar、SideBar、宽度', value: 'layout' },
   { label: 'SSH · 超时、KeepAlive、重连、认证、Known Hosts、Jump Host', value: 'ssh' },
   { label: 'Terminal · 字体、字号、行高、滚动、光标、配色', value: 'terminal' },
-  { label: '存储与安全 · SQLCipher、备份、恢复、密钥轮换', value: 'storage' },
+  { label: '存储与安全 · SQLCipher、备份、恢复、密钥轮换、存储整理', value: 'storage' },
 ]
 
 function selectThemePreset(value: string): void {
@@ -887,6 +891,38 @@ async function scheduleKeyRotation(): Promise<void> {
       title: '排队密钥轮换失败',
       content: error instanceof Error ? error.message : String(error),
       dedupeKey: 'settings:key-rotation-error',
+    })
+  } finally {
+    runtimeActionLoading.value = false
+  }
+}
+
+async function scheduleVacuum(): Promise<void> {
+  const allocated = storageStatus.value?.databaseBytes ?? 0
+  const confirmed = await interactions.confirm({
+    title: '排队存储整理（VACUUM）？',
+    content:
+      '整理会在下次启动、数据库打开前离线执行，把删除历史数据后留下的空闲页还给磁盘。执行期间应用不会响应，GB 级数据库可能耗时数分钟，并需要与数据库等大的临时磁盘空间。',
+    objectLabel: storageStatus.value?.databasePath ?? '',
+    impact: `当前数据库文件 ${formatBytes(allocated)}，整理期间需要额外约同等大小的可用空间。`,
+    positiveText: '排队整理',
+  })
+  if (!confirmed) return
+  runtimeActionLoading.value = true
+  try {
+    storageStatus.value = await scheduleDatabaseVacuum()
+    notifications.push({
+      kind: 'warning',
+      title: '存储整理已排队',
+      content: '请正常退出并重新启动 MineOps，启动过程会比平时慢。',
+      dedupeKey: 'settings:vacuum-scheduled',
+    })
+  } catch (error) {
+    notifications.push({
+      kind: 'error',
+      title: '排队存储整理失败',
+      content: error instanceof Error ? error.message : String(error),
+      dedupeKey: 'settings:vacuum-error',
     })
   } finally {
     runtimeActionLoading.value = false
@@ -1836,16 +1872,33 @@ async function cancelPendingMaintenance(): Promise<void> {
                 >
               </NFlex>
             </AppFormField>
+            <AppFormField
+              label="存储整理"
+              help="删除监控历史或缩短保留期后，SQLite 的空闲页不会自动还给磁盘，文件会一直停在历史最大体积。整理会在下次启动、数据库打开前离线执行 VACUUM。"
+            >
+              <NFlex align="center" wrap>
+                <NButton type="warning" :loading="runtimeActionLoading" @click="scheduleVacuum"
+                  >排队存储整理…</NButton
+                >
+                <NText depth="3">
+                  当前文件 {{ formatBytes(storageStatus?.databaseBytes ?? 0) }}
+                </NText>
+              </NFlex>
+            </AppFormField>
             <NAlert
               v-if="
                 storageStatus?.pendingMaintenance.restorePending ||
-                storageStatus?.pendingMaintenance.keyRotationPending
+                storageStatus?.pendingMaintenance.keyRotationPending ||
+                storageStatus?.pendingMaintenance.vacuumPending
               "
               type="warning"
               title="存在下次启动维护任务"
             >
               恢复：{{ storageStatus.pendingMaintenance.restorePending ? '已排队' : '无' }} ·
-              密钥轮换：{{ storageStatus.pendingMaintenance.keyRotationPending ? '已排队' : '无' }}
+              密钥轮换：{{
+                storageStatus.pendingMaintenance.keyRotationPending ? '已排队' : '无'
+              }}
+              · 存储整理：{{ storageStatus.pendingMaintenance.vacuumPending ? '已排队' : '无' }}
               <NButton size="small" @click="cancelPendingMaintenance">取消排队任务</NButton>
             </NAlert>
           </NForm>

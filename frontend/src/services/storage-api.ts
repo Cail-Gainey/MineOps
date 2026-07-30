@@ -44,6 +44,13 @@ export async function cancelPendingDatabaseMaintenance(): Promise<StorageStatus>
   return result.status
 }
 
+/** 排队一次下次启动执行的 VACUUM，释放 SQLite 空闲页占用的文件空间。 */
+export async function scheduleDatabaseVacuum(): Promise<StorageStatus> {
+  const result = unwrapStorage(await StorageService.ScheduleVacuum())
+  if (!result.status) throw new Error('StorageService 未返回存储整理状态')
+  return result.status
+}
+
 export async function openDataDirectory(): Promise<void> {
   throwIfError((await StorageService.OpenDataDirectory()).error)
 }

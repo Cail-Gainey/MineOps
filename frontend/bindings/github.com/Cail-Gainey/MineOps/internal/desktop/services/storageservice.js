@@ -16,7 +16,7 @@ import { Call as $Call, CancellablePromise as $CancellablePromise, Create as $Cr
 import * as $models from "./models.js";
 
 /**
- * CancelPendingMaintenance clears staged restore and key-rotation work.
+ * CancelPendingMaintenance clears staged restore, key-rotation, and vacuum work.
  * @returns {$CancellablePromise<$models.StorageResult>}
  */
 export function CancelPendingMaintenance() {
@@ -73,6 +73,16 @@ export function ScheduleKeyRotation() {
  */
 export function ScheduleRestore(backupPath) {
     return $Call.ByID(2394135158, backupPath).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType0($result);
+    }));
+}
+
+/**
+ * ScheduleVacuum stages a VACUUM for the next application start to release SQLite free pages.
+ * @returns {$CancellablePromise<$models.StorageResult>}
+ */
+export function ScheduleVacuum() {
+    return $Call.ByID(1549216111).then(/** @type {($result: any) => any} */(($result) => {
         return $$createType0($result);
     }));
 }

@@ -80,7 +80,22 @@ func (s *StorageService) ScheduleKeyRotation(ctx context.Context) (result Storag
 	return StorageResult{Status: &status}
 }
 
-// CancelPendingMaintenance clears staged restore and key-rotation work.
+// ScheduleVacuum stages a VACUUM for the next application start to release SQLite free pages.
+func (s *StorageService) ScheduleVacuum(ctx context.Context) (result StorageResult) {
+	defer s.recover(ctx, "StorageService.ScheduleVacuum", &result)
+	if err := s.manager.ScheduleVacuum(); err != nil {
+		dto := apperror.ToDTO(err)
+		return StorageResult{Error: &dto}
+	}
+	status, err := s.manager.Status()
+	if err != nil {
+		dto := apperror.ToDTO(err)
+		return StorageResult{Error: &dto}
+	}
+	return StorageResult{Status: &status}
+}
+
+// CancelPendingMaintenance clears staged restore, key-rotation, and vacuum work.
 func (s *StorageService) CancelPendingMaintenance(ctx context.Context) (result StorageResult) {
 	defer s.recover(ctx, "StorageService.CancelPendingMaintenance", &result)
 	if err := s.manager.CancelPendingMaintenance(); err != nil {

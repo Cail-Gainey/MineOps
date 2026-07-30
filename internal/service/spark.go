@@ -397,11 +397,13 @@ func shouldReprobeSparkCapability(capability *model.SparkCapability, now time.Ti
 	if capability == nil {
 		return true
 	}
-	if capability.RestartRequired || capability.Status == enums.SparkUnknown {
+	if capability.Status == enums.SparkUnknown {
 		return true
 	}
-	if capability.Status == enums.SparkUnavailable && capability.InstallManifest != "" {
-		return true
+	// 待重启/已装未生效状态仅按周期兜底重探：重启后的即时探测由 ServerStarted 事件触发，
+	// 每个采集 tick 都全量 SSH 探测会形成持续负载（单次探测最多约 80 次远程命令）。
+	if capability.RestartRequired || capability.Status == enums.SparkUnavailable && capability.InstallManifest != "" {
+		return now.Sub(capability.DetectedAt) >= sparkCapabilityReprobeInterval
 	}
 	if capability.Status == enums.SparkFailed {
 		return now.Sub(capability.DetectedAt) >= sparkFailedCapabilityReprobeInterval

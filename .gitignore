@@ -63,7 +63,7 @@ pnpm-debug.log*
 
 # 本地任务与 AI 工具运行状态
 /.task/
-/.omc/
+.omc/
 /.omx/
 /.agents/
 /.claude/

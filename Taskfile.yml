@@ -6,7 +6,7 @@ vars:
   UPDATE_PUBLIC_KEY_BASE64: '{{.UPDATE_PUBLIC_KEY_BASE64 | default ""}}'
   BIN_DIR: "bin"
   RELEASE_DIR: '{{.RELEASE_DIR | default "dist/release"}}'
-  PACKAGE_MANAGER: '{{.PACKAGE_MANAGER | default "npm"}}'
+  PACKAGE_MANAGER: '{{.PACKAGE_MANAGER | default "pnpm"}}'
   VITE_HOST: '{{.WAILS_VITE_HOST | default "127.0.0.1"}}'
   VITE_PORT: '{{.WAILS_VITE_PORT | default 9245}}'
   WAILS_VERSION: "v3.0.0-alpha2.117"
@@ -28,7 +28,7 @@ tasks:
       - go install golang.org/x/tools/cmd/goimports@{{.GOIMPORTS_VERSION}}
       - go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@{{.GOLANGCI_LINT_VERSION}}
       - go install golang.org/x/vuln/cmd/govulncheck@{{.GOVULNCHECK_VERSION}}
-      - npm ci --prefix frontend
+      - task: common:install:frontend:deps
 
   update:generate-key:
     summary: Generates the free Ed25519 keypair used only for MineOps auto-update authentication
@@ -64,7 +64,7 @@ tasks:
     summary: Formats Go and frontend source files
     cmds:
       - goimports -w main.go $(rg --files internal cmd -g '*.go')
-      - npm run format --prefix frontend
+      - pnpm -C frontend run format
 
   format:check:
     summary: Checks Go and frontend formatting without modifying files
@@ -75,15 +75,15 @@ tasks:
           echo "$unformatted"
           exit 1
         fi
-      - npm run format:check --prefix frontend
+      - pnpm -C frontend run format:check
 
   lint:
     summary: Runs Go static analysis and frontend lint/type checks
     cmds:
       - go vet . ./cmd/... ./internal/...
       - golangci-lint run . ./cmd/... ./internal/...
-      - npm run lint --prefix frontend
-      - npm run typecheck --prefix frontend
+      - pnpm -C frontend run lint
+      - pnpm -C frontend run typecheck
 
   bindings:check:
     summary: Regenerates bindings and checks for tracked differences
@@ -99,12 +99,12 @@ tasks:
       - test -z "$(rg -n '\.(Exec|Raw)\(' internal/infrastructure/sqlcipher -g '*migration*.go' || true)"
 
   legal:audit:
-    summary: Checks release legal files and npm production license metadata
+    summary: Checks release legal files and pnpm production license metadata
     cmds:
       - test -s LICENSE
       - test -s THIRD_PARTY_NOTICES.md
       - |
-        node -e 'const lock=require("./frontend/package-lock.json"); const missing=[]; for (const [path, value] of Object.entries(lock.packages)) { if (path.startsWith("node_modules/") && !value.dev && !value.license) missing.push(path.slice(13)); } if (missing.length) { console.error(`Missing production npm license metadata: ${missing.join(", ")}`); process.exit(1); }'
+        pnpm -C frontend licenses list --prod --json | node -e 'let raw="";process.stdin.on("data",chunk=>raw+=chunk);process.stdin.on("end",()=>{const groups=JSON.parse(raw||"{}");const missing=Object.entries(groups).filter(([license])=>/unknown/i.test(license)).flatMap(([,packages])=>packages.map(entry=>entry.name));if(missing.length){console.error(`Missing production frontend license metadata: ${missing.join(", ")}`);process.exit(1);}});'
       - test -z "$(rg -n 'raw.githubusercontent.com/codedgar/Puppertino|puppertino\.css' build frontend --glob '!frontend/node_modules/**' --glob '!frontend/dist/**' || true)"
 
   version:audit:
@@ -136,7 +136,7 @@ tasks:
       - |
         test -z "$(rg --files -g '*.db' -g '*.sqlite' -g '*.sqlite3' | rg . || true)"
       - |
-        test -z "$(rg -ni 'apache[-_/ ]spark|hadoop' go.mod go.sum frontend/package.json frontend/package-lock.json || true)"
+        test -z "$(rg -ni 'apache[-_/ ]spark|hadoop' go.mod go.sum frontend/package.json frontend/pnpm-lock.yaml || true)"
 
   check:
     summary: Runs reproducible formatting, lint, type, module, and binding checks
@@ -159,7 +159,7 @@ tasks:
       - task: spike:sqlcipher
       - task: spike:spark
       - govulncheck . ./cmd/... ./internal/...
-      - npm run audit --prefix frontend
+      - pnpm -C frontend run audit
       - task: build
 
   build:

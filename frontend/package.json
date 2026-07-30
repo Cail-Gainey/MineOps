@@ -3,11 +3,12 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
+  "packageManager": "pnpm@11.9.0",
   "scripts": {
     "dev": "vite",
     "build:dev": "vite build --minify false --mode development",
     "build": "vite build --mode production",
-    "audit": "npm audit --audit-level=moderate",
+    "audit": "pnpm audit --audit-level=moderate",
     "typecheck": "vue-tsc --noEmit",
     "lint": "eslint . --max-warnings=0",
     "format": "prettier --write .",
@@ -44,12 +45,5 @@
     "vite": "8.0.16",
     "vue-eslint-parser": "10.4.1",
     "vue-tsc": "3.3.7"
-  },
-  "overrides": {
-    "dompurify": "3.4.12"
-  },
-  "allowScripts": {
-    "fsevents@2.3.3": true,
-    "vue-demi@0.14.10": true
   }
 }

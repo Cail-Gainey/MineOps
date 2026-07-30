@@ -73,7 +73,7 @@ tasks:
     dir: frontend
     sources:
       - package.json
-      - package-lock.json
+      - pnpm-lock.yaml
       - index.html
       - tsconfig.json
       - vite.config.ts

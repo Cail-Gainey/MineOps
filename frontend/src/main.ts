@@ -21,6 +21,8 @@ app.config.errorHandler = (error, _instance, info) => {
   reportClientError(error, 'application', router.currentRoute.value.fullPath)
 }
 window.addEventListener('error', (event) => {
+  // ResizeObserver 断环提示是浏览器可自愈的良性信号（echarts/monaco/naive-ui 均可能触发），不作为错误采集。
+  if (typeof event.message === 'string' && event.message.includes('ResizeObserver loop')) return
   const error = event.error ?? new Error(event.message)
   errorCenter.capture(error, 'window')
   reportClientError(error, 'window', router.currentRoute.value.fullPath)

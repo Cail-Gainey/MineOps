@@ -877,7 +877,12 @@ onMounted(async () => {
     tableWidth.value = tableContainer.value.clientWidth
     if (typeof ResizeObserver !== 'undefined') {
       tableResizeObserver = new ResizeObserver(([entry]) => {
-        if (entry) tableWidth.value = entry.contentRect.width
+        if (!entry) return
+        // 宽度写入推迟到下一帧：回调内同步改列布局会在同一观察周期再次触发 resize，形成 ResizeObserver loop。
+        const width = entry.contentRect.width
+        requestAnimationFrame(() => {
+          tableWidth.value = width
+        })
       })
       tableResizeObserver.observe(tableContainer.value)
     }

@@ -878,8 +878,10 @@ onMounted(async () => {
     if (typeof ResizeObserver !== 'undefined') {
       tableResizeObserver = new ResizeObserver(([entry]) => {
         if (!entry) return
-        // 宽度写入推迟到下一帧：回调内同步改列布局会在同一观察周期再次触发 resize，形成 ResizeObserver loop。
         const width = entry.contentRect.width
+        // ±24px 内抖动直接忽略：列显隐切换滚动条约 ±15px 反向改动容器宽度，
+        // 照单全收会与列布局形成跨帧持续重排回路（CPU 跑满）；列宽分层间距 ≥140px 不受影响。
+        if (Math.abs(width - tableWidth.value) < 24) return
         requestAnimationFrame(() => {
           tableWidth.value = width
         })

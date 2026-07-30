@@ -864,6 +864,7 @@ func uploadRemoteCollectorFile(ctx context.Context, client *SSHClient, directory
 target=$1
 directory=$2
 umask 077
+if [ ! -e "$directory" ]; then mkdir "$directory" 2>/dev/null || true; fi
 [ -d "$directory" ] && [ ! -L "$directory" ]
 chmod 700 "$directory"
 temporary="$target.tmp.$$"
@@ -886,6 +887,7 @@ func uploadRemoteCollectorManifest(ctx context.Context, client *SSHClient, direc
 target=$1
 directory=$2
 umask 077
+if [ ! -e "$directory" ]; then mkdir "$directory" 2>/dev/null || true; fi
 [ -d "$directory" ] && [ ! -L "$directory" ]
 chmod 700 "$directory"
 temporary="$target.tmp.$$"

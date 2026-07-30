@@ -17,9 +17,32 @@ import (
 )
 
 const (
-	modrinthAPIBaseURL = "https://api.modrinth.com/v2"
-	sparkProjectID     = "l6YH9Als"
+	modrinthAPIBaseURL        = "https://api.modrinth.com/v2"
+	sparkProjectID            = "l6YH9Als"
+	fabricAPIProjectID        = "P7dR8mSH"
+	quiltedFabricAPIProjectID = "qvIfYCYJ"
 )
+
+// modrinthDependencySpec describes one loader API dependency installed alongside a Spark mod build.
+type modrinthDependencySpec struct {
+	projectID    string
+	name         string
+	loader       string
+	matchPattern string
+}
+
+// loaderDependency returns the runtime API dependency required by spark's mod build for one loader.
+// spark 的模组构建在运行期依赖对应加载器 API（fabric.mod.json 声明），但 Modrinth 元数据未声明，必须随装。
+func loaderDependency(loader string) (modrinthDependencySpec, bool) {
+	switch loader {
+	case "fabric":
+		return modrinthDependencySpec{projectID: fabricAPIProjectID, name: "fabric-api", loader: "fabric", matchPattern: "fabric-api-*.jar"}, true
+	case "quilt":
+		return modrinthDependencySpec{projectID: quiltedFabricAPIProjectID, name: "quilted-fabric-api", loader: "quilt", matchPattern: "qfapi-*.jar"}, true
+	default:
+		return modrinthDependencySpec{}, false
+	}
+}
 
 // Catalog resolves dynamic Minecraft spark releases while preserving fixed layouts for other platforms.
 type Catalog struct {
@@ -45,8 +68,13 @@ func (c *Catalog) ResolveArtifact(ctx context.Context, serverType enums.Minecraf
 	if minecraftVersion == "" {
 		return Artifact{}, apperror.New(apperror.CodeValidationRequired, "Minecraft 版本不能为空")
 	}
+	// Quilt 复用 Fabric 构建：spark 的 quilt 标记发布停留在 1.9 系列，超出锁定解析矩阵。
+	searchLoader := loader
+	if loader == "quilt" {
+		searchLoader = "fabric"
+	}
 	query := url.Values{}
-	query.Set("loaders", `[`+strconv.Quote(loader)+`]`)
+	query.Set("loaders", `[`+strconv.Quote(searchLoader)+`]`)
 	query.Set("game_versions", `[`+strconv.Quote(minecraftVersion)+`]`)
 	endpoint := strings.TrimRight(c.baseURL, "/") + "/project/" + sparkProjectID + "/version?" + query.Encode()
 	var releases []modrinthVersion
@@ -57,7 +85,7 @@ func (c *Catalog) ResolveArtifact(ctx context.Context, serverType enums.Minecraf
 		return releases[left].DatePublished.After(releases[right].DatePublished)
 	})
 	for _, release := range releases {
-		if release.VersionType != "release" || !containsExact(release.Loaders, loader) || !containsExact(release.GameVersions, minecraftVersion) {
+		if release.VersionType != "release" || !containsExact(release.Loaders, searchLoader) || !containsExact(release.GameVersions, minecraftVersion) {
 			continue
 		}
 		requirement, requirementErr := model.JavaRequirementForMinecraft(serverType.String(), minecraftVersion)
@@ -73,6 +101,13 @@ func (c *Catalog) ResolveArtifact(ctx context.Context, serverType enums.Minecraf
 		}
 		if javaMajor > 0 && artifact.RequiredJavaMajor > javaMajor {
 			continue
+		}
+		if dependencySpec, needed := loaderDependency(loader); needed {
+			dependency, dependencyErr := c.resolveModrinthDependency(ctx, dependencySpec, minecraftVersion, requirement.MinimumMajor)
+			if dependencyErr != nil {
+				return Artifact{}, dependencyErr
+			}
+			artifact.Dependencies = []DependencyArtifact{dependency}
 		}
 		return artifact, nil
 	}
@@ -107,15 +142,32 @@ type modrinthDependency struct {
 }
 
 func (r modrinthVersion) modArtifact(loader string, requiredJavaMajor int) (Artifact, error) {
-	if strings.TrimSpace(r.ID) == "" {
-		return Artifact{}, apperror.New(apperror.CodeValidationInvalidArgument, "Modrinth Spark 发布缺少 Version ID")
-	}
 	for _, dependency := range r.Dependencies {
-		if dependency.DependencyType == "required" {
+		// fabric-api / QFAPI 由 MineOps 主动解析并随装，不视为未支持的必需依赖。
+		if dependency.DependencyType == "required" && dependency.ProjectID != fabricAPIProjectID && dependency.ProjectID != quiltedFabricAPIProjectID {
 			return Artifact{}, apperror.New(apperror.CodeSparkUnsupported, "Spark 发布声明了 MineOps 尚未支持的必需依赖").WithDetails(map[string]any{
 				"releaseID": r.ID, "projectID": dependency.ProjectID, "versionID": dependency.VersionID,
 			})
 		}
+	}
+	file, fileURL, sha512, err := r.primaryFile(sparkProjectID)
+	if err != nil {
+		return Artifact{}, err
+	}
+	version := strings.TrimSpace(r.VersionNumber)
+	if separator := strings.IndexByte(version, '-'); separator > 0 {
+		version = version[:separator]
+	}
+	return Artifact{
+		Platform: loader, Provider: "spark-modrinth", ReleaseID: r.ID, Version: version,
+		FileName: file.Filename, URL: fileURL, SHA512: sha512, Size: file.Size, TargetKind: "mods", RequiredJavaMajor: requiredJavaMajor,
+	}, nil
+}
+
+// primaryFile validates and returns the single primary CDN file of one Modrinth release.
+func (r modrinthVersion) primaryFile(projectID string) (modrinthFile, string, string, error) {
+	if strings.TrimSpace(r.ID) == "" {
+		return modrinthFile{}, "", "", apperror.New(apperror.CodeValidationInvalidArgument, "Modrinth 发布缺少 Version ID")
 	}
 	primaryFiles := make([]modrinthFile, 0, 1)
 	for _, file := range r.Files {
@@ -124,33 +176,58 @@ func (r modrinthVersion) modArtifact(loader string, requiredJavaMajor int) (Arti
 		}
 	}
 	if len(primaryFiles) != 1 {
-		return Artifact{}, apperror.New(apperror.CodeValidationConflict, "Modrinth Spark 发布必须且只能包含一个 primary 文件").WithDetails(map[string]any{
+		return modrinthFile{}, "", "", apperror.New(apperror.CodeValidationConflict, "Modrinth 发布必须且只能包含一个 primary 文件").WithDetails(map[string]any{
 			"releaseID": r.ID, "primaryFiles": len(primaryFiles),
 		})
 	}
 	file := primaryFiles[0]
 	parsedURL, err := url.Parse(strings.TrimSpace(file.URL))
 	if err != nil || parsedURL.Scheme != "https" || !strings.EqualFold(parsedURL.Hostname(), "cdn.modrinth.com") || parsedURL.User != nil {
-		return Artifact{}, apperror.Wrap(apperror.CodeValidationInvalidArgument, "Modrinth Spark primary 文件 URL 无效", err)
+		return modrinthFile{}, "", "", apperror.Wrap(apperror.CodeValidationInvalidArgument, "Modrinth primary 文件 URL 无效", err)
 	}
-	if !strings.HasPrefix(parsedURL.Path, "/data/"+sparkProjectID+"/versions/"+r.ID+"/") || file.Filename == "" || path.Base(parsedURL.Path) != file.Filename || !strings.HasSuffix(strings.ToLower(file.Filename), ".jar") || file.Size <= 0 || file.Size > 64*1024*1024 {
-		return Artifact{}, apperror.New(apperror.CodeValidationInvalidArgument, "Modrinth Spark primary 文件身份或大小无效")
+	if !strings.HasPrefix(parsedURL.Path, "/data/"+projectID+"/versions/"+r.ID+"/") || file.Filename == "" || path.Base(parsedURL.Path) != file.Filename || !strings.HasSuffix(strings.ToLower(file.Filename), ".jar") || file.Size <= 0 || file.Size > 64*1024*1024 {
+		return modrinthFile{}, "", "", apperror.New(apperror.CodeValidationInvalidArgument, "Modrinth primary 文件身份或大小无效")
 	}
 	sha512 := strings.ToLower(strings.TrimSpace(file.Hashes["sha512"]))
 	if len(sha512) != 128 {
-		return Artifact{}, apperror.New(apperror.CodeValidationInvalidArgument, "Modrinth Spark primary 文件缺少 SHA-512")
+		return modrinthFile{}, "", "", apperror.New(apperror.CodeValidationInvalidArgument, "Modrinth primary 文件缺少 SHA-512")
 	}
 	if _, err := hex.DecodeString(sha512); err != nil {
-		return Artifact{}, apperror.Wrap(apperror.CodeValidationInvalidArgument, "Modrinth Spark SHA-512 无效", err)
+		return modrinthFile{}, "", "", apperror.Wrap(apperror.CodeValidationInvalidArgument, "Modrinth SHA-512 无效", err)
 	}
-	version := strings.TrimSpace(r.VersionNumber)
-	if separator := strings.IndexByte(version, '-'); separator > 0 {
-		version = version[:separator]
+	return file, parsedURL.String(), sha512, nil
+}
+
+// resolveModrinthDependency selects the newest stable release of one loader API dependency for an exact Minecraft version.
+func (c *Catalog) resolveModrinthDependency(ctx context.Context, spec modrinthDependencySpec, minecraftVersion string, requiredJavaMajor int) (DependencyArtifact, error) {
+	query := url.Values{}
+	query.Set("loaders", `[`+strconv.Quote(spec.loader)+`]`)
+	query.Set("game_versions", `[`+strconv.Quote(minecraftVersion)+`]`)
+	endpoint := strings.TrimRight(c.baseURL, "/") + "/project/" + spec.projectID + "/version?" + query.Encode()
+	var releases []modrinthVersion
+	if err := c.client.GetJSON(ctx, endpoint, &releases); err != nil {
+		return DependencyArtifact{}, err
 	}
-	return Artifact{
-		Platform: loader, Provider: "spark-modrinth", ReleaseID: r.ID, Version: version,
-		FileName: file.Filename, URL: parsedURL.String(), SHA512: sha512, Size: file.Size, TargetKind: "mods", RequiredJavaMajor: requiredJavaMajor,
-	}, nil
+	sort.SliceStable(releases, func(left, right int) bool {
+		return releases[left].DatePublished.After(releases[right].DatePublished)
+	})
+	for _, release := range releases {
+		if release.VersionType != "release" || !containsExact(release.Loaders, spec.loader) || !containsExact(release.GameVersions, minecraftVersion) {
+			continue
+		}
+		file, fileURL, sha512, err := release.primaryFile(spec.projectID)
+		if err != nil {
+			return DependencyArtifact{}, err
+		}
+		return DependencyArtifact{
+			Name: spec.name, Version: strings.TrimSpace(release.VersionNumber), FileName: file.Filename,
+			URL: fileURL, SHA512: sha512, Size: file.Size, TargetKind: "mods",
+			MatchPattern: spec.matchPattern, RequiredJavaMajor: requiredJavaMajor,
+		}, nil
+	}
+	return DependencyArtifact{}, apperror.New(apperror.CodeIONotFound, "Modrinth 没有与当前 Minecraft 版本兼容的稳定 "+spec.name+" 发布").WithDetails(map[string]any{
+		"minecraftVersion": minecraftVersion, "projectID": spec.projectID, "dependency": spec.name,
+	})
 }
 
 func modrinthLoader(serverType enums.MinecraftServerType) string {

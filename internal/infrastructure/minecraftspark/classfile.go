@@ -2,6 +2,7 @@ package minecraftspark
 
 import (
 	"archive/zip"
+	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -9,7 +10,10 @@ import (
 	"strings"
 )
 
+const nestedJarMaximumBytes = 64 * 1024 * 1024
+
 // RequiredJavaMajor returns the highest base class-file Java requirement in one Jar.
+// Fabric Jar-in-Jar 包装（如 fabric-api 顶层无任何 class 文件）会下钻 META-INF/jars 内嵌 Jar 取最高要求。
 func RequiredJavaMajor(jarPath string) (int, error) {
 	archive, err := zip.OpenReader(jarPath)
 	if err != nil {
@@ -17,6 +21,24 @@ func RequiredJavaMajor(jarPath string) (int, error) {
 	}
 	defer func() { _ = archive.Close() }()
 
+	maximum, err := scanClassFileMajors(&archive.Reader)
+	if err != nil {
+		return 0, err
+	}
+	if maximum == 0 {
+		maximum, err = scanNestedJarMajors(&archive.Reader)
+		if err != nil {
+			return 0, err
+		}
+	}
+	if maximum == 0 {
+		return 0, errors.New("jar does not contain base class files")
+	}
+	return maximum, nil
+}
+
+// scanClassFileMajors returns the highest base class-file Java requirement inside one opened Jar, or 0 when none exist.
+func scanClassFileMajors(archive *zip.Reader) (int, error) {
 	maximum := 0
 	for _, file := range archive.File {
 		name := strings.ReplaceAll(file.Name, "\\", "/")
@@ -45,8 +67,40 @@ func RequiredJavaMajor(jarPath string) (int, error) {
 			maximum = javaMajor
 		}
 	}
-	if maximum == 0 {
-		return 0, errors.New("jar does not contain base class files")
+	return maximum, nil
+}
+
+// scanNestedJarMajors returns the highest Java requirement across Fabric Jar-in-Jar entries under META-INF/jars.
+func scanNestedJarMajors(archive *zip.Reader) (int, error) {
+	maximum := 0
+	for _, file := range archive.File {
+		name := strings.ReplaceAll(file.Name, "\\", "/")
+		if !strings.HasPrefix(strings.ToUpper(name), "META-INF/JARS/") || !strings.HasSuffix(strings.ToLower(name), ".jar") {
+			continue
+		}
+		reader, openErr := file.Open()
+		if openErr != nil {
+			return 0, openErr
+		}
+		payload, readErr := io.ReadAll(io.LimitReader(reader, nestedJarMaximumBytes+1))
+		_ = reader.Close()
+		if readErr != nil {
+			return 0, readErr
+		}
+		if len(payload) > nestedJarMaximumBytes {
+			return 0, fmt.Errorf("nested jar exceeds size limit: %s", name)
+		}
+		nested, nestedErr := zip.NewReader(bytes.NewReader(payload), int64(len(payload)))
+		if nestedErr != nil {
+			return 0, fmt.Errorf("open nested jar %s: %w", name, nestedErr)
+		}
+		nestedMaximum, scanErr := scanClassFileMajors(nested)
+		if scanErr != nil {
+			return 0, fmt.Errorf("scan nested jar %s: %w", name, scanErr)
+		}
+		if nestedMaximum > maximum {
+			maximum = nestedMaximum
+		}
 	}
 	return maximum, nil
 }

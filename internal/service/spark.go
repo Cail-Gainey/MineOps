@@ -595,13 +595,13 @@ func (m *SparkManager) planInstallLocked(ctx context.Context, serverID model.ID,
 	}
 	dependencies := make([]SparkInstallDependency, 0, len(artifact.Dependencies))
 	for _, dependency := range artifact.Dependencies {
-		dependencyURL, resolveErr := m.downloads.ResolveArtifactURL("fabric-api", dependency.URL)
+		dependencyURL, resolveErr := m.downloads.ResolveArtifactURL(dependency.Name, dependency.URL)
 		if resolveErr != nil {
 			return SparkInstallPlan{}, resolveErr
 		}
 		fallbackURLs := make([]string, 0, len(dependency.FallbackURLs))
 		for _, fallback := range dependency.FallbackURLs {
-			fallbackURL, fallbackErr := m.downloads.ResolveArtifactURL("fabric-api", fallback)
+			fallbackURL, fallbackErr := m.downloads.ResolveArtifactURL(dependency.Name, fallback)
 			if fallbackErr != nil {
 				return SparkInstallPlan{}, fallbackErr
 			}

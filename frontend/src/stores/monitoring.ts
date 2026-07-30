@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { computed, ref } from 'vue'
+import { computed, ref, shallowRef } from 'vue'
 
 import { MetricQuery } from '../../bindings/github.com/Cail-Gainey/MineOps/internal/model/models'
 import type {
@@ -19,6 +19,14 @@ import {
   subscribeMetricRealtime,
 } from '../services/metric-api'
 
+/** 一次刷新的目标 Server 与时间窗口，用于把小趋势图加载推迟到页面骨架渲染之后。 */
+interface TrendContext {
+  serverID: string
+  start: Date
+  end: Date
+  timeZone: string
+}
+
 export const useMonitoringStore = defineStore('monitoring', () => {
   const trendMetrics = [
     'host.cpu',
@@ -33,12 +41,16 @@ export const useMonitoringStore = defineStore('monitoring', () => {
   const selectedMetric = ref('host.cpu')
   const rangeHours = ref(24)
   const granularity = ref('minute')
-  const latest = ref<MetricSample[]>([])
-  const history = ref<MetricQueryResult | null>(null)
-  const trendHistories = ref<Record<string, MetricQueryResult>>({})
-  const storage = ref<MetricStorageStatus | null>(null)
-  const overview = ref<MonitoringOverview | null>(null)
+  // Metric 查询结果整块替换、从不就地修改，用 shallowRef 跳过 Vue 深层代理：
+  // 24 小时分钟粒度下七条序列合计上万个点，深层响应式会为每个点生成 Proxy，
+  // 打开监控页时这部分开销与图表初始化叠加，正是 CPU 短暂冲高的前端来源。
+  const latest = shallowRef<MetricSample[]>([])
+  const history = shallowRef<MetricQueryResult | null>(null)
+  const trendHistories = shallowRef<Record<string, MetricQueryResult>>({})
+  const storage = shallowRef<MetricStorageStatus | null>(null)
+  const overview = shallowRef<MonitoringOverview | null>(null)
   const loading = ref(false)
+  const trendsLoading = ref(false)
   const serversError = ref<unknown>(null)
   const storageError = ref<unknown>(null)
   const latestError = ref<unknown>(null)
@@ -94,7 +106,66 @@ export const useMonitoringStore = defineStore('monitoring', () => {
     }
   }
 
-  /** Refreshes latest values, history, and storage status for the selected Server. */
+  /**
+   * 构造一次 Metric 区间查询。
+   * @param context - 目标 Server 与时间窗口
+   * @param metric - 指标名称
+   * @param queryGranularity - 查询粒度
+   * @returns 可直接提交给 MetricService 的查询对象
+   */
+  function buildQuery(
+    context: TrendContext,
+    metric: string,
+    queryGranularity: string,
+  ): MetricQuery {
+    return new MetricQuery({
+      serverID: context.serverID,
+      metric,
+      start: context.start.toISOString(),
+      end: context.end.toISOString(),
+      granularity: queryGranularity,
+      timeZone: context.timeZone,
+      limit: 100_000,
+      offset: 0,
+    })
+  }
+
+  /**
+   * 逐个加载六张常用指标小趋势图，不阻塞页面骨架。
+   * @param sequence - 发起刷新时的序号，用于丢弃过期结果
+   * @param context - 目标 Server 与时间窗口
+   * @returns 全部趋势加载结束后的 Promise
+   */
+  async function loadTrendHistories(sequence: number, context: TrendContext): Promise<void> {
+    trendsLoading.value = true
+    // 小趋势图只有 240px 高，原始粒度在 30 天窗口下单图可达数十万点，统一压到分钟粒度。
+    const trendGranularity = granularity.value === 'raw' ? 'minute' : granularity.value
+    const collected: Record<string, MetricQueryResult> = {}
+    try {
+      for (const metric of trendMetrics) {
+        if (sequence !== refreshSequence || selectedServerID.value !== context.serverID) return
+        if (metric === selectedMetric.value && trendGranularity === granularity.value) {
+          // 所选指标的曲线已在关键路径查过，直接复用，避免同一区间重复查询。
+          if (history.value) collected[metric] = history.value
+        } else {
+          try {
+            collected[metric] = await queryMetrics(buildQuery(context, metric, trendGranularity))
+          } catch (reason) {
+            trendsError.value = reason
+          }
+        }
+        if (sequence !== refreshSequence || selectedServerID.value !== context.serverID) return
+        trendHistories.value = { ...collected }
+      }
+    } finally {
+      if (sequence === refreshSequence) trendsLoading.value = false
+    }
+  }
+
+  /**
+   * 刷新所选 Server 的存储容量、统一状态与所选指标历史，随后后台补齐小趋势图。
+   * @returns 关键路径加载完成后的 Promise
+   */
   async function refresh(): Promise<void> {
     const sequence = ++refreshSequence
     loading.value = true
@@ -130,46 +201,34 @@ export const useMonitoringStore = defineStore('monitoring', () => {
         overview.value = null
       }
       const end = new Date()
-      const start = new Date(end.getTime() - rangeHours.value * 60 * 60 * 1000)
-      const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
-      const metricNames = [...new Set([selectedMetric.value, ...trendMetrics])]
-      const latestRequest = getLatestMetrics(targetServerID)
-      const overviewRequest = getMonitoringOverview(targetServerID)
-      const metricRequests = metricNames.map((metric) =>
-        queryMetrics(
-          new MetricQuery({
-            serverID: targetServerID,
-            metric,
-            start: start.toISOString(),
-            end: end.toISOString(),
-            granularity: granularity.value,
-            timeZone,
-            limit: 100_000,
-            offset: 0,
-          }),
-        ),
-      )
-      const [latestResult, overviewResult] = await Promise.allSettled([
-        latestRequest,
-        overviewRequest,
+      const context: TrendContext = {
+        serverID: targetServerID,
+        start: new Date(end.getTime() - rangeHours.value * 60 * 60 * 1000),
+        end,
+        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+      }
+      const [overviewResult, historyResult] = await Promise.allSettled([
+        getMonitoringOverview(targetServerID),
+        queryMetrics(buildQuery(context, selectedMetric.value, granularity.value)),
       ])
-      const metricResults = await Promise.allSettled(metricRequests)
       if (sequence !== refreshSequence || selectedServerID.value !== targetServerID) return
       dataServerID.value = targetServerID
-      if (latestResult.status === 'fulfilled') latest.value = latestResult.value
-      else latestError.value = latestResult.reason
-      if (overviewResult.status === 'fulfilled') overview.value = overviewResult.value
-      else overviewError.value = overviewResult.reason
-      const selectedHistoryResult = metricResults[metricNames.indexOf(selectedMetric.value)]
-      if (selectedHistoryResult?.status === 'fulfilled') history.value = selectedHistoryResult.value
-      else historyError.value = selectedHistoryResult?.reason ?? new Error('未返回所选指标趋势')
-      const nextTrendHistories: Record<string, MetricQueryResult> = {}
-      for (const metric of trendMetrics) {
-        const result = metricResults[metricNames.indexOf(metric)]
-        if (result?.status === 'fulfilled') nextTrendHistories[metric] = result.value
-        else trendsError.value = result?.reason ?? new Error(`未返回 ${metric} 趋势`)
+      if (overviewResult.status === 'fulfilled') {
+        overview.value = overviewResult.value
+        // MonitoringOverview 内部已经取过同一份最新值，不再单独调用 MetricService.Latest：
+        latest.value = overviewResult.value.latest
+      } else {
+        overviewError.value = overviewResult.reason
+        const fallback = await Promise.allSettled([getLatestMetrics(targetServerID)])
+        if (sequence !== refreshSequence || selectedServerID.value !== targetServerID) return
+        if (fallback[0].status === 'fulfilled') latest.value = fallback[0].value
+        else latestError.value = fallback[0].reason
       }
-      trendHistories.value = nextTrendHistories
+      if (historyResult.status === 'fulfilled') history.value = historyResult.value
+      else historyError.value = historyResult.reason
+      // 关键路径到此结束，先放掉页面骨架的加载态，再补六张小趋势图：
+      loading.value = false
+      await loadTrendHistories(sequence, context)
     } finally {
       if (sequence === refreshSequence) loading.value = false
     }
@@ -218,5 +277,6 @@ export const useMonitoringStore = defineStore('monitoring', () => {
     storage,
     storageError,
     trendHistories,
+    trendsLoading,
   }
 })

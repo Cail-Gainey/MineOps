@@ -50,6 +50,7 @@ import { useNotificationStore } from '../../stores/notifications'
 import { useSettingsStore } from '../../stores/settings'
 import { useThemeStore } from '../../stores/theme'
 import { accentColours } from '../../themes/tokens'
+import { chartInitOptions } from '../../shared/charts/render-options'
 import AlertRulesPanel from './AlertRulesPanel.vue'
 import { byteDisplayScale, metricDisplayScale, roundToTwo } from './metric-units'
 
@@ -104,12 +105,21 @@ const {
   servers,
   storage,
   trendHistories,
+  trendsLoading,
 } = storeToRefs(monitoring)
 const { accent, isDark } = storeToRefs(theme)
 const chartFiltersReady = ref(false)
 const monitoringActionLoading = ref(false)
 const applyingRouteQuery = ref(false)
 const metricHistorySection = ref<HTMLElement | null>(null)
+const overviewChartsSection = ref<HTMLElement | null>(null)
+// 六张常用指标小趋势图位于首屏之下，滚动到可见范围前不初始化 ECharts 实例：
+// 一次性建七个 Canvas 加七个 ResizeObserver 是打开监控页时 CPU 冲高的主要前端成本。
+const overviewChartsVisible = ref(false)
+let overviewChartsObserver: IntersectionObserver | null = null
+const chartInit = computed(() =>
+  chartInitOptions(settings.committed?.general.hardwareAcceleration !== false),
+)
 
 const serverOptions = computed(() =>
   servers.value.map((server) => ({
@@ -162,13 +172,29 @@ function createChartOption(result: MetricQueryResult | null, compact = false): C
   const axisColour = isDark.value ? '#94a3b8' : '#475569'
   const splitColour = isDark.value ? '#334155' : '#e2e8f0'
   const accentColour = accentColours[accent.value] ?? '#059669'
+  // 单趟遍历：一次 Date.parse 同时算出量级，再按换算系数就地缩放。
+  // 原实现先整体扫一遍求量级、再整体映射一遍，点数上万时白跑一趟全量遍历。
   let magnitude = 0
-  for (const series of result?.series ?? []) {
+  const rawSeries = (result?.series ?? []).map((series) => {
+    const data: [number, number | null][] = []
     for (const point of series.points) {
-      if (!point.missing) magnitude = Math.max(magnitude, Math.abs(point.value))
+      const timestamp = Date.parse(point.timestamp)
+      if (point.missing) {
+        data.push([timestamp, null])
+        continue
+      }
+      const absolute = point.value < 0 ? -point.value : point.value
+      if (absolute > magnitude) magnitude = absolute
+      data.push([timestamp, point.value])
+    }
+    return { series, data }
+  })
+  const scale = metricDisplayScale(result?.series[0]?.definition.unit, magnitude)
+  for (const { data } of rawSeries) {
+    for (const entry of data) {
+      if (entry[1] !== null) entry[1] = roundToTwo(entry[1] / scale.factor)
     }
   }
-  const scale = metricDisplayScale(result?.series[0]?.definition.unit, magnitude)
   return {
     animation: false,
     grid: compact
@@ -193,7 +219,7 @@ function createChartOption(result: MetricQueryResult | null, compact = false): C
       axisLabel: { color: axisColour, formatter: (value: number) => value.toFixed(2) },
       splitLine: { lineStyle: { color: splitColour } },
     },
-    series: (result?.series ?? []).map((series, index) => ({
+    series: rawSeries.map(({ series, data }, index) => ({
       type: 'line',
       name:
         series.tags && Object.keys(series.tags).length > 0
@@ -201,10 +227,7 @@ function createChartOption(result: MetricQueryResult | null, compact = false): C
               .map(([key, value]) => `${key}=${value}`)
               .join(', ')
           : `来源 ${series.sourceID.slice(0, 8)}`,
-      data: series.points.map((point) => [
-        Date.parse(point.timestamp),
-        point.missing ? null : roundToTwo(point.value / scale.factor),
-      ]),
+      data,
       showSymbol: false,
       connectNulls: false,
       sampling: 'lttb',
@@ -218,7 +241,12 @@ const chartOption = computed<ChartOption>(() => createChartOption(history.value)
 const overviewCharts = computed(() =>
   kpis.map((kpi) => {
     const result = trendHistories.value[kpi.metric] ?? null
-    return { ...kpi, result, option: createChartOption(result, true) }
+    // 未滚动到可见范围时不构建 option，避免为看不见的图付出遍历与序列化成本。
+    return {
+      ...kpi,
+      result,
+      option: overviewChartsVisible.value ? createChartOption(result, true) : null,
+    }
   }),
 )
 
@@ -303,6 +331,33 @@ function scrollToMetricHistory(): void {
   metricHistorySection.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
 
+/**
+ * 监听常用指标趋势区块进入视口，首次可见后一次性建图并停止观察。
+ * 没有 IntersectionObserver 时直接建图，保证功能不依赖该能力。
+ */
+function observeOverviewCharts(): void {
+  if (typeof IntersectionObserver === 'undefined') {
+    overviewChartsVisible.value = true
+    return
+  }
+  overviewChartsObserver = new IntersectionObserver(
+    (entries) => {
+      if (!entries.some((entry) => entry.isIntersecting)) return
+      overviewChartsVisible.value = true
+      overviewChartsObserver?.disconnect()
+      overviewChartsObserver = null
+    },
+    { rootMargin: '200px' },
+  )
+  watch(
+    overviewChartsSection,
+    (element) => {
+      if (element && overviewChartsObserver) overviewChartsObserver.observe(element)
+    },
+    { immediate: true, flush: 'post' },
+  )
+}
+
 async function changeServer(): Promise<void> {
   await router.replace({ query: { ...route.query, serverID: selectedServerID.value || undefined } })
   await refresh()
@@ -374,6 +429,7 @@ async function clearHistory(): Promise<void> {
 
 onMounted(async () => {
   monitoring.startSubscription()
+  observeOverviewCharts()
   try {
     if (!props.embedded) {
       const requestedMetric = String(route.query.metric ?? '')
@@ -493,7 +549,11 @@ watch([selectedMetric, rangeHours, granularity], async () => {
   }
   await refresh()
 })
-onUnmounted(() => monitoring.stopSubscription())
+onUnmounted(() => {
+  monitoring.stopSubscription()
+  overviewChartsObserver?.disconnect()
+  overviewChartsObserver = null
+})
 </script>
 
 <template>
@@ -589,27 +649,37 @@ onUnmounted(() => monitoring.stopSubscription())
               v-if="history?.series.length"
               class="metric-chart"
               :option="chartOption"
+              :init-options="chartInit"
               autoresize
             />
             <NEmpty v-else description="当前时间范围没有该指标数据" />
           </NCard>
         </section>
 
-        <NCard title="常用指标趋势">
-          <NGrid cols="1 760:2" :x-gap="12" :y-gap="12">
-            <NGridItem v-for="chart in overviewCharts" :key="chart.metric">
-              <NCard :title="chart.label" size="small">
-                <VChart
-                  v-if="chart.result?.series.length"
-                  class="metric-overview-chart"
-                  :option="chart.option"
-                  autoresize
-                />
-                <NEmpty v-else size="small" description="暂无趋势数据" />
-              </NCard>
-            </NGridItem>
-          </NGrid>
-        </NCard>
+        <section ref="overviewChartsSection">
+          <NCard title="常用指标趋势">
+            <NGrid cols="1 760:2" :x-gap="12" :y-gap="12">
+              <NGridItem v-for="chart in overviewCharts" :key="chart.metric">
+                <NCard :title="chart.label" size="small">
+                  <VChart
+                    v-if="chart.option && chart.result?.series.length"
+                    class="metric-overview-chart"
+                    :option="chart.option"
+                    :init-options="chartInit"
+                    autoresize
+                  />
+                  <NSpin
+                    v-else-if="overviewChartsVisible && trendsLoading"
+                    class="metric-overview-chart"
+                    size="small"
+                  />
+                  <div v-else-if="!overviewChartsVisible" class="metric-overview-chart" />
+                  <NEmpty v-else size="small" description="暂无趋势数据" />
+                </NCard>
+              </NGridItem>
+            </NGrid>
+          </NCard>
+        </section>
 
         <NCard title="指标存储">
           <NFlex vertical>

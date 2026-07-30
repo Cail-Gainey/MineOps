@@ -9,6 +9,7 @@ import (
 	"github.com/Cail-Gainey/MineOps/internal/global/apperror"
 	"github.com/Cail-Gainey/MineOps/internal/global/enums"
 	"github.com/Cail-Gainey/MineOps/internal/model"
+	"github.com/Cail-Gainey/MineOps/internal/repository"
 )
 
 const (
@@ -37,13 +38,11 @@ func (m *MetricManager) RunMaintenance(ctx context.Context) (model.MetricMainten
 	m.maintenanceMu.Lock()
 	defer m.maintenanceMu.Unlock()
 	now := m.clock.Now().UTC()
-	minuteEnd := now.Truncate(time.Minute)
-	hourEnd := now.Truncate(time.Hour)
-	minuteAggregates, err := m.downsampleRange(ctx, minuteEnd.Add(-2*time.Hour), minuteEnd, enums.MetricGranularityMinute)
+	minuteAggregates, err := m.downsampleGranularity(ctx, now, enums.MetricGranularityMinute)
 	if err != nil {
 		return model.MetricMaintenanceResult{}, err
 	}
-	hourAggregates, err := m.downsampleRange(ctx, hourEnd.Add(-48*time.Hour), hourEnd, enums.MetricGranularityHour)
+	hourAggregates, err := m.downsampleGranularity(ctx, now, enums.MetricGranularityHour)
 	if err != nil {
 		return model.MetricMaintenanceResult{}, err
 	}
@@ -56,6 +55,28 @@ func (m *MetricManager) RunMaintenance(ctx context.Context) (model.MetricMainten
 	return deleted, nil
 }
 
+// downsampleGranularity rolls up only buckets completed since the last watermark, with one-step overlap for stragglers.
+func (m *MetricManager) downsampleGranularity(ctx context.Context, now time.Time, granularity enums.MetricGranularity) (int, error) {
+	step, lookback, watermark := time.Minute, 2*time.Hour, &m.minuteRolledUpTo
+	if granularity == enums.MetricGranularityHour {
+		step, lookback, watermark = time.Hour, 48*time.Hour, &m.hourRolledUpTo
+	}
+	end := now.Truncate(step)
+	if !watermark.Before(end) {
+		return 0, nil
+	}
+	start := end.Add(-lookback)
+	if watermark.After(start) {
+		start = watermark.Add(-step)
+	}
+	aggregates, err := m.downsampleRange(ctx, start, end, granularity)
+	if err != nil {
+		return 0, err
+	}
+	*watermark = end
+	return aggregates, nil
+}
+
 func (m *MetricManager) downsampleRange(ctx context.Context, start, end time.Time, granularity enums.MetricGranularity) (int, error) {
 	if !start.Before(end) || granularity != enums.MetricGranularityMinute && granularity != enums.MetricGranularityHour {
 		return 0, nil
@@ -65,11 +86,13 @@ func (m *MetricManager) downsampleRange(ctx context.Context, start, end time.Tim
 		step = time.Hour
 	}
 	groups := make(map[string]*metricAggregateAccumulator)
-	for offset := 0; ; offset += metricMaintenancePageSize {
-		samples, err := m.store.Metrics().ListSamplesRange(ctx, start, end, metricMaintenancePageSize, offset)
+	cursor := repository.MetricSampleCursor{}
+	for {
+		samples, nextCursor, err := m.store.Metrics().ListSamplesRange(ctx, start, end, cursor, metricMaintenancePageSize)
 		if err != nil {
 			return 0, err
 		}
+		cursor = nextCursor
 		for _, sample := range samples {
 			bucket := sample.Timestamp.UTC().Truncate(step)
 			key := sample.ServerID.String() + "\x00" + metricBusSampleKey(sample) + "\x00" + bucket.Format(time.RFC3339Nano)

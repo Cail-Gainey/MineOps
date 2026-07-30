@@ -35,6 +35,9 @@ type MetricManager struct {
 	observer     MetricObserver
 
 	maintenanceMu sync.Mutex
+	// 降采样水位线（受 maintenanceMu 保护）：仅重算新完成的桶，避免每轮全量重读原始样本。
+	minuteRolledUpTo time.Time
+	hourRolledUpTo   time.Time
 }
 
 // SetObserver installs the bounded post-persistence metric observer used by threshold evaluation.

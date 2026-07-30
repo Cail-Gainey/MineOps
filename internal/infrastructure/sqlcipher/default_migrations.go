@@ -184,5 +184,14 @@ func DefaultMigrations() []Migration {
 				return database.AutoMigrate(&gormrepo.SSHSessionRecord{})
 			},
 		},
+		{
+			Version: 23,
+			Name:    "add_metric_time_indexes",
+			// 维护降采样与保留清理均按时间范围扫描，为 Metric 三表补时间列索引，
+			// 否则每轮维护对原始样本表全表扫描（SQLCipher 逐页解密+HMAC）。
+			Apply: func(database *gorm.DB) error {
+				return database.AutoMigrate(&gormrepo.MetricSampleRecord{}, &gormrepo.MetricMinuteRecord{}, &gormrepo.MetricHourRecord{})
+			},
+		},
 	}
 }

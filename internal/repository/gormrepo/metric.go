@@ -21,7 +21,7 @@ type MetricSampleRecord struct {
 	ServerID      string    `gorm:"index:idx_metric_raw_query,priority:1;index:idx_metric_raw_series,priority:1;size:36"`
 	SourceID      string    `gorm:"index:idx_metric_raw_source,priority:1;index:idx_metric_raw_series,priority:2;size:36"`
 	Metric        string    `gorm:"index:idx_metric_raw_query,priority:2;index:idx_metric_raw_source,priority:2;index:idx_metric_raw_series,priority:3;size:96"`
-	Timestamp     time.Time `gorm:"index:idx_metric_raw_query,priority:3;index:idx_metric_raw_source,priority:3;index:idx_metric_raw_series,priority:5"`
+	Timestamp     time.Time `gorm:"index:idx_metric_raw_query,priority:3;index:idx_metric_raw_source,priority:3;index:idx_metric_raw_series,priority:5;index:idx_metric_raw_time"`
 	Value         float64
 	TagsKey       string            `gorm:"index:idx_metric_raw_series,priority:4;size:64"`
 	Tags          map[string]string `gorm:"serializer:json"`
@@ -37,7 +37,7 @@ type MetricMinuteRecord struct {
 	ServerID      string    `gorm:"uniqueIndex:idx_metric_minute_unique,priority:1;index:idx_metric_minute_query,priority:1;size:36"`
 	SourceID      string    `gorm:"uniqueIndex:idx_metric_minute_unique,priority:2;size:36"`
 	Metric        string    `gorm:"uniqueIndex:idx_metric_minute_unique,priority:3;index:idx_metric_minute_query,priority:2;size:96"`
-	Bucket        time.Time `gorm:"uniqueIndex:idx_metric_minute_unique,priority:4;index:idx_metric_minute_query,priority:3"`
+	Bucket        time.Time `gorm:"uniqueIndex:idx_metric_minute_unique,priority:4;index:idx_metric_minute_query,priority:3;index:idx_metric_minute_bucket"`
 	TagsKey       string    `gorm:"uniqueIndex:idx_metric_minute_unique,priority:5;size:64"`
 	Count         int64
 	Average       float64
@@ -55,7 +55,7 @@ type MetricHourRecord struct {
 	ServerID      string    `gorm:"uniqueIndex:idx_metric_hour_unique,priority:1;index:idx_metric_hour_query,priority:1;size:36"`
 	SourceID      string    `gorm:"uniqueIndex:idx_metric_hour_unique,priority:2;size:36"`
 	Metric        string    `gorm:"uniqueIndex:idx_metric_hour_unique,priority:3;index:idx_metric_hour_query,priority:2;size:96"`
-	Bucket        time.Time `gorm:"uniqueIndex:idx_metric_hour_unique,priority:4;index:idx_metric_hour_query,priority:3"`
+	Bucket        time.Time `gorm:"uniqueIndex:idx_metric_hour_unique,priority:4;index:idx_metric_hour_query,priority:3;index:idx_metric_hour_bucket"`
 	TagsKey       string    `gorm:"uniqueIndex:idx_metric_hour_unique,priority:5;size:64"`
 	Count         int64
 	Average       float64
@@ -120,22 +120,23 @@ func (r *metricRepository) ListSamples(ctx context.Context, query model.MetricQu
 	return result, nil
 }
 
-func (r *metricRepository) ListSamplesRange(ctx context.Context, start, end time.Time, limit, offset int) ([]model.MetricSample, error) {
+func (r *metricRepository) ListSamplesRange(ctx context.Context, start, end time.Time, cursor repository.MetricSampleCursor, limit int) ([]model.MetricSample, repository.MetricSampleCursor, error) {
 	if limit <= 0 || limit > 100_000 {
 		limit = 100_000
 	}
-	if offset < 0 {
-		offset = 0
-	}
 	var records []MetricSampleRecord
-	if err := r.database.WithContext(ctx).Where("timestamp >= ? AND timestamp < ?", start.UTC(), end.UTC()).Order("timestamp asc, id asc").Limit(limit).Offset(offset).Find(&records).Error; err != nil {
-		return nil, apperror.Wrap(apperror.CodeMetricQueryFailed, "查询降采样原始 Metric 失败", err)
+	if err := r.database.WithContext(ctx).
+		Where("timestamp >= ? AND timestamp < ? AND (timestamp, id) > (?, ?)", start.UTC(), end.UTC(), cursor.Time.UTC(), cursor.ID).
+		Order("timestamp asc, id asc").Limit(limit).Find(&records).Error; err != nil {
+		return nil, cursor, apperror.Wrap(apperror.CodeMetricQueryFailed, "查询降采样原始 Metric 失败", err)
 	}
+	next := cursor
 	result := make([]model.MetricSample, len(records))
 	for index, record := range records {
 		result[index] = recordToMetricSample(record)
+		next = repository.MetricSampleCursor{Time: record.Timestamp, ID: record.ID}
 	}
-	return result, nil
+	return result, next, nil
 }
 
 func (r *metricRepository) UpsertAggregates(ctx context.Context, aggregates []model.MetricAggregate) error {
@@ -209,19 +210,32 @@ func (r *metricRepository) Latest(ctx context.Context, serverID model.ID, metric
 	for index, metric := range metrics {
 		metricNames[index] = metric.String()
 	}
-	var records []MetricSampleRecord
-	query := r.database.WithContext(ctx).Model(&MetricSampleRecord{}).
+	// 每个序列只取最新一行:先在 idx_metric_raw_series 覆盖索引上按序列分组求 max(timestamp) 拿到 rowid,
+	// 再按主键回表取整行。SQLite 保证聚合查询中的裸列(此处 id)取自命中 max() 的那一行,
+	// 因此 Select 里必须保留 max(timestamp)。旧写法用 NOT EXISTS 关联子查询,外层每一行都要再探一次索引并回表;
+	// 250 万行同构库实测 CPU 3.14s,改写后 0.45s(SQLCipher 逐页解密 + HMAC 下差距更大,且此处只扫覆盖索引不碰表页)。
+	// 唯一行为差异:同一序列存在时间戳完全相同的重复样本时,旧写法取 id 更大的一行,这里由 SQLite 任选其一。
+	// 等价保留 id 次序需要 row_number() 窗口函数,但要为分区排序建临时 B 树,同库实测 CPU 1.23s,不值得。
+	var heads []struct {
+		ID uint64 `gorm:"column:id"`
+	}
+	if err := r.database.WithContext(ctx).Model(&MetricSampleRecord{}).
+		Select("id, max(timestamp)").
 		Where("server_id = ? AND metric IN ?", serverID.String(), metricNames).
-		Where(`NOT EXISTS (
-			SELECT 1 FROM metric_sample_records AS newer
-			WHERE newer.server_id = metric_sample_records.server_id
-			  AND newer.source_id = metric_sample_records.source_id
-			  AND newer.metric = metric_sample_records.metric
-			  AND newer.tags_key = metric_sample_records.tags_key
-			  AND (newer.timestamp > metric_sample_records.timestamp
-			       OR (newer.timestamp = metric_sample_records.timestamp AND newer.id > metric_sample_records.id))
-		)`).Order("metric asc, source_id asc, tags_key asc")
-	if err := query.Find(&records).Error; err != nil {
+		Group("source_id, metric, tags_key").
+		Scan(&heads).Error; err != nil {
+		return nil, apperror.Wrap(apperror.CodeMetricQueryFailed, "查询最新 Metric 序列失败", err)
+	}
+	if len(heads) == 0 {
+		return nil, nil
+	}
+	latestIDs := make([]uint64, len(heads))
+	for index, head := range heads {
+		latestIDs[index] = head.ID
+	}
+	var records []MetricSampleRecord
+	if err := r.database.WithContext(ctx).Where("id IN ?", latestIDs).
+		Order("metric asc, source_id asc, tags_key asc").Find(&records).Error; err != nil {
 		return nil, apperror.Wrap(apperror.CodeMetricQueryFailed, "查询最新 Metric 失败", err)
 	}
 	result := make([]model.MetricSample, len(records))

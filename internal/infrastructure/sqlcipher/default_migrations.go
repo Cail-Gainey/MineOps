@@ -5,7 +5,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// DefaultMigrations returns the immutable production migration sequence.
+// DefaultMigrations 返回加密库不可变的生产迁移序列。
 func DefaultMigrations() []Migration {
 	return []Migration{
 		{

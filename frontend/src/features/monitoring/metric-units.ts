@@ -3,12 +3,21 @@ export interface MetricDisplayScale {
   unit: string
 }
 
-/** @param value - 原始数值 @returns 保留两位小数的数值 */
+/**
+ * 把数值四舍五入到两位小数。
+ * @param value - 原始数值
+ * @returns 保留两位小数的数值
+ */
 export function roundToTwo(value: number): number {
   return Number(value.toFixed(2))
 }
 
-/** @param value - 字节或每秒字节数 @param perSecond - 是否为速率 @returns 自动缩放单位 */
+/**
+ * 按数量级给出字节或字节每秒的展示换算系数与单位。
+ * @param value - 字节数量级
+ * @param perSecond - 是否为每秒速率单位
+ * @returns 展示换算系数与单位
+ */
 export function byteDisplayScale(value: number, perSecond = false): MetricDisplayScale {
   const units = perSecond
     ? ['B/s', 'KiB/s', 'MiB/s', 'GiB/s', 'TiB/s']
@@ -23,7 +32,12 @@ export function byteDisplayScale(value: number, perSecond = false): MetricDispla
   return { factor, unit: units[index] ?? (perSecond ? 'B/s' : 'B') }
 }
 
-/** @param unit - Metric 原始单位 @param magnitude - 当前数值范围 @returns 页面展示缩放规则 */
+/**
+ * 按指标单位与数量级给出展示换算系数与单位。
+ * @param unit - 指标单位标识
+ * @param magnitude - 该组数据的最大绝对值
+ * @returns 展示换算系数与单位
+ */
 export function metricDisplayScale(
   unit: string | undefined,
   magnitude: number,

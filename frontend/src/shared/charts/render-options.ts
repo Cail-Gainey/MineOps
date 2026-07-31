@@ -18,6 +18,7 @@ export function chartInitOptions(hardwareAcceleration: boolean): EChartsInitOpts
 /**
  * 把硬件加速状态写到根元素，供 CSS 合成提示与后续渲染消费方读取。
  * @param hardwareAcceleration - Settings.General.HardwareAcceleration 当前值
+ * @returns 无返回值
  */
 export function applyHardwareAccelerationAttribute(hardwareAcceleration: boolean): void {
   document.documentElement.dataset.hardwareAcceleration = hardwareAcceleration ? 'on' : 'off'

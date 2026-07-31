@@ -14,7 +14,7 @@ import (
 	"github.com/Cail-Gainey/MineOps/internal/repository"
 )
 
-// Change describes one committed settings snapshot update.
+// Change 描述一次已提交的 Settings Snapshot 变更。
 type Change struct {
 	Category enums.SettingsCategory
 	Snapshot model.SettingsSnapshot
@@ -27,10 +27,10 @@ const (
 	legacyMonitoringRawRetentionDays    = 7
 )
 
-// Subscriber receives committed settings changes synchronously after the transaction succeeds.
+// Subscriber 在事务提交成功后同步接收 Settings 变更。
 type Subscriber func(Change)
 
-// Manager is the sole owner of the in-memory Settings Snapshot and encrypted persistence updates.
+// Manager 是内存 Settings Snapshot 与加密持久化更新的唯一所有者。
 type Manager struct {
 	store repository.Store
 
@@ -41,7 +41,7 @@ type Manager struct {
 	nextID      uint64
 }
 
-// NewManager creates a Settings Manager initialized with embedded defaults.
+// NewManager 创建以内置默认值初始化的 Settings Manager。
 func NewManager(store repository.Store) (*Manager, error) {
 	if store == nil {
 		return nil, apperror.New(apperror.CodeValidationRequired, "Settings Store 不能为空")
@@ -54,7 +54,7 @@ func NewManager(store repository.Store) (*Manager, error) {
 	return manager, nil
 }
 
-// Load replaces defaults with every valid persisted category and rejects corrupt settings.
+// Load 用每个合法的持久化分类覆盖默认值,并拒绝已损坏的设置。
 func (m *Manager) Load(ctx context.Context) (model.SettingsSnapshot, error) {
 	payloads, err := m.store.Settings().Load(ctx)
 	if err != nil {
@@ -103,7 +103,7 @@ func (m *Manager) Load(ctx context.Context) (model.SettingsSnapshot, error) {
 	return snapshot, nil
 }
 
-// Snapshot returns the current immutable settings value.
+// Snapshot 返回当前不可变的设置值。
 func (m *Manager) Snapshot() model.SettingsSnapshot {
 	if snapshot := m.snapshot.Load(); snapshot != nil {
 		return *snapshot
@@ -111,7 +111,7 @@ func (m *Manager) Snapshot() model.SettingsSnapshot {
 	return model.DefaultSettings()
 }
 
-// Save validates and transactionally persists the complete snapshot while preserving unknown category fields.
+// Save 校验并在事务内持久化完整快照,同时保留分类中未知的字段。
 func (m *Manager) Save(ctx context.Context, snapshot model.SettingsSnapshot) error {
 	snapshot.SchemaVersion = model.SettingsSchemaVersion
 	if err := snapshot.Validate(); err != nil {
@@ -176,7 +176,7 @@ func changedCategories(previous, current model.SettingsSnapshot) []enums.Setting
 	return changed
 }
 
-// ResetCategory restores one category to embedded defaults and commits the complete valid snapshot.
+// ResetCategory 把某个分类恢复为内置默认值,并提交完整且合法的快照。
 func (m *Manager) ResetCategory(ctx context.Context, category enums.SettingsCategory) error {
 	if !category.Valid() {
 		return apperror.New(apperror.CodeValidationInvalidArgument, "Settings Category 无效")
@@ -208,7 +208,7 @@ func (m *Manager) ResetCategory(ctx context.Context, category enums.SettingsCate
 	return nil
 }
 
-// Subscribe registers a controlled synchronous hot-update observer and returns its unsubscribe function.
+// Subscribe 注册受控的同步热更新观察者,并返回其取消订阅函数。
 func (m *Manager) Subscribe(subscriber Subscriber) func() {
 	if subscriber == nil {
 		return func() {}

@@ -11,7 +11,7 @@ interface QueuedChunk {
   bytes: number
 }
 
-// TerminalOutputBuffer keeps terminal rendering bounded when producers are faster than the UI.
+// TerminalOutputBuffer 在生产者输出快于界面渲染时限制终端的渲染量。
 export class TerminalOutputBuffer {
   private readonly encoder = new TextEncoder()
   private readonly queue: QueuedChunk[] = []

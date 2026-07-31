@@ -81,10 +81,19 @@ let reconnectAttempts = 0
 let reconnectTimer: number | null = null
 let connectionGeneration = 0
 
+/**
+ * 按当前终端设置与语义主题解析出 xterm 主题。
+ * @returns xterm 主题对象
+ */
 function terminalTheme() {
   return resolveTerminalTheme(terminalSettings.value, tokens.value)
 }
 
+/**
+ * 把后端推送的 Base64 输出解码成字节数组。
+ * @param value - Base64 字符串
+ * @returns 解码后的字节数组
+ */
 function decodeBase64(value: string): Uint8Array {
   const binary = window.atob(value)
   const bytes = new Uint8Array(binary.length)
@@ -92,6 +101,11 @@ function decodeBase64(value: string): Uint8Array {
   return bytes
 }
 
+/**
+ * 把键盘输入放入缓冲并合并发送，避免逐字符往返。
+ * @param data - 本次输入的数据
+ * @returns 无返回值
+ */
 function queueInput(data: string): void {
   inputQueue += data
   if (inputTimer !== null) return
@@ -104,6 +118,10 @@ function queueInput(data: string): void {
   }, 8)
 }
 
+/**
+ * 重新适配终端尺寸并把新行列数同步给远端。
+ * @returns 无返回值
+ */
 function scheduleResize(): void {
   if (!props.active) return
   fitAddon?.fit()
@@ -118,12 +136,20 @@ function scheduleResize(): void {
   }, 100)
 }
 
+/**
+ * 在终端回滚缓冲中查找下一处匹配。
+ * @returns 无返回值
+ */
 function findNext(): void {
   if (!searchText.value) return
   const found = searchAddon?.findNext(searchText.value, { caseSensitive: false }) ?? false
   status.value = found ? `已定位：${searchText.value}` : `未找到：${searchText.value}`
 }
 
+/**
+ * 把终端当前选区复制到剪贴板。
+ * @returns 复制完成后的 Promise
+ */
 async function copySelection(): Promise<void> {
   const selection = terminal?.getSelection() ?? ''
   if (!selection) return
@@ -131,6 +157,10 @@ async function copySelection(): Promise<void> {
   status.value = `已复制 ${selection.length} 个字符`
 }
 
+/**
+ * 把剪贴板内容粘贴到终端。
+ * @returns 粘贴完成后的 Promise
+ */
 async function pasteClipboard(): Promise<void> {
   try {
     const text = await navigator.clipboard.readText()
@@ -149,6 +179,11 @@ const menuOptions = computed<DropdownOption[]>(() => [
   { label: '搜索', key: 'search' },
 ])
 
+/**
+ * 在终端内打开自绘右键菜单。
+ * @param event - 鼠标事件
+ * @returns 无返回值
+ */
 function openTerminalMenu(event: MouseEvent): void {
   event.preventDefault()
   menuHasSelection.value = Boolean(terminal?.getSelection())
@@ -160,6 +195,11 @@ function openTerminalMenu(event: MouseEvent): void {
   })
 }
 
+/**
+ * 分发终端右键菜单选中的动作。
+ * @param key - 菜单项 key
+ * @returns 无返回值
+ */
 function handleMenuSelect(key: string | number): void {
   menuVisible.value = false
   if (key === 'copy') void copySelection()
@@ -169,6 +209,11 @@ function handleMenuSelect(key: string | number): void {
   if (key === 'search') searchInput.value?.focus()
 }
 
+/**
+ * 推送一条终端错误通知。
+ * @param error - 捕获到的错误
+ * @returns 无返回值
+ */
 function showError(error: unknown): void {
   notifications.push({
     kind: 'error',
@@ -178,6 +223,10 @@ function showError(error: unknown): void {
   })
 }
 
+/**
+ * 按 SSH 重连设置安排一次退避重连。
+ * @returns 无返回值
+ */
 function scheduleReconnect(): void {
   const sshSettings = settings.draft?.ssh ?? settings.committed?.ssh
   if (
@@ -197,6 +246,11 @@ function scheduleReconnect(): void {
   }, delay)
 }
 
+/**
+ * 建立终端会话；重连时复用同一个 SSH Session。
+ * @param reconnect - 是否为自动重连
+ * @returns 连接完成后的 Promise
+ */
 async function connectTerminal(reconnect = false): Promise<void> {
   if (connecting.value) return
   const generation = ++connectionGeneration
@@ -257,6 +311,11 @@ async function connectTerminal(reconnect = false): Promise<void> {
   }
 }
 
+/**
+ * 处理后端推送的终端输出与关闭事件。
+ * @param event - 终端事件
+ * @returns 无返回值
+ */
 function handleTerminalEvent(event: TerminalEvent): void {
   if (!terminalSessionID) {
     if (connecting.value) pendingEvents.push(event)

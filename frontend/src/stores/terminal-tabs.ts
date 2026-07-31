@@ -15,7 +15,11 @@ export const useTerminalTabsStore = defineStore('terminal-tabs', () => {
   const activeID = ref('')
   const activeTab = computed(() => tabs.value.find((tab) => tab.id === activeID.value) ?? null)
 
-  /** Opens or activates a Terminal tab for one SSH Session. */
+  /**
+   * 为某个 SSH Session 打开终端标签页，已存在时直接激活。
+   * @param session - 目标 SSH Session
+   * @returns 对应的终端标签页
+   */
   function open(session: SSHSessionDTO): TerminalTab {
     const existing = tabs.value.find((tab) => tab.sshSessionID === session.id)
     if (existing) {
@@ -35,7 +39,11 @@ export const useTerminalTabsStore = defineStore('terminal-tabs', () => {
     return tab
   }
 
-  /** Closes one tab and selects the nearest remaining tab. */
+  /**
+   * 关闭一个终端标签页并激活相邻页。
+   * @param id - 标签页 ID
+   * @returns 无返回值
+   */
   function close(id: string): void {
     const index = tabs.value.findIndex((tab) => tab.id === id)
     if (index < 0) return
@@ -45,13 +53,22 @@ export const useTerminalTabsStore = defineStore('terminal-tabs', () => {
     }
   }
 
-  /** Closes every Terminal tab that references one removed SSH Session. */
+  /**
+   * 关闭某个 SSH Session 名下的全部终端标签页。
+   * @param sshSessionID - SSH Session ID
+   * @returns 无返回值
+   */
   function closeForSSHSession(sshSessionID: string): void {
     const ids = tabs.value.filter((tab) => tab.sshSessionID === sshSessionID).map((tab) => tab.id)
     for (const id of ids) close(id)
   }
 
-  /** Renames a Terminal tab without changing its SSH Session identity. */
+  /**
+   * 重命名一个终端标签页，空标题忽略。
+   * @param id - 标签页 ID
+   * @param title - 新标题
+   * @returns 无返回值
+   */
   function rename(id: string, title: string): void {
     const tab = tabs.value.find((item) => item.id === id)
     if (tab && title.trim()) tab.title = title.trim()

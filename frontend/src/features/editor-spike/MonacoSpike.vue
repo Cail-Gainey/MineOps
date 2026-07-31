@@ -31,6 +31,10 @@ let changeSubscription: monaco.IDisposable | null = null
 
 const initialValue = `# MineOps Monaco Spike\nserver-port=25565\nmotd=你好，MineOps\n`
 
+/**
+ * 按当前明暗模式注册并应用编辑器主题。
+ * @returns 无返回值
+ */
 function applyTheme(): void {
   monaco.editor.defineTheme('mineops-active', {
     base: isDark.value ? 'vs-dark' : 'vs',
@@ -45,6 +49,11 @@ function applyTheme(): void {
   monaco.editor.setTheme('mineops-active')
 }
 
+/**
+ * 用新内容替换编辑器模型并重建变更订阅。
+ * @param value - 新的文本内容
+ * @returns 无返回值
+ */
 function replaceModel(value: string): void {
   changeSubscription?.dispose()
   const previousModel = model
@@ -64,22 +73,39 @@ function replaceModel(value: string): void {
   status.value = `Model ${modelGeneration.value} / ${formatBytes(value.length)}`
 }
 
+/**
+ * 载入约 1MB 文本，用于验证大文件编辑性能。
+ * @returns 无返回值
+ */
 function loadOneMegabyte(): void {
   const line = 'view-distance=10 # MineOps 中文配置与冲突验证\n'
   const value = line.repeat(Math.ceil(1_048_576 / line.length)).slice(0, 1_048_576)
   replaceModel(value)
 }
 
+/**
+ * 把当前内容标记为已保存基线，清除脏标记。
+ * @returns 无返回值
+ */
 function markSaved(): void {
   savedValue = model?.getValue() ?? ''
   dirty.value = false
   status.value = '已保存当前内存快照'
 }
 
+/**
+ * 把编辑器恢复到初始内容。
+ * @returns 无返回值
+ */
 function resetModel(): void {
   replaceModel(initialValue)
 }
 
+/**
+ * 把字节数换算成 KiB 展示文本。
+ * @param bytes - 字节数
+ * @returns 带单位的容量文本
+ */
 function formatBytes(bytes: number): string {
   return `${(bytes / 1024).toFixed(1)} KiB`
 }

@@ -10,20 +10,32 @@ import {
 } from '../../bindings/github.com/Cail-Gainey/MineOps/internal/desktop/services/knownhostservice'
 import { throwIfError } from './api-client'
 
-/** Lists active and historical Known Hosts through generated Wails bindings. */
+/**
+ * 按关键字列出已信任的主机密钥。
+ * @param search - 搜索关键字，空串表示全部
+ * @returns Known Host 数组
+ */
 export async function listKnownHosts(search = ''): Promise<KnownHostDTO[]> {
   const result = await List(search, 500, 0)
   throwIfError(result.error)
   return result.knownHosts
 }
 
-/** Deletes one Known Host record from encrypted SQLite. */
+/**
+ * 删除一条已信任的主机密钥。
+ * @param id - Known Host ID
+ * @returns 删除完成后的 Promise
+ */
 export async function deleteKnownHost(id: string): Promise<void> {
   const result = await Delete(id)
   throwIfError(result.error)
 }
 
-/** Persists a separately confirmed first-seen host key. */
+/**
+ * 首次连接时信任并记录观测到的主机密钥。
+ * @param input - 观测到的主机密钥信息
+ * @returns 记录后的 Known Host
+ */
 export async function trustFirstKnownHost(input: ObservedHostKeyInput): Promise<KnownHostDTO> {
   const result = await TrustFirst(input)
   throwIfError(result.error)
@@ -31,7 +43,11 @@ export async function trustFirstKnownHost(input: ObservedHostKeyInput): Promise<
   return result.knownHost
 }
 
-/** Persists a separately confirmed changed fingerprint while retaining history. */
+/**
+ * 主机密钥变更时替换已记录的指纹。
+ * @param input - 观测到的主机密钥信息
+ * @returns 替换后的 Known Host
+ */
 export async function replaceKnownHost(input: ObservedHostKeyInput): Promise<KnownHostDTO> {
   const result = await Replace(input)
   throwIfError(result.error)

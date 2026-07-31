@@ -100,6 +100,10 @@ const columns: DataTableColumns<InstallationTask> = [
   },
 ]
 
+/**
+ * 加载该 Server 的安装历史列表。
+ * @returns 加载完成后的 Promise
+ */
 async function load(): Promise<void> {
   loading.value = true
   error.value = null
@@ -112,6 +116,11 @@ async function load(): Promise<void> {
   }
 }
 
+/**
+ * 拉取安装任务的完整聚合状态并展开详情。
+ * @param task - 目标安装任务
+ * @returns 展开完成后的 Promise
+ */
 async function showDetails(task: InstallationTask): Promise<void> {
   try {
     const aggregate = await getInstallation(task.id)

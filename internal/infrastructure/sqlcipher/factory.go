@@ -15,7 +15,7 @@ import (
 	"gorm.io/gorm/logger"
 )
 
-// ConnectionOptions contains the controlled SQLCipher connection and pool settings.
+// ConnectionOptions 承载受控的 SQLCipher 连接与连接池设置。
 type ConnectionOptions struct {
 	Path         string
 	Key          []byte
@@ -23,13 +23,13 @@ type ConnectionOptions struct {
 	MaxIdleConns int
 }
 
-// Connection owns the GORM database and its underlying SQL connection pool.
+// Connection 持有 GORM 数据库句柄及其底层 SQL 连接池。
 type Connection struct {
 	database *gorm.DB
 	pool     *sql.DB
 }
 
-// OpenConnection opens an encrypted GORM database with the MineOps SQLCipher baseline.
+// OpenConnection 按 MineOps 的 SQLCipher 基线打开加密 GORM 数据库。
 func OpenConnection(ctx context.Context, options ConnectionOptions) (*Connection, error) {
 	if options.Path == "" || len(options.Key) != 32 {
 		return nil, apperror.New(apperror.CodeValidationInvalidArgument, "数据库路径和 256-bit 密钥不能为空")
@@ -37,7 +37,7 @@ func OpenConnection(ctx context.Context, options ConnectionOptions) (*Connection
 	return openDatabase(ctx, buildDSN(options.Path, options.Key), options, "打开加密数据库失败", "验证加密数据库连接失败")
 }
 
-// OpenPlainConnection opens an unencrypted GORM database for bulk data that carries no credentials or privacy.
+// OpenPlainConnection 打开未加密的 GORM 数据库,用于不含凭据与隐私的批量数据。
 // go.mod 把 mattn/go-sqlite3 替换成了 SQLCipher 驱动,不带 _pragma_key 的连接就是标准 SQLite:
 // 监控时序是纯数值,放在这里可以完全省掉逐页 AES 加解密与 HMAC 校验。
 func OpenPlainConnection(ctx context.Context, options ConnectionOptions) (*Connection, error) {
@@ -86,7 +86,7 @@ func buildDSN(path string, key []byte) string {
 	)
 }
 
-// GORM returns the composition-root database handle used only to construct repositories and migrations.
+// GORM 返回组装根的数据库句柄,仅用于构造 Repository 与迁移。
 func (c *Connection) GORM() *gorm.DB {
 	if c == nil {
 		return nil
@@ -94,7 +94,7 @@ func (c *Connection) GORM() *gorm.DB {
 	return c.database
 }
 
-// Close closes the underlying SQL connection pool.
+// Close 关闭底层的 SQL 连接池。
 func (c *Connection) Close() error {
 	if c == nil || c.pool == nil {
 		return nil

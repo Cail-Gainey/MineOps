@@ -81,6 +81,11 @@ const quickThemeOptions = [
   { label: '深色模式', key: 'mode:dark' },
 ]
 
+/**
+ * 判断事件目标是否处于可编辑控件中，用于避免截获输入场景的按键。
+ * @param target - 事件目标节点
+ * @returns 目标为输入框、文本域或可编辑元素时返回 true
+ */
 function isEditingTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false
   return (
@@ -91,12 +96,22 @@ function isEditingTarget(target: EventTarget | null): boolean {
   )
 }
 
+/**
+ * 判断事件目标是否位于内嵌终端内。
+ * @param target - 事件目标节点
+ * @returns 位于 xterm 容器内时返回 true
+ */
 function insideTerminal(target: EventTarget | null): boolean {
   return target instanceof Element && target.closest('.xterm') !== null
 }
 
 // 桌面外壳去浏览器化兜底:拦截 webview 自带的缩放/刷新/历史导航键(macOS 菜单项已在 Go 侧移除,
 // 此处覆盖 Windows/Linux 与残余加速键)。终端内的键必须放行给远程 shell(如 Ctrl+R 反向搜索)。
+/**
+ * 拦截 webview 自带的刷新、缩放与前进后退按键，终端内的按键放行。
+ * @param event - 键盘事件
+ * @returns 无返回值
+ */
 function blockBrowserDefaultKeys(event: KeyboardEvent): void {
   if (event.defaultPrevented || insideTerminal(event.target)) return
   const key = event.key
@@ -130,17 +145,32 @@ function blockBrowserDefaultKeys(event: KeyboardEvent): void {
 }
 
 // Linux WebKitGTK 兜底:Ctrl+滚轮缩放不经过 keydown,只能在 wheel 事件拦截。
+/**
+ * 拦截 Ctrl/⌘ + 滚轮触发的页面缩放。
+ * @param event - 滚轮事件
+ * @returns 无返回值
+ */
 function blockBrowserZoomWheel(event: WheelEvent): void {
   if (event.ctrlKey) event.preventDefault()
 }
 
 // 右键菜单兜底(Go 侧 DefaultContextMenuDisabled 之外的平台差异):终端有自绘菜单,放行;
 // 其余区域(含前端自绘菜单组件,它们已自行 preventDefault)一律阻止默认菜单。
+/**
+ * 屏蔽默认右键菜单，终端有自绘菜单因此放行。
+ * @param event - 鼠标事件
+ * @returns 无返回值
+ */
 function blockDefaultContextMenu(event: MouseEvent): void {
   if (event.defaultPrevented || insideTerminal(event.target)) return
   event.preventDefault()
 }
 
+/**
+ * 分发全局快捷键；输入框、编辑器与终端获得焦点时不截获。
+ * @param event - 键盘事件
+ * @returns 无返回值
+ */
 function handleGlobalShortcut(event: KeyboardEvent): void {
   if (
     event.defaultPrevented ||
@@ -171,18 +201,32 @@ function handleGlobalShortcut(event: KeyboardEvent): void {
   }
 }
 
+/**
+ * 持久化顶栏的主题选择，失败时记入错误中心而不打断交互。
+ * @param selection - 本次变更的主题模式、套装或强调色
+ * @returns 无返回值
+ */
 function persistThemeSelection(selection: ThemeSelectionUpdate): void {
   void settings
     .saveThemeSelection(selection)
     .catch((error) => errors.capture(error, 'settings:quick-theme'))
 }
 
+/**
+ * 在浅色与深色之间切换并持久化。
+ * @returns 无返回值
+ */
 function toggleThemeMode(): void {
   persistThemeSelection({
     mode: theme.isDark ? 'light' : 'dark',
   })
 }
 
+/**
+ * 处理顶栏主题下拉的选择项，按前缀区分模式、套装与强调色。
+ * @param selectedKey - 下拉项的 key，形如 mode:dark 或 preset:forest
+ * @returns 无返回值
+ */
 function handleQuickThemeSelect(selectedKey: string | number): void {
   const key = String(selectedKey)
   if (key.startsWith('mode:')) {
@@ -198,11 +242,20 @@ function handleQuickThemeSelect(selectedKey: string | number): void {
   persistThemeSelection({ preset, accent: themePresetAccents[preset] })
 }
 
+/**
+ * 打开底部状态抽屉并切换到指定分页。
+ * @param tab - 目标分页：操作、告警或错误
+ * @returns 无返回值
+ */
 function openStatusDrawer(tab: 'operations' | 'alerts' | 'errors'): void {
   statusDrawerTab.value = tab
   statusDrawerVisible.value = true
 }
 
+/**
+ * 轮询桌面更新状态，仅在出现可用或待重启更新时推送一次通知。
+ * @returns 轮询完成后的 Promise
+ */
 async function pollDesktopUpdateNotice(): Promise<void> {
   try {
     const status = await getDesktopUpdateStatus()

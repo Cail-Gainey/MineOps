@@ -217,6 +217,11 @@ const settingsSearchOptions = [
   { label: '存储与安全 · SQLCipher、备份、恢复、密钥轮换、存储整理、清空数据库', value: 'storage' },
 ]
 
+/**
+ * 选中主题套装并同步其推荐强调色。
+ * @param value - 主题套装标识
+ * @returns 无返回值
+ */
 function selectThemePreset(value: string): void {
   if (!draft.value || !(value in themePresetAccents)) return
   const preset = value as keyof typeof themePresetAccents
@@ -308,6 +313,10 @@ onMounted(() => {
   })
 })
 
+/**
+ * 拉取当前桌面更新状态。
+ * @returns 刷新完成后的 Promise
+ */
 async function refreshDesktopUpdateStatus(): Promise<void> {
   try {
     desktopUpdateStatus.value = await getDesktopUpdateStatus()
@@ -321,6 +330,10 @@ async function refreshDesktopUpdateStatus(): Promise<void> {
   }
 }
 
+/**
+ * 立即检查当前通道的新版本。
+ * @returns 检查完成后的 Promise
+ */
 async function checkDesktopUpdate(): Promise<void> {
   desktopUpdateLoading.value = true
   try {
@@ -352,6 +365,10 @@ async function checkDesktopUpdate(): Promise<void> {
   }
 }
 
+/**
+ * 下载并校验更新包，准备到可重启安装的状态。
+ * @returns 准备完成后的 Promise
+ */
 async function prepareDesktopUpdate(): Promise<void> {
   desktopUpdateLoading.value = true
   const poller = window.setInterval(() => void refreshDesktopUpdateStatus(), 300)
@@ -377,6 +394,10 @@ async function prepareDesktopUpdate(): Promise<void> {
   }
 }
 
+/**
+ * 取消正在进行的更新下载。
+ * @returns 取消完成后的 Promise
+ */
 async function cancelDesktopUpdateDownload(): Promise<void> {
   try {
     desktopUpdateStatus.value = await cancelDesktopUpdate()
@@ -396,6 +417,10 @@ async function cancelDesktopUpdateDownload(): Promise<void> {
   }
 }
 
+/**
+ * 确认后重启应用并安装已准备好的更新。
+ * @returns 安装动作发起后的 Promise
+ */
 async function applyDesktopUpdate(): Promise<void> {
   try {
     const unsavedItems = await getUnsavedItems()
@@ -430,11 +455,20 @@ async function applyDesktopUpdate(): Promise<void> {
   }
 }
 
+/**
+ * 用系统浏览器打开当前版本的 GitHub Release 页面。
+ * @returns 打开完成后的 Promise
+ */
 async function openDesktopRelease(): Promise<void> {
   const releaseURL = desktopUpdateStatus.value?.releaseURL
   if (releaseURL) await Browser.OpenURL(releaseURL)
 }
 
+/**
+ * 把桌面更新阶段映射成中文标签。
+ * @param phase - 更新阶段标识
+ * @returns 中文标签，未知阶段原样返回
+ */
 function desktopUpdatePhaseLabel(phase: string): string {
   const labels: Record<string, string> = {
     idle: '等待检查',
@@ -450,16 +484,30 @@ function desktopUpdatePhaseLabel(phase: string): string {
   return labels[phase] ?? phase
 }
 
+/**
+ * 按当前时间格式设置渲染时间文本。
+ * @param value - ISO 时间字符串，可为空
+ * @returns 本地时间文本，空值返回尚未检查
+ */
 function formatDateTime(value?: string | null): string {
   return value ? locale.formatDateTime(value) : '尚未检查'
 }
 
+/**
+ * 跳转到设置搜索选中的分类页签。
+ * @param value - 目标分类标识，空值忽略
+ * @returns 无返回值
+ */
 function jumpToSettingsCategory(value: string | null): void {
   if (!value) return
   activeCategory.value = value
   settingsSearchTarget.value = null
 }
 
+/**
+ * 加载可作为默认 Jump Host 的 SSH Session 选项。
+ * @returns 加载完成后的 Promise
+ */
 async function refreshJumpHosts(): Promise<void> {
   try {
     jumpHostOptions.value = (await listSSHSessions()).map((session) => ({
@@ -471,6 +519,10 @@ async function refreshJumpHosts(): Promise<void> {
   }
 }
 
+/**
+ * 读取当前背景图资源状态。
+ * @returns 刷新完成后的 Promise
+ */
 async function refreshBackgroundState(): Promise<void> {
   try {
     backgroundResource.value = (await getBackgroundResource()).resource
@@ -479,6 +531,10 @@ async function refreshBackgroundState(): Promise<void> {
   }
 }
 
+/**
+ * 读取日志目录容量与归档状态。
+ * @returns 刷新完成后的 Promise
+ */
 async function refreshLogState(): Promise<void> {
   try {
     logStatus.value = await getLogStatus()
@@ -487,6 +543,10 @@ async function refreshLogState(): Promise<void> {
   }
 }
 
+/**
+ * 读取数据库体积、加密状态与排队维护任务。
+ * @returns 刷新完成后的 Promise
+ */
 async function refreshStorageState(): Promise<void> {
   try {
     storageStatus.value = await getStorageStatus()
@@ -495,6 +555,10 @@ async function refreshStorageState(): Promise<void> {
   }
 }
 
+/**
+ * 读取下载源探测结果、缓存体积与代理凭据状态。
+ * @returns 刷新完成后的 Promise
+ */
 async function refreshDownloadState(): Promise<void> {
   try {
     proxyCredential.value = await getProxyCredentialStatus()
@@ -510,6 +574,10 @@ async function refreshDownloadState(): Promise<void> {
   }
 }
 
+/**
+ * 把代理用户名与密码保存到加密数据库。
+ * @returns 保存完成后的 Promise
+ */
 async function saveProxyAuth(): Promise<void> {
   if (!draft.value) return
   downloadActionLoading.value = true
@@ -534,6 +602,10 @@ async function saveProxyAuth(): Promise<void> {
   }
 }
 
+/**
+ * 从加密数据库删除已保存的代理凭据。
+ * @returns 删除完成后的 Promise
+ */
 async function removeProxyAuth(): Promise<void> {
   if (!draft.value) return
   downloadActionLoading.value = true
@@ -555,6 +627,10 @@ async function removeProxyAuth(): Promise<void> {
   }
 }
 
+/**
+ * 逐个探测下载源可用性并回填状态。
+ * @returns 探测完成后的 Promise
+ */
 async function checkSources(): Promise<void> {
   downloadActionLoading.value = true
   try {
@@ -572,6 +648,10 @@ async function checkSources(): Promise<void> {
   }
 }
 
+/**
+ * 二次确认后清空本地下载缓存。
+ * @returns 清理完成后的 Promise
+ */
 async function clearCache(): Promise<void> {
   const confirmed = await interactions.confirm({
     title: '清理下载缓存？',
@@ -596,6 +676,11 @@ async function clearCache(): Promise<void> {
   }
 }
 
+/**
+ * 把字节数换算成合适的存储单位。
+ * @param value - 字节数
+ * @returns 带单位的容量文本
+ */
 function formatBytes(value: number): string {
   if (value < 1024) return `${value} B`
   if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KiB`
@@ -603,6 +688,10 @@ function formatBytes(value: number): string {
   return `${(value / 1024 / 1024 / 1024).toFixed(2)} GiB`
 }
 
+/**
+ * 在下载源列表末尾追加一个自定义镜像。
+ * @returns 无返回值
+ */
 function addDownloadMirror(): void {
   if (!draft.value) return
   draft.value.downloads.sources.push({
@@ -617,11 +706,20 @@ function addDownloadMirror(): void {
   })
 }
 
+/**
+ * 删除一个自定义镜像，官方源不可删除。
+ * @param index - 待删除镜像在列表中的下标
+ * @returns 无返回值
+ */
 function removeDownloadMirror(index: number): void {
   if (!draft.value || draft.value.downloads.sources[index]?.official) return
   draft.value.downloads.sources.splice(index, 1)
 }
 
+/**
+ * 提交当前设置草稿并同步应用主题、布局与语言。
+ * @returns 保存完成后的 Promise
+ */
 async function saveSettings(): Promise<void> {
   try {
     await settings.save()
@@ -636,6 +734,10 @@ async function saveSettings(): Promise<void> {
   }
 }
 
+/**
+ * 二次确认后放弃未保存的设置修改。
+ * @returns 放弃完成后的 Promise
+ */
 async function discardChanges(): Promise<void> {
   if (!dirty.value) return
   const confirmed = await interactions.confirm({
@@ -647,6 +749,10 @@ async function discardChanges(): Promise<void> {
   if (confirmed) settings.discard()
 }
 
+/**
+ * 二次确认后把当前分类恢复为内置默认值。
+ * @returns 重置完成后的 Promise
+ */
 async function resetCurrentCategory(): Promise<void> {
   const confirmed = await interactions.confirm({
     title: '恢复当前分类默认值？',
@@ -674,6 +780,10 @@ async function resetCurrentCategory(): Promise<void> {
   }
 }
 
+/**
+ * 选择并导入一张自定义背景图。
+ * @returns 导入完成后的 Promise
+ */
 async function chooseBackgroundImage(): Promise<void> {
   if (!draft.value) return
   const selected = await selectFile({
@@ -706,6 +816,10 @@ async function chooseBackgroundImage(): Promise<void> {
   }
 }
 
+/**
+ * 移除自定义背景图，回到主题内置背景。
+ * @returns 重置完成后的 Promise
+ */
 async function resetBackground(): Promise<void> {
   backgroundActionLoading.value = true
   try {
@@ -724,6 +838,10 @@ async function resetBackground(): Promise<void> {
   }
 }
 
+/**
+ * 二次确认后清理归档日志文件。
+ * @returns 清理完成后的 Promise
+ */
 async function clearLogs(): Promise<void> {
   const confirmed = await interactions.confirm({
     title: '立即清理历史日志？',
@@ -747,6 +865,10 @@ async function clearLogs(): Promise<void> {
   }
 }
 
+/**
+ * 用系统文件管理器打开日志目录。
+ * @returns 打开完成后的 Promise
+ */
 async function openLogs(): Promise<void> {
   try {
     await openLogDirectory()
@@ -760,6 +882,10 @@ async function openLogs(): Promise<void> {
   }
 }
 
+/**
+ * 用系统文件管理器打开受控数据目录。
+ * @returns 打开完成后的 Promise
+ */
 async function openData(): Promise<void> {
   try {
     await openDataDirectory()
@@ -773,6 +899,10 @@ async function openData(): Promise<void> {
   }
 }
 
+/**
+ * 导出一份脱敏诊断包到用户选择的位置。
+ * @returns 导出完成后的 Promise
+ */
 async function exportDiagnostics(): Promise<void> {
   const destination = await selectSavePath({
     title: '导出 MineOps 诊断包',
@@ -803,6 +933,10 @@ async function exportDiagnostics(): Promise<void> {
   }
 }
 
+/**
+ * 创建一份加密便携备份到用户选择的位置。
+ * @returns 备份完成后的 Promise
+ */
 async function createBackup(): Promise<void> {
   const destination = await selectSavePath({
     title: '创建 MineOps 备份',
@@ -834,6 +968,10 @@ async function createBackup(): Promise<void> {
   }
 }
 
+/**
+ * 选择备份文件、校验并排队到下次启动恢复。
+ * @returns 排队完成后的 Promise
+ */
 async function scheduleRestore(): Promise<void> {
   const selected = await selectFile({
     title: '选择 MineOps 备份',
@@ -869,6 +1007,10 @@ async function scheduleRestore(): Promise<void> {
   }
 }
 
+/**
+ * 二次确认后排队一次下次启动执行的密钥轮换。
+ * @returns 排队完成后的 Promise
+ */
 async function scheduleKeyRotation(): Promise<void> {
   const confirmed = await interactions.confirm({
     title: '排队数据库密钥轮换？',
@@ -898,6 +1040,10 @@ async function scheduleKeyRotation(): Promise<void> {
   }
 }
 
+/**
+ * 二次确认后排队一次下次启动执行的存储整理。
+ * @returns 排队完成后的 Promise
+ */
 async function scheduleVacuum(): Promise<void> {
   const allocated = storageStatus.value?.databaseBytes ?? 0
   const confirmed = await interactions.confirm({
@@ -930,6 +1076,10 @@ async function scheduleVacuum(): Promise<void> {
   }
 }
 
+/**
+ * 两道确认后排队一次下次启动执行的清空数据库。
+ * @returns 排队完成后的 Promise
+ */
 async function resetDatabase(): Promise<void> {
   // 恢复出厂不可撤销，用两道确认：第一道说明范围，第二道逐条列出会永久消失的内容。
   const acknowledged = await interactions.confirm({
@@ -971,6 +1121,10 @@ async function resetDatabase(): Promise<void> {
   }
 }
 
+/**
+ * 取消全部已排队的下次启动维护任务。
+ * @returns 取消完成后的 Promise
+ */
 async function cancelPendingMaintenance(): Promise<void> {
   runtimeActionLoading.value = true
   try {

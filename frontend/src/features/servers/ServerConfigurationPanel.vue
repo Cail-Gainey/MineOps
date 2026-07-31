@@ -129,16 +129,35 @@ useUnsavedGuard(
   structuredDirty,
 )
 
+/**
+ * 从配置键值表中读取数字，缺失或非法时返回兜底值。
+ * @param values - 配置键值表
+ * @param key - 配置键
+ * @param fallback - 兜底值
+ * @returns 解析后的数字
+ */
 function numberValue(values: Map<string, string>, key: string, fallback: number): number {
   const parsed = Number(values.get(key))
   return Number.isFinite(parsed) ? parsed : fallback
 }
 
+/**
+ * 从配置键值表中读取布尔值，缺失时返回兜底值。
+ * @param values - 配置键值表
+ * @param key - 配置键
+ * @param fallback - 兜底值
+ * @returns 解析后的布尔值
+ */
 function booleanValue(values: Map<string, string>, key: string, fallback: boolean): boolean {
   const value = values.get(key)
   return value === undefined ? fallback : value.toLowerCase() === 'true'
 }
 
+/**
+ * 把服务端返回的配置快照填充到结构化表单与原文编辑器。
+ * @param value - 配置快照
+ * @returns 无返回值
+ */
 function applySnapshot(value: ServerPropertiesSnapshot): void {
   if (!value.document) return
   snapshot.value = value
@@ -160,6 +179,10 @@ function applySnapshot(value: ServerPropertiesSnapshot): void {
   conflictMessage.value = ''
 }
 
+/**
+ * 加载 server.properties 的历史备份列表。
+ * @returns 加载完成后的 Promise
+ */
 async function loadBackups(): Promise<void> {
   backupError.value = null
   try {
@@ -172,6 +195,10 @@ async function loadBackups(): Promise<void> {
   }
 }
 
+/**
+ * 加载 server.properties 当前内容与备份列表。
+ * @returns 加载完成后的 Promise
+ */
 async function load(): Promise<void> {
   loading.value = true
   error.value = null
@@ -197,6 +224,10 @@ async function load(): Promise<void> {
   }
 }
 
+/**
+ * 重新加载配置；存在未保存修改时先二次确认。
+ * @returns 重载完成后的 Promise
+ */
 async function requestReload(): Promise<void> {
   if (structuredDirty.value || rawDirty.value) {
     const confirmed = await interactions.confirm({
@@ -211,6 +242,10 @@ async function requestReload(): Promise<void> {
   await load()
 }
 
+/**
+ * 对比表单与原始快照，收集实际发生变化的配置项。
+ * @returns 发生变化的配置项数组
+ */
 function changedUpdates(): ServerPropertyUpdate[] {
   const candidates: ServerPropertyUpdate[] = [
     { key: 'motd', value: form.motd },
@@ -242,6 +277,11 @@ function changedUpdates(): ServerPropertyUpdate[] {
   return candidates.filter((update) => initialValues.get(update.key) !== update.value)
 }
 
+/**
+ * 执行保存动作；后端要求同步防火墙时先确认再重试。
+ * @param action - 接收确认结果并返回新快照的保存动作
+ * @returns 保存后的配置快照
+ */
 async function runWithFirewallConfirmation(
   action: (confirmed: boolean) => Promise<ServerPropertiesSnapshot>,
 ): Promise<ServerPropertiesSnapshot | null> {
@@ -269,6 +309,10 @@ async function runWithFirewallConfirmation(
   }
 }
 
+/**
+ * 按结构化表单保存变更的配置项。
+ * @returns 保存完成后的 Promise
+ */
 async function saveStructured(): Promise<void> {
   if (!document.value || !structuredDirty.value || !structuredValid.value || rawDirty.value) return
   saving.value = true
@@ -295,6 +339,12 @@ async function saveStructured(): Promise<void> {
   }
 }
 
+/**
+ * 按原文整体保存 server.properties。
+ * @param content - 完整文件内容
+ * @param versionToken - 读取时拿到的版本标识
+ * @returns 保存完成后的 Promise
+ */
 async function saveRaw(content: string, versionToken: string): Promise<void> {
   if (structuredDirty.value) return
   saving.value = true
@@ -326,6 +376,10 @@ async function saveRaw(content: string, versionToken: string): Promise<void> {
   }
 }
 
+/**
+ * 用选中的备份恢复 server.properties。
+ * @returns 恢复完成后的 Promise
+ */
 async function restoreSelected(): Promise<void> {
   if (!document.value || !selectedBackupPath.value) return
   const backup = backups.value.find((item) => item.path === selectedBackupPath.value)
@@ -361,6 +415,11 @@ async function restoreSelected(): Promise<void> {
   }
 }
 
+/**
+ * 区分版本冲突与其他失败，给出对应提示。
+ * @param reason - 保存过程抛出的错误
+ * @returns 无返回值
+ */
 function handleSaveError(reason: unknown): void {
   if (reason instanceof ApplicationError && reason.code === 'validation.conflict') {
     conflictMessage.value = reason.message
@@ -374,6 +433,12 @@ function handleSaveError(reason: unknown): void {
   })
 }
 
+/**
+ * 推送保存成功通知，并说明是否已保留备份。
+ * @param title - 通知标题
+ * @param retainedBackup - 是否已保留改动前的备份
+ * @returns 无返回值
+ */
 function notifySuccess(title: string, retainedBackup = true): void {
   notifications.push({
     kind: 'success',
@@ -385,6 +450,10 @@ function notifySuccess(title: string, retainedBackup = true): void {
   })
 }
 
+/**
+ * 提示另存为不会改动当前 Server 的生效配置。
+ * @returns 无返回值
+ */
 function explainSaveAs(): void {
   notifications.push({
     kind: 'info',

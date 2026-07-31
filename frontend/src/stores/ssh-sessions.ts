@@ -20,7 +20,10 @@ export const useSSHSessionsStore = defineStore('ssh-sessions', () => {
     [...new Set(sessions.value.map((session) => session.group).filter(Boolean))].sort(),
   )
 
-  /** Loads SSH Sessions using the current search and filter state. */
+  /**
+   * 重新加载 SSH Session 列表。
+   * @returns 刷新完成后的 Promise
+   */
   async function refresh(): Promise<void> {
     loading.value = true
     error.value = null
@@ -34,13 +37,21 @@ export const useSSHSessionsStore = defineStore('ssh-sessions', () => {
     }
   }
 
-  /** Replaces one cached row after a targeted backend refresh, such as host spec collection. */
+  /**
+   * 按 ID 把一个 SSH Session 合并进本地列表。
+   * @param session - 目标 SSH Session
+   * @returns 无返回值
+   */
   function apply(session: SSHSessionDTO): void {
     const index = sessions.value.findIndex((item) => item.id === session.id)
     if (index >= 0) sessions.value[index] = session
   }
 
-  /** Toggles a session favourite flag while retaining its current credential. */
+  /**
+   * 切换 SSH Session 的收藏状态。
+   * @param session - 目标 SSH Session
+   * @returns 切换完成后的 Promise
+   */
   async function toggleFavourite(session: SSHSessionDTO): Promise<void> {
     await updateSSHSession(session.id, {
       name: session.name,
@@ -63,7 +74,11 @@ export const useSSHSessionsStore = defineStore('ssh-sessions', () => {
     await refresh()
   }
 
-  /** Deletes one SSH Session and reloads the current result set. */
+  /**
+   * 删除一个 SSH Session 并刷新列表。
+   * @param id - SSH Session ID
+   * @returns 删除完成后的 Promise
+   */
   async function remove(id: string): Promise<void> {
     await deleteSSHSession(id)
     await refresh()

@@ -88,12 +88,22 @@ const selectedSessionLabel = computed(() => {
   return session ? `${session.name} · ${session.username}@${session.host}:${session.port}` : ''
 })
 
+/**
+ * 把字节数换算成合适的存储单位。
+ * @param value - 字节数
+ * @returns 带单位的容量文本
+ */
 function formatBytes(value: number): string {
   if (value < 1024) return `${value} B`
   if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KiB`
   return `${(value / 1024 / 1024).toFixed(1)} MiB`
 }
 
+/**
+ * 把传输类型映射成中文标签。
+ * @param type - 传输类型标识
+ * @returns 中文标签
+ */
 function transferLabel(type: string): string {
   if (type === 'upload') return '上传'
   if (type === 'download') return '下载'
@@ -101,6 +111,11 @@ function transferLabel(type: string): string {
   return type
 }
 
+/**
+ * 按条目类型构建文件列表的右键菜单项。
+ * @param row - 当前行的远端条目
+ * @returns 下拉菜单项数组
+ */
 function contextOptions(row: RemoteFile): DropdownOption[] {
   const options: DropdownOption[] = [
     { label: row.kind === 'directory' ? '打开目录' : '打开文本', key: 'open' },
@@ -113,6 +128,11 @@ function contextOptions(row: RemoteFile): DropdownOption[] {
   return options
 }
 
+/**
+ * 打开远端目录或文本文件。
+ * @param entry - 目标远端条目
+ * @returns 打开完成后的 Promise
+ */
 async function openEntry(entry: RemoteFile): Promise<void> {
   try {
     await files.open(entry)
@@ -121,6 +141,13 @@ async function openEntry(entry: RemoteFile): Promise<void> {
   }
 }
 
+/**
+ * 打开新建、重命名或改权限对话框并预填内容。
+ * @param mode - 对话框模式
+ * @param entry - 关联的远端条目，可为空
+ * @param content - 预填内容
+ * @returns 无返回值
+ */
 function openDialog(
   mode: typeof dialogMode.value,
   entry: RemoteFile | null = null,
@@ -139,6 +166,10 @@ function openDialog(
           : ''
 }
 
+/**
+ * 按当前对话框模式提交新建、重命名或改权限操作。
+ * @returns 提交完成后的 Promise
+ */
 async function submitDialog(): Promise<void> {
   const value = dialogValue.value.trim()
   if (!dialogMode.value || !value) return
@@ -158,6 +189,11 @@ async function submitDialog(): Promise<void> {
   }
 }
 
+/**
+ * 二次确认后删除远端文件或目录。
+ * @param entry - 目标远端条目
+ * @returns 删除完成后的 Promise
+ */
 async function deleteEntry(entry: RemoteFile): Promise<void> {
   const recursive = entry.kind === 'directory'
   const confirmed = await interactions.confirm({
@@ -177,6 +213,10 @@ async function deleteEntry(entry: RemoteFile): Promise<void> {
   }
 }
 
+/**
+ * 选择本地文件并上传到当前远端目录。
+ * @returns 上传发起后的 Promise
+ */
 async function uploadFiles(): Promise<void> {
   try {
     await files.upload()
@@ -185,6 +225,11 @@ async function uploadFiles(): Promise<void> {
   }
 }
 
+/**
+ * 选择本地保存位置并下载远端文件。
+ * @param entry - 目标远端条目
+ * @returns 下载发起后的 Promise
+ */
 async function downloadFile(entry: RemoteFile): Promise<void> {
   try {
     await files.download(entry)
@@ -193,6 +238,12 @@ async function downloadFile(entry: RemoteFile): Promise<void> {
   }
 }
 
+/**
+ * 分发文件列表右键菜单选中的动作。
+ * @param key - 菜单项 key
+ * @param entry - 当前行的远端条目
+ * @returns 无返回值
+ */
 function handleContext(key: string | number, entry: RemoteFile): void {
   if (key === 'open') void openEntry(entry)
   if (key === 'download') void downloadFile(entry)
@@ -202,6 +253,12 @@ function handleContext(key: string | number, entry: RemoteFile): void {
   if (key === 'delete') void deleteEntry(entry)
 }
 
+/**
+ * 保存远端文本编辑器中的内容。
+ * @param content - 完整文件内容
+ * @param versionToken - 读取时拿到的版本标识
+ * @returns 保存完成后的 Promise
+ */
 async function saveEditor(content: string, versionToken: string): Promise<void> {
   try {
     await files.saveDocument(content, versionToken)
@@ -211,6 +268,12 @@ async function saveEditor(content: string, versionToken: string): Promise<void> 
   }
 }
 
+/**
+ * 推送一条文件操作错误通知。
+ * @param title - 通知标题
+ * @param error - 捕获到的错误
+ * @returns 无返回值
+ */
 function notifyError(title: string, error: unknown): void {
   notifications.push({
     kind: 'error',
@@ -220,6 +283,12 @@ function notifyError(title: string, error: unknown): void {
   })
 }
 
+/**
+ * 执行一个文件操作，失败时统一推送错误通知。
+ * @param title - 失败通知的标题
+ * @param action - 待执行的异步动作
+ * @returns 无返回值
+ */
 function runFileAction(title: string, action: () => Promise<void>): void {
   void action().catch((error: unknown) => notifyError(title, error))
 }

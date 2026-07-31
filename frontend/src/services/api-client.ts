@@ -18,7 +18,11 @@ export class ApplicationError extends Error {
   }
 }
 
-/** Throws one localized ApplicationError when a Wails result contains an error DTO. */
+/**
+ * 把后端返回的错误 DTO 转换成异常抛出，无错误时直接返回。
+ * @param error - 后端错误 DTO，可为空
+ * @returns 无返回值
+ */
 export function throwIfError(error: DTO | null | undefined): void {
   if (error) {
     throw new ApplicationError(error)

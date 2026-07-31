@@ -23,6 +23,10 @@ const routePermissionDenied = computed(
     String((routeError.value as { code: unknown }).code).includes('permission_denied'),
 )
 
+/**
+ * 按路由参数打开对应的终端标签页，丢弃过期请求。
+ * @returns 打开完成后的 Promise
+ */
 async function openRouteSession(): Promise<void> {
   const sshSessionID = String(route.params.sshSessionID ?? '').trim()
   const generation = ++routeRequestGeneration
@@ -63,6 +67,10 @@ watch(
   { immediate: true },
 )
 
+/**
+ * 把当前活动标签页重命名为输入的名称。
+ * @returns 无返回值
+ */
 function renameActiveTab(): void {
   if (tabs.activeID) tabs.rename(tabs.activeID, renameDraft.value)
 }

@@ -272,17 +272,32 @@ const columns = computed<DataTableColumns<SSHSessionDTO>>(() => {
   return [sessionColumn, connectionStatusColumn, responsiveActionsColumn]
 })
 
+/**
+ * 把字节容量换算成 GiB 展示文本。
+ * @param bytes - 字节数
+ * @returns 带 G 后缀的容量文本
+ */
 function formatCapacity(bytes: number): string {
   const gibibytes = bytes / 1024 / 1024 / 1024
   if (gibibytes >= 1) return `${Math.round(gibibytes)}G`
   return `${gibibytes.toFixed(1)}G`
 }
 
+/**
+ * 把采集时间格式化为本地时间文本。
+ * @param value - ISO 时间字符串
+ * @returns 本地时间文本，无法解析时原样返回
+ */
 function formatCollectedAt(value: string): string {
   const collectedAt = new Date(value)
   return Number.isNaN(collectedAt.getTime()) ? value : collectedAt.toLocaleString()
 }
 
+/**
+ * 构建单行 SSH Session 的右键菜单项。
+ * @param row - 当前行的 SSH Session
+ * @returns 下拉菜单项数组
+ */
 function contextOptions(row: SSHSessionDTO): DropdownOption[] {
   return [
     { label: '打开 Terminal', key: 'terminal' },
@@ -294,15 +309,31 @@ function contextOptions(row: SSHSessionDTO): DropdownOption[] {
   ]
 }
 
+/**
+ * 跳转到该 SSH Session 的终端页面。
+ * @param session - 目标 SSH Session
+ * @returns 无返回值
+ */
 function openTerminal(session: SSHSessionDTO): void {
   void router.push({ name: 'terminal', params: { sshSessionID: session.id } })
 }
 
+/**
+ * 跳转到该 SSH Session 的文件页面。
+ * @param session - 目标 SSH Session
+ * @returns 无返回值
+ */
 function openFiles(session: SSHSessionDTO): void {
   void router.push({ name: 'files', params: { sshSessionID: session.id } })
 }
 
 // 单会话延迟测量:按正式 SSH 路由执行预检并把结果写入状态列;过期代数的结果被丢弃。
+/**
+ * 按正式 SSH 路由执行预检并把延迟写入状态列，过期代数的结果被丢弃。
+ * @param session - 目标 SSH Session
+ * @param generation - 发起测量时的代数，用于丢弃过期结果
+ * @returns 测量完成后的 Promise
+ */
 async function measure(session: SSHSessionDTO, generation: number): Promise<void> {
   connectionStates.value[session.id] = { state: 'measuring', message: '正在测量 SSH 路由延迟。' }
   try {
@@ -323,6 +354,10 @@ async function measure(session: SSHSessionDTO, generation: number): Promise<void
 }
 
 // 全量延迟测量:限流并发跑预检;刷新/保存会重新触发,旧一轮结果按代数作废。
+/**
+ * 依次测量全部 SSH Session 的路由延迟。
+ * @returns 全部测量结束后的 Promise
+ */
 async function measureAll(): Promise<void> {
   activeMeasureAllRuns++
   const generation = ++measureGeneration
@@ -341,6 +376,10 @@ async function measureAll(): Promise<void> {
 }
 
 // 主机规格惰性补采:只对迁移前遗留的、尚未采集过的会话各连一次 SSH,结果由后端落库后写回本行。
+/**
+ * 为尚未采集过主机规格的 SSH Session 惰性补采。
+ * @returns 补采结束后的 Promise
+ */
 async function backfillHostSpecs(): Promise<void> {
   const generation = ++hostSpecsGeneration
   const queue = store.sessions.filter((session) => !session.specsCollectedAt)
@@ -364,16 +403,29 @@ async function backfillHostSpecs(): Promise<void> {
   await Promise.all(workers)
 }
 
+/**
+ * 打开新建 SSH Session 表单。
+ * @returns 无返回值
+ */
 function openCreate(): void {
   editing.value = null
   formVisible.value = true
 }
 
+/**
+ * 打开指定 SSH Session 的编辑表单。
+ * @param session - 待编辑的 SSH Session
+ * @returns 无返回值
+ */
 function openEdit(session: SSHSessionDTO): void {
   editing.value = session
   formVisible.value = true
 }
 
+/**
+ * 重新加载 SSH Session 列表并重新测量延迟与主机规格。
+ * @returns 刷新完成后的 Promise
+ */
 async function refresh(): Promise<void> {
   try {
     await store.refresh()
@@ -390,6 +442,11 @@ async function refresh(): Promise<void> {
   }
 }
 
+/**
+ * 切换 SSH Session 的收藏状态。
+ * @param session - 目标 SSH Session
+ * @returns 切换完成后的 Promise
+ */
 async function toggleFavourite(session: SSHSessionDTO): Promise<void> {
   try {
     await store.toggleFavourite(session)
@@ -403,6 +460,11 @@ async function toggleFavourite(session: SSHSessionDTO): Promise<void> {
   }
 }
 
+/**
+ * 二次确认后删除 SSH Session 及其关联凭据。
+ * @param session - 待删除的 SSH Session
+ * @returns 删除完成后的 Promise
+ */
 async function remove(session: SSHSessionDTO): Promise<void> {
   const confirmed = await interactions.confirm({
     title: '删除 SSH Session？',
@@ -433,6 +495,12 @@ async function remove(session: SSHSessionDTO): Promise<void> {
   }
 }
 
+/**
+ * 分发右键菜单选中的动作。
+ * @param key - 菜单项 key
+ * @param session - 当前行的 SSH Session
+ * @returns 无返回值
+ */
 function handleContextAction(key: string | number, session: SSHSessionDTO): void {
   if (key === 'edit') openEdit(session)
   if (key === 'terminal') openTerminal(session)
@@ -441,6 +509,11 @@ function handleContextAction(key: string | number, session: SSHSessionDTO): void
   if (key === 'delete') void remove(session)
 }
 
+/**
+ * 表单保存成功后清理该会话的缓存状态并刷新列表。
+ * @param session - 刚保存的 SSH Session
+ * @returns 处理完成后的 Promise
+ */
 async function saved(session: SSHSessionDTO): Promise<void> {
   delete connectionStates.value[session.id]
   delete hostSpecsStates.value[session.id]
@@ -464,6 +537,11 @@ async function saved(session: SSHSessionDTO): Promise<void> {
   await refresh()
 }
 
+/**
+ * 表单保存失败时推送错误通知。
+ * @param error - 保存过程抛出的错误
+ * @returns 无返回值
+ */
 function saveFailed(error: unknown): void {
   notifications.push({
     kind: 'error',

@@ -19,7 +19,10 @@ export interface FontOption {
   value: string
 }
 
-/** Enumerates known monospace fonts that the browser confirms are available. */
+/**
+ * 枚举当前系统实际可用的等宽字体候选。
+ * @returns 可用字体选项数组
+ */
 export function enumerateMonospaceFonts(): FontOption[] {
   const available = candidates.filter((font) => document.fonts.check(`13px "${font}"`))
   return [

@@ -18,7 +18,13 @@ import {
 import { throwIfError } from './api-client'
 import { runWithHostKeyTrustConfirmation } from './host-key-trust'
 
-/** Fetches filtered SSH Sessions through generated Wails bindings. */
+/**
+ * 按关键字、分组与收藏状态列出 SSH Session。
+ * @param search - 搜索关键字
+ * @param group - 分组名，空串表示不过滤
+ * @param favouriteOnly - 是否只列出收藏项
+ * @returns SSH Session 数组
+ */
 export async function listSSHSessions(
   search = '',
   group = '',
@@ -29,7 +35,11 @@ export async function listSSHSessions(
   return result.sessions
 }
 
-/** Fetches one safe SSH Session DTO through generated Wails bindings. */
+/**
+ * 按 ID 读取一个 SSH Session。
+ * @param id - SSH Session ID
+ * @returns SSH Session 详情
+ */
 export async function getSSHSession(id: string): Promise<SSHSessionDTO> {
   const result = await Get(id)
   throwIfError(result.error)
@@ -37,7 +47,11 @@ export async function getSSHSession(id: string): Promise<SSHSessionDTO> {
   return result.session
 }
 
-/** Creates an SSH Session using write-only credential input. */
+/**
+ * 创建一个 SSH Session 及其凭据。
+ * @param input - SSH Session 输入内容
+ * @returns 创建后的 SSH Session
+ */
 export async function createSSHSession(input: SSHSessionInput): Promise<SSHSessionDTO> {
   const result = await Create(input)
   throwIfError(result.error)
@@ -45,7 +59,12 @@ export async function createSSHSession(input: SSHSessionInput): Promise<SSHSessi
   return result.session
 }
 
-/** Updates an SSH Session using optional write-only replacement credential input. */
+/**
+ * 更新一个 SSH Session 及其凭据。
+ * @param id - SSH Session ID
+ * @param input - SSH Session 输入内容
+ * @returns 更新后的 SSH Session
+ */
 export async function updateSSHSession(id: string, input: SSHSessionInput): Promise<SSHSessionDTO> {
   const result = await Update(id, input)
   throwIfError(result.error)
@@ -53,15 +72,21 @@ export async function updateSSHSession(id: string, input: SSHSessionInput): Prom
   return result.session
 }
 
-/** Deletes an unreferenced SSH Session and its credential. */
+/**
+ * 删除一个 SSH Session 及其关联凭据。
+ * @param id - SSH Session ID
+ * @returns 删除完成后的 Promise
+ */
 export async function deleteSSHSession(id: string): Promise<void> {
   const result = await Delete(id)
   throwIfError(result.error)
 }
 
 /**
- * Collects host capacity facts once for a Session that has none and persists them on the Session row.
- * 迁移前创建的历史 Session 用它补采;规格已存在时后端不会再连接 SSH。
+ * 为尚未采集过主机规格的 Session 补采一次并写回该行。
+ * 迁移前创建的历史 Session 用它补采；规格已存在时后端不会再连接 SSH。
+ * @param id - SSH Session ID
+ * @returns 补采后的 SSH Session
  */
 export async function ensureSSHSessionHostSpecs(id: string): Promise<SSHSessionDTO> {
   const result = await EnsureHostSpecs(id)
@@ -70,14 +95,22 @@ export async function ensureSSHSessionHostSpecs(id: string): Promise<SSHSessionD
   return result.session
 }
 
-/** Authenticates through the configured SSH route and measures encrypted request round-trip latency. */
+/**
+ * 按正式 SSH 路由执行连通性预检。
+ * @param id - SSH Session ID
+ * @returns 预检结果
+ */
 export async function preflightSSHSession(id: string): Promise<SSHPreflightDTO> {
   const result = await Preflight(id)
   throwIfError(result.error)
   return result
 }
 
-/** Performs SSH handshake, strict host-key verification, authentication, and a no-op command. */
+/**
+ * 测试 SSH 连接，遇到未信任主机密钥时先走信任确认。
+ * @param id - SSH Session ID
+ * @returns 连接测试结果
+ */
 export async function testSSHSessionConnection(id: string): Promise<SSHConnectionTestDTO> {
   return runWithHostKeyTrustConfirmation(async () => {
     const result = await TestConnection(id)

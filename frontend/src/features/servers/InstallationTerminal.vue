@@ -50,7 +50,11 @@ let fitAddon: FitAddon | null = null
 let resizeObserver: ResizeObserver | null = null
 let renderedLines: string[] = []
 
-/** 将新增安装日志增量写入 xterm；历史内容发生变化时安全重绘。 */
+/**
+ * 把安装日志行同步到终端，只追加新增部分。
+ * @param lines - 完整的安装日志行
+ * @returns 无返回值
+ */
 function syncLines(lines: string[]): void {
   if (!terminal) return
   const next = lines.map((line) => String(line))
@@ -74,7 +78,10 @@ function syncLines(lines: string[]): void {
   terminal.scrollToBottom()
 }
 
-/** 根据容器尺寸重新适配只读安装终端。 */
+/**
+ * 重新适配终端尺寸。
+ * @returns 无返回值
+ */
 function fitTerminal(): void {
   fitAddon?.fit()
 }

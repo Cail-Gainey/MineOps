@@ -87,7 +87,11 @@ export const useMonitoringStore = defineStore('monitoring', () => {
     return values
   })
 
-  /** Loads Servers and selects the first available target. */
+  /**
+   * 加载 Server 列表并选定目标,优先使用传入的偏好 Server。
+   * @param preferredServerID - 优先选中的 Server ID,为空时选第一个可用项
+   * @returns 加载完成后的 Promise
+   */
   async function loadServers(preferredServerID = ''): Promise<void> {
     serversError.value = null
     try {
@@ -179,7 +183,7 @@ export const useMonitoringStore = defineStore('monitoring', () => {
         try {
           await loadServers()
         } catch {
-          /* page-level error is retained */
+          /* 页面级错误已保留,此处不再向上抛出 */
         }
       }
       const storageResult = await Promise.allSettled([getMetricStorageStatus()])
@@ -234,6 +238,11 @@ export const useMonitoringStore = defineStore('monitoring', () => {
     }
   }
 
+  /**
+   * 把实时推送的样本按序列合并进最新值缓存。
+   * @param event - 实时指标事件
+   * @returns 无返回值
+   */
   function mergeRealtime(event: MetricRealtimeEvent): void {
     if (event.serverID !== selectedServerID.value) return
     const merged = new Map(
@@ -243,13 +252,19 @@ export const useMonitoringStore = defineStore('monitoring', () => {
     latest.value = [...merged.values()]
   }
 
-  /** Starts the throttled Wails Metric event subscription. */
+  /**
+   * 订阅经过节流的 Wails Metric 实时事件。
+   * @returns 无返回值
+   */
   function startSubscription(): void {
     unsubscribe?.()
     unsubscribe = subscribeMetricRealtime(mergeRealtime)
   }
 
-  /** Stops the Wails Metric event subscription. */
+  /**
+   * 取消 Wails Metric 实时事件订阅。
+   * @returns 无返回值
+   */
   function stopSubscription(): void {
     unsubscribe?.()
     unsubscribe = null

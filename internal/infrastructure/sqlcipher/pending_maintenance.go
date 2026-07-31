@@ -18,7 +18,7 @@ const (
 	pendingResetFilename       = ".pending-reset"
 )
 
-// PendingMaintenance describes offline database work staged for the next application start.
+// PendingMaintenance 描述排队到下次启动执行的离线数据库任务。
 type PendingMaintenance struct {
 	RestorePending     bool        `json:"restorePending"`
 	KeyRotationPending bool        `json:"keyRotationPending"`
@@ -27,7 +27,7 @@ type PendingMaintenance struct {
 	RestoreBackup      *BackupInfo `json:"restoreBackup,omitempty"`
 }
 
-// StageRestore verifies and atomically copies a portable backup for offline installation on next start.
+// StageRestore 校验并原子复制便携备份,供下次启动离线安装。
 func StageRestore(backupPath, dataDirectory string) (BackupInfo, error) {
 	info, err := InspectPortableBackup(backupPath)
 	if err != nil {
@@ -68,7 +68,7 @@ func StageRestore(backupPath, dataDirectory string) (BackupInfo, error) {
 	return info, nil
 }
 
-// StageKeyRotation requests an offline SQLCipher key rotation before the next database open.
+// StageKeyRotation 排队一次在下次打开数据库之前离线执行的 SQLCipher 密钥轮换。
 func StageKeyRotation(dataDirectory string) error {
 	if err := os.MkdirAll(dataDirectory, 0o700); err != nil {
 		return apperror.Wrap(apperror.CodeIOWriteFailed, "创建数据目录失败", err)
@@ -81,7 +81,7 @@ func StageKeyRotation(dataDirectory string) error {
 	return file.Close()
 }
 
-// StageVacuum requests an offline VACUUM before the next database open.
+// StageVacuum 排队一次在下次打开数据库之前离线执行的 VACUUM。
 // SQLite 的空闲页永远不会自动还给文件系统,删除历史数据只会让文件保持在历史高水位;
 // VACUUM 需要独占锁并临时占用与库等大的磁盘空间,GB 级库会跑上几分钟,
 // 因此和恢复、密钥轮换一样排队到下次启动、在数据库投入正常使用之前离线执行。
@@ -97,7 +97,7 @@ func StageVacuum(dataDirectory string) error {
 	return file.Close()
 }
 
-// StageDatabaseReset requests deleting both databases and the stored key before the next database open.
+// StageDatabaseReset 排队在下次打开数据库之前删除两个库文件与系统密钥。
 // 恢复出厂只能离线做:应用运行期间两个库都被连接池持有,而且服务还在往里写。
 // 排队到下次启动、在任何连接建立之前删文件并清掉系统密钥,Bootstrap 随后会重建空库并生成新密钥。
 func StageDatabaseReset(dataDirectory string) error {
@@ -112,7 +112,7 @@ func StageDatabaseReset(dataDirectory string) error {
 	return file.Close()
 }
 
-// ReadPendingMaintenance returns staged offline work without changing it.
+// ReadPendingMaintenance 只读地返回已排队的离线任务。
 func ReadPendingMaintenance(dataDirectory string) (PendingMaintenance, error) {
 	result := PendingMaintenance{}
 	restorePath := filepath.Join(dataDirectory, pendingRestoreFilename)
@@ -144,7 +144,7 @@ func ReadPendingMaintenance(dataDirectory string) (PendingMaintenance, error) {
 	return result, nil
 }
 
-// CancelPendingMaintenance removes staged restore, key-rotation, vacuum, and reset work.
+// CancelPendingMaintenance 清除已排队的恢复、密钥轮换、存储整理与清空数据库任务。
 func CancelPendingMaintenance(dataDirectory string) error {
 	var firstError error
 	for _, name := range []string{pendingRestoreFilename, pendingKeyRotationFilename, pendingVacuumFilename, pendingResetFilename} {
@@ -155,7 +155,7 @@ func CancelPendingMaintenance(dataDirectory string) error {
 	return firstError
 }
 
-// ApplyPendingMaintenance performs staged reset, restore, key rotation, and vacuum before opening the active database.
+// ApplyPendingMaintenance 在打开正式数据库之前依次执行已排队的清空、恢复、密钥轮换与存储整理。
 func ApplyPendingMaintenance(ctx context.Context, dataDirectory, databasePath string, keyStore KeyStore) error {
 	pending, err := ReadPendingMaintenance(dataDirectory)
 	if err != nil {
@@ -202,7 +202,7 @@ func ApplyPendingMaintenance(ctx context.Context, dataDirectory, databasePath st
 	return nil
 }
 
-// resetDatabasesOffline deletes both database files and the stored key so bootstrap rebuilds an empty database.
+// resetDatabasesOffline 删除两个数据库文件与系统密钥,使 Bootstrap 重建空库。
 func resetDatabasesOffline(ctx context.Context, dataDirectory, databasePath string, keyStore KeyStore) error {
 	paths := []string{databasePath, filepath.Join(dataDirectory, constants.MetricsDatabaseFileName)}
 	for _, path := range paths {

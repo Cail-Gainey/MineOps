@@ -4201,7 +4201,7 @@ export class SparkSnapshotServiceResult {
 }
 
 /**
- * StorageResult contains storage state, a completed backup, or a stable desktop error.
+ * StorageResult 承载存储状态、已完成的备份或稳定的桌面错误。
  */
 export class StorageResult {
     /**

@@ -76,6 +76,11 @@ export async function nativeConfirm(
   return selected === confirmLabel
 }
 
+/**
+ * 把统一的文件对话框参数转换成 Wails 打开对话框参数。
+ * @param options - 统一的文件对话框参数
+ * @returns Wails 打开文件对话框参数
+ */
 function toOpenOptions(options: NativeFileDialogOptions): Dialogs.OpenFileDialogOptions {
   const result: Dialogs.OpenFileDialogOptions = {
     Title: options.title,

@@ -172,6 +172,10 @@ const artifactColumns: DataTableColumns<JDKArtifact> = [
   },
 ]
 
+/**
+ * 重新加载当前 SSH Session 上的 Java 运行时列表。
+ * @returns 刷新完成后的 Promise
+ */
 async function refresh(): Promise<void> {
   try {
     await store.refresh()
@@ -180,6 +184,10 @@ async function refresh(): Promise<void> {
   }
 }
 
+/**
+ * 加载可选的 SSH Session 列表。
+ * @returns 加载完成后的 Promise
+ */
 async function refreshSessions(): Promise<void> {
   sessionError.value = null
   try {
@@ -193,12 +201,21 @@ async function refreshSessions(): Promise<void> {
   }
 }
 
+/**
+ * 切换目标 SSH Session 并清空上一台主机的探测结果。
+ * @param value - SSH Session ID
+ * @returns 切换完成后的 Promise
+ */
 async function selectSSHSession(value: string): Promise<void> {
   store.sshSessionID = value
   store.candidates = []
   await refresh()
 }
 
+/**
+ * 在远端主机上探测可用的 Java 候选。
+ * @returns 探测完成后的 Promise
+ */
 async function discover(): Promise<void> {
   try {
     await store.discover()
@@ -213,6 +230,11 @@ async function discover(): Promise<void> {
   }
 }
 
+/**
+ * 把探测到的 Java 候选登记为运行时。
+ * @param candidate - Java 候选
+ * @returns 登记完成后的 Promise
+ */
 async function importCandidate(candidate: JavaCandidate): Promise<void> {
   try {
     const runtime = await store.importPath(candidate.executablePath)
@@ -227,6 +249,10 @@ async function importCandidate(candidate: JavaCandidate): Promise<void> {
   }
 }
 
+/**
+ * 按手工填写的路径登记 Java 运行时。
+ * @returns 登记完成后的 Promise
+ */
 async function importManual(): Promise<void> {
   if (!manualPath.value.trim()) return
   try {
@@ -243,6 +269,11 @@ async function importManual(): Promise<void> {
   }
 }
 
+/**
+ * 把某个 Java 运行时设为该主机的默认项。
+ * @param runtime - 目标 Java 运行时
+ * @returns 设置完成后的 Promise
+ */
 async function setDefault(runtime: JavaRuntime): Promise<void> {
   try {
     await store.setDefault(runtime.id)
@@ -257,6 +288,11 @@ async function setDefault(runtime: JavaRuntime): Promise<void> {
   }
 }
 
+/**
+ * 二次确认后删除一条 Java 运行时登记。
+ * @param runtime - 目标 Java 运行时
+ * @returns 删除完成后的 Promise
+ */
 async function remove(runtime: JavaRuntime): Promise<void> {
   const confirmed = await interactions.confirm({
     title: '删除 Java Runtime 注册？',
@@ -279,6 +315,10 @@ async function remove(runtime: JavaRuntime): Promise<void> {
   }
 }
 
+/**
+ * 按服务端类型与版本推荐合适的 Java 运行时。
+ * @returns 推荐完成后的 Promise
+ */
 async function recommend(): Promise<void> {
   try {
     const runtime = await recommendJavaRuntime(
@@ -301,6 +341,10 @@ async function recommend(): Promise<void> {
   }
 }
 
+/**
+ * 加载可下载安装的 JDK 构件列表。
+ * @returns 加载完成后的 Promise
+ */
 async function loadArtifacts(): Promise<void> {
   catalogLoading.value = true
   catalogError.value = null
@@ -314,6 +358,11 @@ async function loadArtifacts(): Promise<void> {
   }
 }
 
+/**
+ * 二次确认后在远端安装一个 JDK 构件。
+ * @param artifact - 目标 JDK 构件
+ * @returns 安装发起后的 Promise
+ */
 async function installArtifact(artifact: JDKArtifact): Promise<void> {
   const confirmed = await interactions.confirm({
     title: `安装 Java ${artifact.majorVersion}？`,
@@ -337,6 +386,12 @@ async function installArtifact(artifact: JDKArtifact): Promise<void> {
   }
 }
 
+/**
+ * 推送一条错误通知，并展开远端返回的详细原因。
+ * @param title - 通知标题
+ * @param error - 捕获到的错误
+ * @returns 无返回值
+ */
 function notifyError(title: string, error: unknown): void {
   const message = error instanceof Error ? error.message : String(error)
   const remoteError =

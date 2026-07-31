@@ -41,12 +41,21 @@ const stressTargetBytes = 100 * 1024 * 1024
 const stressChunk = `${'MineOps-backpressure-'.repeat(12_000)}\r\n`
 const stressChunkBytes = new TextEncoder().encode(stressChunk).byteLength
 
+/**
+ * 把字节数换算成合适的存储单位。
+ * @param bytes - 字节数
+ * @returns 带单位的容量文本
+ */
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KiB`
   return `${(bytes / 1024 / 1024).toFixed(1)} MiB`
 }
 
+/**
+ * 按当前明暗模式取用验证终端的配色。
+ * @returns xterm 主题对象
+ */
 function currentTerminalTheme() {
   return {
     ...(isDark.value ? terminalThemes.dark : terminalThemes.light),
@@ -54,6 +63,10 @@ function currentTerminalTheme() {
   }
 }
 
+/**
+ * 写入一段基准输出，用于验证 ANSI 与中文渲染。
+ * @returns 无返回值
+ */
 function writeBaselineOutput(): void {
   terminal?.writeln('\x1b[1;32mMineOps xterm.js Spike\x1b[0m')
   terminal?.writeln('ANSI: \x1b[31mred\x1b[0m \x1b[33myellow\x1b[0m \x1b[36mcyan\x1b[0m')
@@ -62,6 +75,10 @@ function writeBaselineOutput(): void {
   terminal?.write('\r\n$ ')
 }
 
+/**
+ * 开始或停止持续输出，用于验证滚动性能。
+ * @returns 无返回值
+ */
 function toggleContinuousOutput(): void {
   if (outputTimer !== null) {
     window.clearInterval(outputTimer)
@@ -80,6 +97,10 @@ function toggleContinuousOutput(): void {
   }, 50)
 }
 
+/**
+ * 开始或停止高频写入，用于验证背压处理。
+ * @returns 无返回值
+ */
 function runBackpressureStress(): void {
   if (stressTimer !== null) {
     window.clearInterval(stressTimer)
@@ -105,11 +126,19 @@ function runBackpressureStress(): void {
   }, 0)
 }
 
+/**
+ * 在验证终端中查找下一处匹配。
+ * @returns 无返回值
+ */
 function findNext(): void {
   const found = searchAddon?.findNext(searchText.value, { caseSensitive: false }) ?? false
   status.value = found ? `已定位：${searchText.value}` : `未找到：${searchText.value}`
 }
 
+/**
+ * 把验证终端的选区复制到剪贴板。
+ * @returns 复制完成后的 Promise
+ */
 async function copySelection(): Promise<void> {
   const selection = terminal?.getSelection() ?? ''
   if (!selection) {

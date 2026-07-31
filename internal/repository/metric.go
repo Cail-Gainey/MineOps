@@ -8,18 +8,18 @@ import (
 	"github.com/Cail-Gainey/MineOps/internal/model"
 )
 
-// MetricStorageUsage contains SQLite page usage for capacity decisions.
+// MetricStorageUsage 承载用于容量判定的 SQLite 页使用量。
 type MetricStorageUsage struct {
 	UsedBytes int64
 }
 
-// MetricSampleCursor is the (timestamp, id) keyset cursor for range pagination without OFFSET rescans.
+// MetricSampleCursor 是 (timestamp, id) 游标,用于区间分页并避免 OFFSET 重复扫描。
 type MetricSampleCursor struct {
 	Time time.Time
 	ID   uint64
 }
 
-// MetricRepository persists raw samples and minute/hour aggregates with indexed queries.
+// MetricRepository 持久化原始样本与分钟/小时聚合,并提供走索引的查询。
 type MetricRepository interface {
 	InsertSamples(context.Context, []model.MetricSample) error
 	ListSamples(context.Context, model.MetricQuery) ([]model.MetricSample, error)

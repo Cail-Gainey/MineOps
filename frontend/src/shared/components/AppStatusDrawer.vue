@@ -59,10 +59,19 @@ watch(show, (visible) => {
   refreshAlerts()
 })
 
+/**
+ * 刷新告警列表，失败时静默忽略。
+ * @returns 无返回值
+ */
 function refreshAlerts(): void {
   void alerts.refresh().catch(() => undefined)
 }
 
+/**
+ * 把 Operation 状态映射成标签配色。
+ * @param state - Operation 状态
+ * @returns naive-ui 标签的语义类型
+ */
 function stateType(state: string): 'default' | 'info' | 'success' | 'warning' | 'error' {
   if (state === 'running') return 'info'
   if (state === 'succeeded') return 'success'
@@ -71,6 +80,11 @@ function stateType(state: string): 'default' | 'info' | 'success' | 'warning' | 
   return 'default'
 }
 
+/**
+ * 二次确认后取消一条进行中的 Operation。
+ * @param operation - 目标 Operation
+ * @returns 取消完成后的 Promise
+ */
 async function cancelOperation(operation: Operation): Promise<void> {
   const confirmed = await interactions.confirm({
     title: '取消后台任务？',
@@ -93,11 +107,20 @@ async function cancelOperation(operation: Operation): Promise<void> {
   }
 }
 
+/**
+ * 关闭抽屉并跳转到 Operations 页面。
+ * @returns 跳转完成后的 Promise
+ */
 async function openOperationsPage(): Promise<void> {
   show.value = false
   await router.push('/operations')
 }
 
+/**
+ * 确认一条告警事件。
+ * @param event - 目标告警事件
+ * @returns 确认完成后的 Promise
+ */
 async function acknowledgeAlertEvent(event: AlertEvent): Promise<void> {
   try {
     await alerts.acknowledge(event.id)
@@ -111,6 +134,11 @@ async function acknowledgeAlertEvent(event: AlertEvent): Promise<void> {
   }
 }
 
+/**
+ * 二次确认后删除一条告警事件。
+ * @param event - 目标告警事件
+ * @returns 删除完成后的 Promise
+ */
 async function removeAlertEvent(event: AlertEvent): Promise<void> {
   const confirmed = await interactions.confirm({
     title: '删除活动告警？',
@@ -138,6 +166,11 @@ async function removeAlertEvent(event: AlertEvent): Promise<void> {
   }
 }
 
+/**
+ * 关闭抽屉并跳转到该告警对应的指标趋势。
+ * @param event - 目标告警事件
+ * @returns 跳转完成后的 Promise
+ */
 async function openAlertMetric(event: AlertEvent): Promise<void> {
   show.value = false
   await router.push({
@@ -156,6 +189,10 @@ async function openAlertMetric(event: AlertEvent): Promise<void> {
   })
 }
 
+/**
+ * 二次确认后清空错误中心的全部条目。
+ * @returns 清空完成后的 Promise
+ */
 async function clearErrors(): Promise<void> {
   if (!errors.entries.length) return
   const confirmed = await interactions.confirm({
@@ -170,6 +207,11 @@ async function clearErrors(): Promise<void> {
   }
 }
 
+/**
+ * 把一条错误记录展开成可展示的详情文本。
+ * @param entry - 错误中心条目
+ * @returns 详情文本
+ */
 function errorDetails(entry: ErrorEntry): string {
   const error = entry.error
   if (error instanceof ApplicationError) {

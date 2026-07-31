@@ -91,6 +91,10 @@ const errorMessages: Record<LocaleName, Record<string, string>> = {
   },
 }
 
+/**
+ * 读取当前文档语言对应的语言包名称。
+ * @returns 语言包名称
+ */
 function activeLocale(): LocaleName {
   return typeof document !== 'undefined' && document.documentElement.lang === 'en-US'
     ? 'en-US'
@@ -98,7 +102,7 @@ function activeLocale(): LocaleName {
 }
 
 /**
- * Resolves one stable backend error code to the active UI language.
+ * 把稳定的后端错误码解析成当前界面语言的文案。
  * @param code - Stable Application Error code
  * @param technicalMessage - Original backend diagnostic message
  * @returns Localized user-facing message with a safe fallback

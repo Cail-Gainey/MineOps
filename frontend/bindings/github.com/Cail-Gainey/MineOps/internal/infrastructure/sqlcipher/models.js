@@ -73,7 +73,7 @@ export class BackupInfo {
 }
 
 /**
- * PendingMaintenance describes offline database work staged for the next application start.
+ * PendingMaintenance 描述排队到下次启动执行的离线数据库任务。
  */
 export class PendingMaintenance {
     /**

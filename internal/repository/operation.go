@@ -7,14 +7,14 @@ import (
 	"github.com/Cail-Gainey/MineOps/internal/model"
 )
 
-// OperationQuery contains durable Operation history filters and pagination.
+// OperationQuery 承载持久化 Operation 历史的过滤条件与分页参数。
 type OperationQuery struct {
 	TargetID model.ID
 	Limit    int
 	Offset   int
 }
 
-// OperationRepository persists and queries durable Operation state.
+// OperationRepository 持久化并查询 Operation 状态。
 type OperationRepository interface {
 	Create(context.Context, *model.Operation) error
 	Update(context.Context, *model.Operation) error
@@ -25,14 +25,14 @@ type OperationRepository interface {
 	ClearHistory(context.Context) (int64, error)
 }
 
-// SettingsRepository stores each versioned settings category in encrypted SQLite.
+// SettingsRepository 把每个带版本的设置分类存入加密 SQLite。
 type SettingsRepository interface {
 	Load(context.Context) (map[enums.SettingsCategory][]byte, error)
 	Save(context.Context, enums.SettingsCategory, int, []byte) error
 	Delete(context.Context, enums.SettingsCategory) error
 }
 
-// Registry exposes repositories bound to one database transaction.
+// Registry 暴露绑定到同一个数据库事务的各个 Repository。
 type Registry interface {
 	Operations() OperationRepository
 	Settings() SettingsRepository
@@ -51,7 +51,7 @@ type Registry interface {
 	Players() PlayerRepository
 }
 
-// Store owns repositories and complete-use-case transactions without exposing GORM to services.
+// Store 持有各 Repository 与完整用例事务,不向 Service 层暴露 GORM。
 type Store interface {
 	Registry
 	Transaction(context.Context, func(Registry) error) error

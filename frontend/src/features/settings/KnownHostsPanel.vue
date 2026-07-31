@@ -45,6 +45,10 @@ const columns: DataTableColumns<KnownHostDTO> = [
   },
 ]
 
+/**
+ * 重新加载已信任的主机密钥列表。
+ * @returns 刷新完成后的 Promise
+ */
 async function refresh(): Promise<void> {
   loading.value = true
   error.value = null
@@ -57,6 +61,11 @@ async function refresh(): Promise<void> {
   }
 }
 
+/**
+ * 二次确认后删除一条主机密钥记录。
+ * @param row - 目标 Known Host
+ * @returns 删除完成后的 Promise
+ */
 async function remove(row: KnownHostDTO): Promise<void> {
   const confirmed = await interactions.confirm({
     title: row.active ? '删除当前受信任指纹？' : '删除指纹历史？',

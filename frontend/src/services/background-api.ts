@@ -11,6 +11,11 @@ export interface BackgroundOperationResult {
   settings: SettingsSnapshot | null
 }
 
+/**
+ * 抛出背景资源接口返回的错误并取出资源本体。
+ * @param result - BackgroundService 的原始返回值
+ * @returns 背景资源操作结果
+ */
 function unwrapBackground(result: BackgroundResourceResult): BackgroundOperationResult {
   throwIfError(result.error)
   if (!result.resource) throw new Error('BackgroundService 未返回资源状态')
@@ -20,17 +25,27 @@ function unwrapBackground(result: BackgroundResourceResult): BackgroundOperation
   }
 }
 
-/** 获取当前受控背景资源及可用于预览的 Data URL。 */
+/**
+ * 读取当前受控背景资源，含可用于预览的 Data URL。
+ * @returns 背景资源操作结果
+ */
 export async function getBackgroundResource(): Promise<BackgroundOperationResult> {
   return unwrapBackground(await BackgroundService.Get())
 }
 
-/** 将本地图片复制到受控数据目录并立即选为应用背景。 */
+/**
+ * 把本地图片复制到受控数据目录并立即选为应用背景。
+ * @param path - 本地图片路径
+ * @returns 背景资源操作结果
+ */
 export async function importBackgroundResource(path: string): Promise<BackgroundOperationResult> {
   return unwrapBackground(await BackgroundService.Import(path))
 }
 
-/** 清除当前背景图片并恢复语义主题背景。 */
+/**
+ * 清除当前背景图片并恢复语义主题背景。
+ * @returns 背景资源操作结果
+ */
 export async function resetBackgroundResource(): Promise<BackgroundOperationResult> {
   return unwrapBackground(await BackgroundService.Reset())
 }

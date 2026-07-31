@@ -109,6 +109,10 @@ const installationTerminalStatus = computed(() => {
   return `${stepLabel(current.name)} · ${current.state} · ${message}`
 })
 
+/**
+ * 加载向导初始数据，失败时推送错误通知。
+ * @returns 初始化完成后的 Promise
+ */
 async function initialize(): Promise<void> {
   try {
     await wizard.initialize()
@@ -117,6 +121,10 @@ async function initialize(): Promise<void> {
   }
 }
 
+/**
+ * 进入向导下一步，校验失败时推送错误通知。
+ * @returns 跳转完成后的 Promise
+ */
 async function next(): Promise<void> {
   try {
     await wizard.next()
@@ -125,6 +133,10 @@ async function next(): Promise<void> {
   }
 }
 
+/**
+ * 测试当前选中的 SSH Session 连通性。
+ * @returns 测试完成后的 Promise
+ */
 async function testSSH(): Promise<void> {
   try {
     await wizard.testSelectedSSH()
@@ -139,6 +151,10 @@ async function testSSH(): Promise<void> {
   }
 }
 
+/**
+ * 提交向导，创建 Server 并启动安装。
+ * @returns 提交完成后的 Promise
+ */
 async function submit(): Promise<void> {
   try {
     await wizard.submit()
@@ -153,6 +169,10 @@ async function submit(): Promise<void> {
   }
 }
 
+/**
+ * 取消进行中的安装任务。
+ * @returns 取消完成后的 Promise
+ */
 async function cancel(): Promise<void> {
   try {
     await wizard.cancel()
@@ -161,6 +181,10 @@ async function cancel(): Promise<void> {
   }
 }
 
+/**
+ * 重试失败的安装任务。
+ * @returns 重试完成后的 Promise
+ */
 async function retry(): Promise<void> {
   try {
     await wizard.retry()
@@ -169,11 +193,20 @@ async function retry(): Promise<void> {
   }
 }
 
+/**
+ * 清空安装状态与草稿，回到向导初始状态。
+ * @returns 无返回值
+ */
 function clearInstallationState(): void {
   replacementName.value = ''
   wizard.resetDraft()
 }
 
+/**
+ * 处理安装目录冲突：备份、改名或取消。
+ * @param action - 冲突处理方式
+ * @returns 处理完成后的 Promise
+ */
 async function resolveDirectoryConflict(action: 'backup' | 'rename' | 'cancel'): Promise<void> {
   try {
     await wizard.resolveDirectoryConflict(action, replacementName.value)
@@ -182,6 +215,12 @@ async function resolveDirectoryConflict(action: 'backup' | 'rename' | 'cancel'):
   }
 }
 
+/**
+ * 推送一条向导错误通知。
+ * @param title - 通知标题
+ * @param error - 捕获到的错误
+ * @returns 无返回值
+ */
 function notifyError(title: string, error: unknown): void {
   notifications.push({
     kind: 'error',
@@ -191,6 +230,11 @@ function notifyError(title: string, error: unknown): void {
   })
 }
 
+/**
+ * 把安装步骤标识映射成中文标签。
+ * @param name - 安装步骤标识
+ * @returns 中文标签
+ */
 function stepLabel(name: string): string {
   return (
     {
@@ -209,6 +253,11 @@ function stepLabel(name: string): string {
   )
 }
 
+/**
+ * 把安装步骤状态映射成标签配色。
+ * @param state - 安装步骤状态
+ * @returns naive-ui 标签的语义类型
+ */
 function stepTagType(state: string): 'default' | 'info' | 'success' | 'warning' | 'error' {
   if (state === 'success' || state === 'skipped') return 'success'
   if (state === 'running') return 'info'

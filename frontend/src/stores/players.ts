@@ -242,6 +242,11 @@ export const usePlayersStore = defineStore('players', () => {
     window.clearTimeout(eventRefreshTimer)
   }
 
+  /**
+   * 把一条玩家事件合并进当前 Server 的玩家状态。
+   * @param event - 玩家进出事件
+   * @returns 无返回值
+   */
   function mergeEvent(event: PlayerEvent): void {
     if (event.serverID !== serverID.value) return
     if (event.type === 'error') {
@@ -277,6 +282,11 @@ export const usePlayersStore = defineStore('players', () => {
     }
   }
 
+  /**
+   * 防抖地安排一次玩家事件列表刷新。
+   * @param playerIdentityID - 触发刷新的玩家身份 ID
+   * @returns 无返回值
+   */
   function scheduleEventRefresh(playerIdentityID: string): void {
     window.clearTimeout(eventRefreshTimer)
     eventRefreshTimer = window.setTimeout(() => {
@@ -292,6 +302,11 @@ export const usePlayersStore = defineStore('players', () => {
     }, 150)
   }
 
+  /**
+   * 按身份 ID 增量合并玩家总览列表。
+   * @param updatedPlayers - 新的玩家总览数组
+   * @returns 无返回值
+   */
   function upsertPlayers(updatedPlayers: PlayerOverview[]): void {
     for (const player of updatedPlayers) {
       applyLiveJoinOverride(player)
@@ -303,6 +318,11 @@ export const usePlayersStore = defineStore('players', () => {
     }
   }
 
+  /**
+   * 用实时事件记录的加入时间覆盖后端返回值，避免在线时长跳变。
+   * @param player - 待修正的玩家总览
+   * @returns 无返回值
+   */
   function applyLiveJoinOverride(player: PlayerOverview): void {
     const joinedAt = liveJoinedAt.get(player.identityID)
     if (!joinedAt || !player.online) return
@@ -351,6 +371,11 @@ export const usePlayersStore = defineStore('players', () => {
   }
 })
 
+/**
+ * 把前端排序字段名转换成后端识别的字段名。
+ * @param sort - 前端排序字段
+ * @returns 后端排序字段名
+ */
 function backendSort(sort: PlayerSort): string {
   if (sort === 'currentDuration') return 'current_duration'
   if (sort === 'totalDuration') return 'total_duration'

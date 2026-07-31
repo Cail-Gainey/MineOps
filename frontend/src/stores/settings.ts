@@ -39,6 +39,11 @@ export const useSettingsStore = defineStore('settings', () => {
       JSON.stringify(committed.value) !== JSON.stringify(draft.value),
   )
 
+  /**
+   * 把快照中的主题设置应用到主题 Store。
+   * @param snapshot - 设置快照
+   * @returns 无返回值
+   */
   function applyTheme(snapshot: SettingsSnapshot): void {
     const themeStore = useThemeStore()
     if (
@@ -88,6 +93,10 @@ export const useSettingsStore = defineStore('settings', () => {
     themeStore.highContrast = snapshot.theme.highContrast
   }
 
+  /**
+   * 加载并应用自定义背景图资源，失败时回落到无背景。
+   * @returns 应用完成后的 Promise
+   */
   async function applyBackgroundResource(): Promise<void> {
     const themeStore = useThemeStore()
     try {
@@ -100,6 +109,11 @@ export const useSettingsStore = defineStore('settings', () => {
     }
   }
 
+  /**
+   * 把快照中的布局设置应用到布局 Store。
+   * @param snapshot - 设置快照
+   * @returns 无返回值
+   */
   function applyLayout(snapshot: SettingsSnapshot): void {
     const layoutStore = useLayoutStore()
     layoutStore.sidebarCollapsed = snapshot.layout.sidebarCollapsed
@@ -109,6 +123,11 @@ export const useSettingsStore = defineStore('settings', () => {
     layoutStore.bottomBarVisible = snapshot.layout.bottomBarVisible
   }
 
+  /**
+   * 把快照中的通用设置应用到语言、时间格式与硬件加速。
+   * @param snapshot - 设置快照
+   * @returns 无返回值
+   */
   function applyGeneral(snapshot: SettingsSnapshot): void {
     const localeStore = useLocaleStore()
     localeStore.setLocale(snapshot.general.language)
@@ -117,6 +136,10 @@ export const useSettingsStore = defineStore('settings', () => {
     applyHardwareAccelerationAttribute(snapshot.general.hardwareAcceleration !== false)
   }
 
+  /**
+   * 加载设置快照并应用到各 Store，并发调用共享同一次请求。
+   * @returns 加载完成后的 Promise
+   */
   async function load(): Promise<void> {
     if (loadPromise) return loadPromise
     loadPromise = (async () => {
@@ -144,12 +167,21 @@ export const useSettingsStore = defineStore('settings', () => {
     }
   }
 
+  /**
+   * 把设置写入串行排队，避免并发保存互相覆盖。
+   * @param operation - 待排队的写入动作
+   * @returns 该次写入完成后的 Promise
+   */
   function enqueueSettingsMutation(operation: () => Promise<void>): Promise<void> {
     const queued = settingsMutationQueue.catch(() => undefined).then(operation)
     settingsMutationQueue = queued
     return queued
   }
 
+  /**
+   * 保存当前草稿并重新应用生效值。
+   * @returns 保存完成后的 Promise
+   */
   function save(): Promise<void> {
     if (!draft.value) return Promise.resolve()
     return enqueueSettingsMutation(async () => {
@@ -173,6 +205,11 @@ export const useSettingsStore = defineStore('settings', () => {
     })
   }
 
+  /**
+   * 把某个分类恢复为内置默认值并重新应用。
+   * @param category - 设置分类标识
+   * @returns 重置完成后的 Promise
+   */
   function resetCategory(category: string): Promise<void> {
     return enqueueSettingsMutation(async () => {
       saving.value = true
@@ -279,6 +316,10 @@ export const useSettingsStore = defineStore('settings', () => {
     })
   }
 
+  /**
+   * 放弃草稿修改，回到最近一次提交的设置。
+   * @returns 无返回值
+   */
   function discard(): void {
     if (committed.value) {
       draft.value = cloneSettings(committed.value)
@@ -288,6 +329,10 @@ export const useSettingsStore = defineStore('settings', () => {
     }
   }
 
+  /**
+   * 订阅设置变更事件，无未保存修改时自动重载。
+   * @returns 无返回值
+   */
   function connect(): void {
     if (unsubscribe) return
     unsubscribe = subscribeSettingsChanged(() => {

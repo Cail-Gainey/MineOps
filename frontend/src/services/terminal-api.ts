@@ -12,7 +12,13 @@ import { throwIfError } from './api-client'
 
 export const terminalEventName = 'mineops:terminal:event'
 
-/** Opens a remote xterm-256color PTY through generated Wails bindings. */
+/**
+ * 按指定终端尺寸打开一个 SSH 终端会话。
+ * @param sshSessionID - SSH Session ID
+ * @param columns - 终端列数
+ * @param rows - 终端行数
+ * @returns 终端会话
+ */
 export async function openTerminal(
   sshSessionID: string,
   columns: number,
@@ -24,13 +30,24 @@ export async function openTerminal(
   return result.session
 }
 
-/** Writes ordered terminal input. */
+/**
+ * 向终端会话写入一段输入。
+ * @param sessionID - 终端会话 ID
+ * @param data - 待写入的数据
+ * @returns 写入完成后的 Promise
+ */
 export async function writeTerminal(sessionID: string, data: string): Promise<void> {
   const result = await Input(sessionID, data)
   throwIfError(result.error)
 }
 
-/** Applies a remote PTY window-change. */
+/**
+ * 调整终端会话的尺寸。
+ * @param sessionID - 终端会话 ID
+ * @param columns - 终端列数
+ * @param rows - 终端行数
+ * @returns 调整完成后的 Promise
+ */
 export async function resizeTerminal(
   sessionID: string,
   columns: number,
@@ -40,13 +57,21 @@ export async function resizeTerminal(
   throwIfError(result.error)
 }
 
-/** Closes one remote PTY idempotently. */
+/**
+ * 关闭终端会话。
+ * @param sessionID - 终端会话 ID
+ * @returns 关闭完成后的 Promise
+ */
 export async function closeTerminal(sessionID: string): Promise<void> {
   const result = await Close(sessionID)
   throwIfError(result.error)
 }
 
-/** Subscribes to versioned terminal events and returns an unsubscribe function. */
+/**
+ * 订阅终端输出事件。
+ * @param listener - 收到事件时的回调
+ * @returns 取消订阅函数
+ */
 export function subscribeTerminalEvents(listener: (event: TerminalEvent) => void): () => void {
   return Events.On(terminalEventName, (event) => listener(event.data))
 }

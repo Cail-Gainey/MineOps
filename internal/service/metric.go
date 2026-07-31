@@ -19,12 +19,12 @@ import (
 
 const maximumMetricIngestBatch = 5_000
 
-// MetricObserver receives accepted persisted samples without owning the ingest transaction.
+// MetricObserver 接收已持久化的样本,但不持有写入事务。
 type MetricObserver interface {
 	ObserveMetrics([]model.MetricSample)
 }
 
-// MetricManager coordinates atomic ingest, realtime cache, queries, rollups, retention, and capacity protection.
+// MetricManager 统筹原子写入、实时缓存、查询、降采样、保留清理与容量保护。
 type MetricManager struct {
 	clock        model.Clock
 	store        repository.Store
@@ -40,14 +40,14 @@ type MetricManager struct {
 	hourRolledUpTo   time.Time
 }
 
-// SetObserver installs the bounded post-persistence metric observer used by threshold evaluation.
+// SetObserver 装配持久化之后的有界指标观察者,供阈值判定使用。
 func (m *MetricManager) SetObserver(observer MetricObserver) {
 	if m != nil {
 		m.observer = observer
 	}
 }
 
-// NewMetricManager creates the stage 10 Metric application service.
+// NewMetricManager 创建 Metric 应用服务。
 func NewMetricManager(clock model.Clock, store repository.Store, settings *appsettings.Manager, bus *MetricBus, databasePath string, logger *applog.Logger) (*MetricManager, error) {
 	if clock == nil || store == nil || settings == nil || bus == nil || strings.TrimSpace(databasePath) == "" {
 		return nil, apperror.New(apperror.CodeValidationRequired, "Metric 依赖和数据库路径不能为空")
@@ -58,7 +58,7 @@ func NewMetricManager(clock model.Clock, store repository.Store, settings *appse
 	return &MetricManager{clock: clock, store: store, settings: settings, bus: bus, databasePath: databasePath, logger: logger}, nil
 }
 
-// Ingest validates and atomically persists one bounded Metric batch before updating the realtime bus.
+// Ingest 校验并原子写入一个有界 Metric 批次,随后更新实时总线。
 func (m *MetricManager) Ingest(ctx context.Context, samples []model.MetricSample) (model.MetricIngestResult, error) {
 	result := model.MetricIngestResult{Received: len(samples), Rejected: len(samples)}
 	if len(samples) == 0 || len(samples) > maximumMetricIngestBatch {
@@ -125,7 +125,7 @@ func (m *MetricManager) validateSamples(ctx context.Context, samples []model.Met
 	return now, nil
 }
 
-// Latest returns cached or persisted latest values for every registered Metric on one Server.
+// Latest 返回某台 Server 上每个已注册 Metric 的最新值,优先取缓存。
 func (m *MetricManager) Latest(ctx context.Context, serverID model.ID) ([]model.MetricSample, error) {
 	if !serverID.Valid() {
 		return nil, apperror.New(apperror.CodeValidationInvalidArgument, "Metric Server ID 无效")
@@ -136,7 +136,7 @@ func (m *MetricManager) Latest(ctx context.Context, serverID model.ID) ([]model.
 	return m.store.Metrics().Latest(ctx, serverID, enums.MetricTypes())
 }
 
-// ClearServerHistory deletes all raw and aggregate Metric history for one Server.
+// ClearServerHistory 删除某台 Server 的全部原始与聚合 Metric 历史。
 func (m *MetricManager) ClearServerHistory(ctx context.Context, serverID model.ID) (int64, error) {
 	if !serverID.Valid() {
 		return 0, apperror.New(apperror.CodeValidationInvalidArgument, "Metric Server ID 无效")
@@ -151,7 +151,7 @@ func (m *MetricManager) ClearServerHistory(ctx context.Context, serverID model.I
 	return deleted, nil
 }
 
-// StorageStatus returns current database and free-disk capacity evidence.
+// StorageStatus 返回当前数据库体积与磁盘可用空间的容量证据。
 func (m *MetricManager) StorageStatus(ctx context.Context) (model.MetricStorageStatus, error) {
 	settings := m.settings.Snapshot().Monitoring
 	usage, err := m.store.Metrics().StorageUsage(ctx)
@@ -176,7 +176,7 @@ func (m *MetricManager) StorageStatus(ctx context.Context) (model.MetricStorageS
 	}, nil
 }
 
-// Maintain runs bounded rollup and retention passes at the hot-reloaded Settings interval.
+// Maintain 按热更新的 Settings 周期执行有界的降采样与保留清理。
 func (m *MetricManager) Maintain(ctx context.Context) error {
 	for {
 		interval := time.Duration(m.settings.Snapshot().Monitoring.MaintenanceIntervalSeconds) * time.Second

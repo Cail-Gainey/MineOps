@@ -12,7 +12,12 @@ import { throwIfError } from './api-client'
 
 export const consoleEventName = 'mineops:console:event'
 
-/** Opens one live attachment to the running Server tmux session. */
+/**
+ * 打开某台 Server 的控制台会话并从指定偏移开始回放。
+ * @param serverID - 目标 Server ID
+ * @param offset - 日志回放起始偏移
+ * @returns 控制台会话
+ */
 export async function openServerConsole(serverID: string, offset = 0): Promise<ConsoleSession> {
   const result = await Open(serverID, offset)
   throwIfError(result.error)
@@ -20,25 +25,42 @@ export async function openServerConsole(serverID: string, offset = 0): Promise<C
   return result.session
 }
 
-/** Sends command input to the attached Server tmux session. */
+/**
+ * 向控制台会话写入一段输入。
+ * @param sessionID - 控制台会话 ID
+ * @param data - 待写入的数据
+ * @returns 写入完成后的 Promise
+ */
 export async function writeServerConsole(sessionID: string, data: string): Promise<void> {
   const result = await Input(sessionID, data)
   throwIfError(result.error)
 }
 
-/** Detaches the view while keeping the remote Server running. */
+/**
+ * 从控制台会话分离，但保留远端会话继续运行。
+ * @param sessionID - 控制台会话 ID
+ * @returns 分离完成后的 Promise
+ */
 export async function detachServerConsole(sessionID: string): Promise<void> {
   const result = await Detach(sessionID)
   throwIfError(result.error)
 }
 
-/** Closes the desktop Console attachment without stopping the Server. */
+/**
+ * 关闭控制台会话。
+ * @param sessionID - 控制台会话 ID
+ * @returns 关闭完成后的 Promise
+ */
 export async function closeServerConsole(sessionID: string): Promise<void> {
   const result = await Close(sessionID)
   throwIfError(result.error)
 }
 
-/** Subscribes to bounded versioned live Console output events. */
+/**
+ * 订阅控制台输出事件。
+ * @param listener - 收到事件时的回调
+ * @returns 取消订阅函数
+ */
 export function subscribeConsoleEvents(listener: (event: ConsoleEvent) => void): () => void {
   return Events.On(consoleEventName, (event) => listener(event.data))
 }

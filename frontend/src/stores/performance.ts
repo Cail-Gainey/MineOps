@@ -75,7 +75,11 @@ export const usePerformanceStore = defineStore('performance', () => {
     return ''
   })
 
-  /** Loads Servers and selects a preferred Performance target. */
+  /**
+   * 加载 Server 列表并选定目标。
+   * @param preferredServerID - 优先选中的 Server ID
+   * @returns 加载完成后的 Promise
+   */
   async function loadServers(preferredServerID = ''): Promise<void> {
     serversError.value = null
     try {
@@ -91,7 +95,10 @@ export const usePerformanceStore = defineStore('performance', () => {
     }
   }
 
-  /** Refreshes all bounded Performance Center state. */
+  /**
+   * 重新加载所选 Server 的性能总览、快照与报告。
+   * @returns 刷新完成后的 Promise
+   */
   async function refresh(): Promise<void> {
     loading.value = true
     overviewError.value = null
@@ -121,7 +128,10 @@ export const usePerformanceStore = defineStore('performance', () => {
     }
   }
 
-  /** Probes current Spark installation and parser compatibility evidence. */
+  /**
+   * 重新探测远端 Spark 能力。
+   * @returns 探测后的 Spark 能力
+   */
   async function probe(): Promise<SparkCapability> {
     loading.value = true
     try {
@@ -133,7 +143,10 @@ export const usePerformanceStore = defineStore('performance', () => {
     }
   }
 
-  /** Computes and stores the exact official Spark mutation plan. */
+  /**
+   * 生成 Spark 安装计划。
+   * @returns Spark 安装计划
+   */
   async function planInstall(): Promise<SparkInstallPlan> {
     loading.value = true
     try {
@@ -144,7 +157,10 @@ export const usePerformanceStore = defineStore('performance', () => {
     }
   }
 
-  /** Executes the already user-confirmed Spark installation or upgrade. */
+  /**
+   * 按已生成的计划安装 Spark，计划缺失或过期时抛错。
+   * @returns 安装完成后的 Promise
+   */
   async function install(): Promise<void> {
     if (!installPlan.value?.planDigest) throw new Error('Spark 安装计划不存在或已过期')
     loading.value = true
@@ -157,7 +173,10 @@ export const usePerformanceStore = defineStore('performance', () => {
     }
   }
 
-  /** Restores the latest recorded Spark backup. */
+  /**
+   * 回滚到 Spark 安装前的备份。
+   * @returns 回滚完成后的 Promise
+   */
   async function rollback(): Promise<void> {
     loading.value = true
     try {
@@ -168,7 +187,10 @@ export const usePerformanceStore = defineStore('performance', () => {
     }
   }
 
-  /** Collects one current TPS/MSPT snapshot. */
+  /**
+   * 立即采集一次 TPS/MSPT Snapshot。
+   * @returns 采集完成后的 Promise
+   */
   async function collect(): Promise<void> {
     loading.value = true
     try {
@@ -179,7 +201,10 @@ export const usePerformanceStore = defineStore('performance', () => {
     }
   }
 
-  /** Starts one health report Operation after the caller handles privacy confirmation. */
+  /**
+   * 发起一次 Spark 健康报告上传。
+   * @returns 新建的 Spark 报告
+   */
   async function healthReport(): Promise<SparkReport> {
     const report = await startSparkHealthReport(
       selectedServerID.value,
@@ -189,7 +214,10 @@ export const usePerformanceStore = defineStore('performance', () => {
     return report
   }
 
-  /** Starts one explicit-duration profiler Operation after privacy confirmation. */
+  /**
+   * 按当前设定时长发起一次 Spark 性能分析。
+   * @returns 新建的 Spark 报告
+   */
   async function profiler(): Promise<SparkReport> {
     const report = await startSparkProfiler(
       selectedServerID.value,
@@ -200,7 +228,11 @@ export const usePerformanceStore = defineStore('performance', () => {
     return report
   }
 
-  /** Deletes one ended Spark report and refreshes the selected Server overview. */
+  /**
+   * 删除一份 Spark 报告并刷新列表。
+   * @param reportID - 报告 ID
+   * @returns 删除完成后的 Promise
+   */
   async function deleteReport(reportID: string): Promise<void> {
     await deleteSparkReport(reportID)
     await refresh()

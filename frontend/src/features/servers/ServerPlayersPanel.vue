@@ -200,7 +200,10 @@ async function openPlayer(player: PlayerOverview): Promise<void> {
   }
 }
 
-/** @returns {void} */
+/**
+ * 关闭玩家详情抽屉并清空封禁表单。
+ * @returns 无返回值
+ */
 function closePlayer(): void {
   banReason.value = ''
   banExpiresAt.value = null
@@ -244,6 +247,10 @@ async function runAction(action: PlayerManagementAction, success: string): Promi
   }
 }
 
+/**
+ * 重新加载玩家总览列表。
+ * @returns 刷新完成后的 Promise
+ */
 async function refreshList(): Promise<void> {
   try {
     await store.refresh()
@@ -252,6 +259,10 @@ async function refreshList(): Promise<void> {
   }
 }
 
+/**
+ * 重新加载白名单、OP 与封禁名录。
+ * @returns 刷新完成后的 Promise
+ */
 async function refreshDirectory(): Promise<void> {
   try {
     await store.refreshDirectory()
@@ -261,6 +272,10 @@ async function refreshDirectory(): Promise<void> {
   }
 }
 
+/**
+ * 触发一次玩家活动数据的远端同步。
+ * @returns 同步完成后的 Promise
+ */
 async function synchronizeActivity(): Promise<void> {
   try {
     await store.synchronizeActivity()
@@ -270,6 +285,12 @@ async function synchronizeActivity(): Promise<void> {
   }
 }
 
+/**
+ * 推送一条玩家面板错误通知。
+ * @param title - 通知标题
+ * @param error - 捕获到的错误
+ * @returns 无返回值
+ */
 function notifyError(title: string, error: unknown): void {
   notifications.push({
     kind: 'error',
@@ -279,10 +300,20 @@ function notifyError(title: string, error: unknown): void {
   })
 }
 
+/**
+ * 按当前时间格式渲染时间文本。
+ * @param value - ISO 时间字符串，可为空
+ * @returns 本地时间文本，空值返回破折号
+ */
 function formatTimestamp(value?: string | null): string {
   return value ? locale.formatDateTime(value) : '—'
 }
 
+/**
+ * 把一次会话的时长格式化成可读文本。
+ * @param session - 玩家会话
+ * @returns 时长文本
+ */
 function sessionDuration(session: PlayerSession): string {
   if (session.durationSeconds > 0) return formatPlayerDuration(session.durationSeconds)
   if (!session.leftAt) {
@@ -293,6 +324,11 @@ function sessionDuration(session: PlayerSession): string {
   return '0秒'
 }
 
+/**
+ * 把数据精确度标识映射成中文标签。
+ * @param value - 精确度标识
+ * @returns 中文标签
+ */
 function accuracyLabel(value: string): string {
   const labels: Record<string, string> = {
     exact: '精确',
@@ -304,6 +340,11 @@ function accuracyLabel(value: string): string {
   return labels[value] ?? (value || '未知')
 }
 
+/**
+ * 把数据精确度标识映射成标签配色。
+ * @param value - 精确度标识
+ * @returns naive-ui 标签的语义类型
+ */
 function accuracyTagType(value: string): 'default' | 'success' | 'warning' | 'error' | 'info' {
   if (value === 'exact') return 'success'
   if (value === 'incomplete') return 'error'
@@ -313,6 +354,11 @@ function accuracyTagType(value: string): 'default' | 'success' | 'warning' | 'er
   return 'default'
 }
 
+/**
+ * 从采集器状态中提取需要展示的异常说明。
+ * @param status - 采集器状态，结构不固定
+ * @returns 异常说明文本，无异常时为空串
+ */
 function collectorStatusIssue(status: unknown): string {
   if (!status) return ''
   if (typeof status === 'string') {

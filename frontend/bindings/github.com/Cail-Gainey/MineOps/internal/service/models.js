@@ -1475,7 +1475,7 @@ export class ServerPropertyValue {
 }
 
 /**
- * SparkInstallDependency describes one exact dependency installed with a Spark mod.
+ * SparkInstallDependency 描述随 Spark 模组一并安装的一个确切依赖。
  */
 export class SparkInstallDependency {
     /**
@@ -1587,7 +1587,7 @@ export class SparkInstallDependency {
 }
 
 /**
- * SparkInstallPlan describes an exact approved artifact, source, target, backup, checksum, and restart impact.
+ * SparkInstallPlan 描述已核准的确切构件、来源、目标路径、备份、校验和与重启影响。
  */
 export class SparkInstallPlan {
     /**
@@ -1804,7 +1804,7 @@ export class SparkInstallPlan {
 }
 
 /**
- * SparkInstallResult contains the installed capability and exact plan used for the mutation.
+ * SparkInstallResult 承载安装后的能力与本次变更所用的确切计划。
  */
 export class SparkInstallResult {
     /**
@@ -1850,7 +1850,7 @@ export class SparkInstallResult {
 }
 
 /**
- * StorageStatus describes the active encrypted database and staged offline maintenance.
+ * StorageStatus 描述当前加密数据库与已排队的离线维护任务。
  */
 export class StorageStatus {
     /**

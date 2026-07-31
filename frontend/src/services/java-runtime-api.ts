@@ -14,7 +14,12 @@ import {
 } from '../../bindings/github.com/Cail-Gainey/MineOps/internal/desktop/services/javaruntimeservice'
 import { throwIfError } from './api-client'
 
-/** Lists persisted Java Runtimes for one SSH Session. */
+/**
+ * 列出某个 SSH Session 上已登记的 Java 运行时。
+ * @param sshSessionID - SSH Session ID
+ * @param majorVersion - 主版本号过滤，0 表示不过滤
+ * @returns Java 运行时数组
+ */
 export async function listJavaRuntimes(
   sshSessionID: string,
   majorVersion = 0,
@@ -24,14 +29,23 @@ export async function listJavaRuntimes(
   return result.javaRuntimes
 }
 
-/** Discovers and validates remote Java candidates. */
+/**
+ * 在远端主机上探测可用的 Java 候选。
+ * @param sshSessionID - SSH Session ID
+ * @returns Java 候选数组
+ */
 export async function discoverJavaRuntimes(sshSessionID: string): Promise<JavaCandidate[]> {
   const result = await Discover(sshSessionID)
   throwIfError(result.error)
   return result.candidates
 }
 
-/** Validates one manually supplied remote Java executable. */
+/**
+ * 校验远端某个可执行文件是否为可用的 Java。
+ * @param sshSessionID - SSH Session ID
+ * @param executablePath - 远端可执行文件路径
+ * @returns 校验后的 Java 候选
+ */
 export async function validateJavaRuntime(
   sshSessionID: string,
   executablePath: string,
@@ -42,7 +56,12 @@ export async function validateJavaRuntime(
   return result.candidates[0]
 }
 
-/** Validates and registers one remote Java executable. */
+/**
+ * 把远端某个 Java 可执行文件登记为运行时。
+ * @param sshSessionID - SSH Session ID
+ * @param executablePath - 远端可执行文件路径
+ * @returns 登记后的 Java 运行时
+ */
 export async function importJavaRuntime(
   sshSessionID: string,
   executablePath: string,
@@ -54,7 +73,7 @@ export async function importJavaRuntime(
 }
 
 /**
- * Starts a managed remote JDK installation.
+ * 发起一次受管的远端 JDK 安装。
  * @param sshSessionID - Target SSH Session ID
  * @param majorVersion - Approved Java major version
  * @param architecture - Linux JDK architecture
@@ -71,19 +90,34 @@ export async function installManagedJavaRuntime(
   return result.operationID
 }
 
-/** Marks one Java Runtime as the SSH Session default. */
+/**
+ * 把某个 Java 运行时设为该 SSH Session 的默认项。
+ * @param sshSessionID - SSH Session ID
+ * @param id - Java 运行时 ID
+ * @returns 设置完成后的 Promise
+ */
 export async function setDefaultJavaRuntime(sshSessionID: string, id: string): Promise<void> {
   const result = await SetDefault(sshSessionID, id)
   throwIfError(result.error)
 }
 
-/** Deletes one unreferenced Java registration without deleting remote files. */
+/**
+ * 删除一条 Java 运行时登记。
+ * @param id - Java 运行时 ID
+ * @returns 删除完成后的 Promise
+ */
 export async function deleteJavaRuntime(id: string): Promise<void> {
   const result = await Delete(id)
   throwIfError(result.error)
 }
 
-/** Recommends the closest compatible Java Runtime for a Minecraft server version. */
+/**
+ * 按服务端类型与 Minecraft 版本推荐合适的 Java 运行时。
+ * @param sshSessionID - SSH Session ID
+ * @param serverType - 服务端类型
+ * @param minecraftVersion - Minecraft 版本
+ * @returns 推荐的 Java 运行时
+ */
 export async function recommendJavaRuntime(
   sshSessionID: string,
   serverType: string,
@@ -95,7 +129,12 @@ export async function recommendJavaRuntime(
   return result.javaRuntime
 }
 
-/** Lists approved provider-neutral Linux JDK artifacts from the configured catalog. */
+/**
+ * 列出可下载安装的 JDK 构件。
+ * @param majorVersion - JDK 主版本号
+ * @param architecture - 目标架构
+ * @returns JDK 构件数组
+ */
 export async function listJDKArtifacts(
   majorVersion: number,
   architecture: string,

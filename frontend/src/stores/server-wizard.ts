@@ -74,7 +74,10 @@ export const useServerWizardStore = defineStore('server-wizard', () => {
   })
   const running = computed(() => task.value?.state === 'running' || task.value?.state === 'waiting')
 
-  /** Initializes sessions, dynamic distributions, persisted draft, and task recovery. */
+  /**
+   * 加载向导所需的 SSH Session、发行版与 Java 运行时选项。
+   * @returns 初始化完成后的 Promise
+   */
   async function initialize(): Promise<void> {
     loading.value = true
     error.value = null
@@ -117,7 +120,11 @@ export const useServerWizardStore = defineStore('server-wizard', () => {
     }
   }
 
-  /** Loads provider versions when the selected dynamic distribution changes. */
+  /**
+   * 加载指定发行版可安装的版本列表。
+   * @param distribution - 发行版标识，默认取当前草稿的服务端类型
+   * @returns 加载完成后的 Promise
+   */
   async function loadVersions(distribution = server.value.type): Promise<void> {
     const targetDistribution = distribution.trim()
     const generation = ++versionRequestGeneration
@@ -161,7 +168,10 @@ export const useServerWizardStore = defineStore('server-wizard', () => {
     }
   }
 
-  /** Tests the selected persisted SSH Session and records handshake evidence. */
+  /**
+   * 测试当前选中的 SSH Session 连通性。
+   * @returns 测试完成后的 Promise
+   */
   async function testSelectedSSH(): Promise<void> {
     const id = selectedSSHSessionID.value
     if (!id) throw new Error('请选择 SSH Session')
@@ -169,7 +179,10 @@ export const useServerWizardStore = defineStore('server-wizard', () => {
     connectionEvidence.value = `${evidence.serverVersion} · ${evidence.remoteAddress} · ${evidence.connectDurationMs}ms`
   }
 
-  /** Creates a write-only credential SSH Session, synchronizes the list, and tests it. */
+  /**
+   * 用向导内填写的信息新建 SSH Session 并立即测试连通性。
+   * @returns 创建并测试完成后的 Promise
+   */
   async function createAndTestSSH(): Promise<void> {
     const created = await createSSHSession({ ...newSSH.value })
     newSSH.value.secret = ''
@@ -180,7 +193,10 @@ export const useServerWizardStore = defineStore('server-wizard', () => {
     await testSelectedSSH()
   }
 
-  /** Advances the three-step wizard after validating the active step. */
+  /**
+   * 校验当前步骤后进入下一步。
+   * @returns 跳转完成后的 Promise
+   */
   async function next(): Promise<void> {
     if (currentStep.value === 1) {
       if (sshMode.value === 'new') await createAndTestSSH()
@@ -195,7 +211,10 @@ export const useServerWizardStore = defineStore('server-wizard', () => {
     }
   }
 
-  /** Creates the temporary Server and starts the durable installation Operation. */
+  /**
+   * 校验草稿、创建 Server 并启动安装任务。
+   * @returns 提交完成后的 Promise
+   */
   async function submit(): Promise<void> {
     validateServerDraft()
     if (!server.value.eulaAccepted) throw new Error('请先确认 Minecraft EULA 自动写入行为')
@@ -250,7 +269,10 @@ export const useServerWizardStore = defineStore('server-wizard', () => {
     }
   }
 
-  /** Refreshes the durable task so closing and reopening the Wizard does not lose state. */
+  /**
+   * 拉取当前安装任务的最新聚合状态。
+   * @returns 刷新完成后的 Promise
+   */
   async function refreshTask(): Promise<void> {
     const requestedTaskID = taskID.value
     if (!requestedTaskID) return
@@ -261,14 +283,20 @@ export const useServerWizardStore = defineStore('server-wizard', () => {
     steps.value = aggregate.steps
   }
 
-  /** Requests cancellation while retaining completed checkpoints. */
+  /**
+   * 取消进行中的安装任务。
+   * @returns 取消完成后的 Promise
+   */
   async function cancel(): Promise<void> {
     if (!operationID.value) return
     await cancelInstallation(operationID.value)
     await refreshTask()
   }
 
-  /** Starts a replacement Operation for incomplete steps only. */
+  /**
+   * 重试失败的安装任务。
+   * @returns 重试完成后的 Promise
+   */
   async function retry(): Promise<void> {
     if (!taskID.value) return
     const started = await retryInstallation(taskID.value)
@@ -276,7 +304,12 @@ export const useServerWizardStore = defineStore('server-wizard', () => {
     await refreshTask()
   }
 
-  /** Applies backup, rename, or cancel to the failed directory decision step. */
+  /**
+   * 处理安装目录冲突：备份、改名或取消。
+   * @param action - 冲突处理方式
+   * @param newName - 改名时的新目录名
+   * @returns 处理完成后的 Promise
+   */
   async function resolveDirectoryConflict(
     action: 'backup' | 'rename' | 'cancel',
     newName = '',
@@ -287,7 +320,10 @@ export const useServerWizardStore = defineStore('server-wizard', () => {
     await refreshTask()
   }
 
-  /** Resets the draft while leaving an already-started backend task untouched. */
+  /**
+   * 把向导恢复到初始步骤与空白草稿。
+   * @returns 无返回值
+   */
   function resetDraft(): void {
     currentStep.value = 1
     sshMode.value = sshSessions.sessions.length ? 'existing' : 'new'
@@ -305,6 +341,10 @@ export const useServerWizardStore = defineStore('server-wizard', () => {
     sessionStorage.removeItem(storageKey)
   }
 
+  /**
+   * 校验 Server 草稿的必填项与格式，不合法时抛出异常。
+   * @returns 无返回值
+   */
   function validateServerDraft(): void {
     const name = server.value.name.trim()
     if (!selectedSSHSessionID.value || !name || !server.value.type || !server.value.version) {
@@ -330,6 +370,10 @@ export const useServerWizardStore = defineStore('server-wizard', () => {
     server.value.launchProfile.workingDirectory = server.value.remotePath
   }
 
+  /**
+   * 从会话存储恢复上次未完成的向导草稿。
+   * @returns 无返回值
+   */
   function restoreDraft(): void {
     const payload = sessionStorage.getItem(storageKey)
     if (!payload) return
@@ -440,6 +484,10 @@ export const useServerWizardStore = defineStore('server-wizard', () => {
   }
 })
 
+/**
+ * 构造一份空白的 SSH Session 输入。
+ * @returns 空白 SSH Session 输入
+ */
 function emptySSHInput(): SSHSessionInput {
   return {
     name: '',
@@ -461,6 +509,10 @@ function emptySSHInput(): SSHSessionInput {
   }
 }
 
+/**
+ * 构造一份空白的 Server 输入。
+ * @returns 空白 Server 输入
+ */
 function emptyServerInput(): MinecraftServerInput {
   return {
     sshSessionID: '',
@@ -485,6 +537,11 @@ function emptyServerInput(): MinecraftServerInput {
   }
 }
 
+/**
+ * 把名称转换成可安全用作目录名的字符串。
+ * @param value - 原始名称
+ * @returns 过滤掉非法字符后的目录名
+ */
 function safeDirectoryName(value: string): string {
   return (
     value
@@ -495,6 +552,11 @@ function safeDirectoryName(value: string): string {
   )
 }
 
+/**
+ * 按服务端类型给出默认的 JVM 启动参数。
+ * @param serverType - 服务端类型
+ * @returns 默认启动参数数组，代理端返回空数组
+ */
 function defaultServerArguments(serverType: string): string[] {
   return ['velocity', 'waterfall', 'bungeecord'].includes(serverType) ? [] : ['nogui']
 }

@@ -11,7 +11,7 @@ import (
 
 const SettingsSchemaVersion = 5
 
-// SettingsSnapshot is the complete validated application configuration loaded from encrypted SQLite.
+// SettingsSnapshot 是从加密 SQLite 载入并校验通过的完整应用配置。
 type SettingsSnapshot struct {
 	SchemaVersion int                `json:"schemaVersion"`
 	General       GeneralSettings    `json:"general"`
@@ -28,7 +28,7 @@ type SettingsSnapshot struct {
 	Storage       StorageSettings    `json:"storage"`
 }
 
-// GeneralSettings contains language and common desktop behavior.
+// GeneralSettings 存放语言与常规桌面行为设置。
 type GeneralSettings struct {
 	Language         string `json:"language"`
 	LaunchAtStartup  bool   `json:"launchAtStartup"`
@@ -42,7 +42,7 @@ type GeneralSettings struct {
 	HardwareAcceleration bool `json:"hardwareAcceleration"`
 }
 
-// ThemeSettings contains the persisted semantic theme selection.
+// ThemeSettings 存放持久化的语义化主题选择。
 type ThemeSettings struct {
 	Mode              string  `json:"mode"`
 	Preset            string  `json:"preset"`
@@ -57,21 +57,21 @@ type ThemeSettings struct {
 	HighContrast      bool    `json:"highContrast"`
 }
 
-// PathSettings contains controlled local default directories.
+// PathSettings 存放受控的本地默认目录。
 type PathSettings struct {
 	ServersDirectory   string `json:"serversDirectory"`
 	DownloadsDirectory string `json:"downloadsDirectory"`
 	BackgroundImage    string `json:"backgroundImage"`
 }
 
-// MirrorSettings contains approved source overrides without credential material.
+// MirrorSettings 存放已审核的镜像源覆盖项,不含任何凭据材料。
 type MirrorSettings struct {
 	Java      string `json:"java"`
 	Minecraft string `json:"minecraft"`
 	Spark     string `json:"spark"`
 }
 
-// DownloadSourceSettings is one ordered official or mirror endpoint in the download source registry.
+// DownloadSourceSettings 是下载源注册表中一个有序的官方源或镜像源端点。
 type DownloadSourceSettings struct {
 	Category string `json:"category"`
 	Provider string `json:"provider"`
@@ -83,7 +83,7 @@ type DownloadSourceSettings struct {
 	Priority int    `json:"priority"`
 }
 
-// ProxySettings contains non-secret proxy routing and an encrypted credential reference.
+// ProxySettings 存放非机密的代理路由信息与一个加密凭据引用。
 type ProxySettings struct {
 	Mode         enums.ProxyMode `json:"mode"`
 	Host         string          `json:"host"`
@@ -92,7 +92,7 @@ type ProxySettings struct {
 	CredentialID string          `json:"credentialID,omitempty"`
 }
 
-// DownloadSettings contains source, timeout, retry, concurrency, proxy, and cache policy.
+// DownloadSettings 存放下载源、超时、重试、并发、代理与缓存策略。
 type DownloadSettings struct {
 	Sources               []DownloadSourceSettings `json:"sources"`
 	TimeoutSeconds        int                      `json:"timeoutSeconds"`
@@ -107,7 +107,7 @@ type DownloadSettings struct {
 	Proxy                 ProxySettings            `json:"proxy"`
 }
 
-// LoggingSettings contains runtime log level and retention limits.
+// LoggingSettings 存放运行期日志等级与保留上限。
 type LoggingSettings struct {
 	Level            string `json:"level"`
 	MaxFileMiB       int    `json:"maxFileMiB"`
@@ -115,7 +115,7 @@ type LoggingSettings struct {
 	TotalCapacityMiB int    `json:"totalCapacityMiB"`
 }
 
-// MonitoringSettings contains collection and retention defaults.
+// MonitoringSettings 存放采集与保留期的默认值。
 type MonitoringSettings struct {
 	IntervalSeconds            int      `json:"intervalSeconds"`
 	RealtimeThrottleMillis     int      `json:"realtimeThrottleMillis"`
@@ -135,7 +135,7 @@ type MonitoringSettings struct {
 	QuietHoursEnd              string   `json:"quietHoursEnd"`
 }
 
-// FirewallSettings contains the preferred firewall backend and confirmation behavior.
+// FirewallSettings 存放首选防火墙后端与确认行为。
 type FirewallSettings struct {
 	Provider                  string `json:"provider"`
 	DefaultPolicy             string `json:"defaultPolicy"`
@@ -145,7 +145,7 @@ type FirewallSettings struct {
 	RequireDestructiveConfirm bool   `json:"requireDestructiveConfirm"`
 }
 
-// LayoutSettings contains the persisted Root Layout visibility and sizing preferences.
+// LayoutSettings 存放持久化的根布局显隐与尺寸偏好。
 type LayoutSettings struct {
 	SidebarCollapsed bool `json:"sidebarCollapsed"`
 	SidebarVisible   bool `json:"sidebarVisible"`
@@ -154,7 +154,7 @@ type LayoutSettings struct {
 	BottomBarVisible bool `json:"bottomBarVisible"`
 }
 
-// SSHSettings contains secure global defaults inherited by SSH Sessions without explicit overrides.
+// SSHSettings 存放全局安全默认值,未显式覆盖的 SSH Session 继承这些值。
 type SSHSettings struct {
 	DefaultPort          uint16   `json:"defaultPort"`
 	ConnectTimeoutSec    int      `json:"connectTimeoutSec"`
@@ -172,7 +172,7 @@ type SSHSettings struct {
 	DefaultJumpHostID    string   `json:"defaultJumpHostID,omitempty"`
 }
 
-// StorageSettings contains non-secret backup preferences and destructive-operation safeguards.
+// StorageSettings 存放非机密的备份偏好与破坏性操作的保护开关。
 type StorageSettings struct {
 	BackupDirectory         string `json:"backupDirectory"`
 	VerifyBackupAfterCreate bool   `json:"verifyBackupAfterCreate"`
@@ -180,7 +180,7 @@ type StorageSettings struct {
 	RequireKeyRotateConfirm bool   `json:"requireKeyRotateConfirm"`
 }
 
-// TerminalSettings contains xterm typography, cursor, behavior, and colour preferences.
+// TerminalSettings 存放 xterm 的字体排印、光标、行为与配色偏好。
 type TerminalSettings struct {
 	FontFamily    string   `json:"fontFamily"`
 	FontSize      int      `json:"fontSize"`
@@ -201,7 +201,7 @@ type TerminalSettings struct {
 	BellStyle     string   `json:"bellStyle"`
 }
 
-// DefaultSettings returns the embedded versioned settings baseline.
+// DefaultSettings 返回内置的带版本设置基线。
 func DefaultSettings() SettingsSnapshot {
 	return SettingsSnapshot{
 		SchemaVersion: SettingsSchemaVersion,
@@ -272,7 +272,7 @@ func DefaultSettings() SettingsSnapshot {
 	}
 }
 
-// Validate checks the complete settings snapshot without performing I/O.
+// Validate 在不做任何 I/O 的前提下校验完整的设置快照。
 func (s SettingsSnapshot) Validate() error {
 	if s.SchemaVersion != SettingsSchemaVersion {
 		return apperror.New(apperror.CodeValidationInvalidArgument, "Settings Schema Version 不受支持")

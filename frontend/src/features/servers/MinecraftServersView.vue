@@ -333,6 +333,11 @@ const actionsColumn: ServerColumn = {
         ),
 }
 
+/**
+ * 统计该行可用操作数量，用于决定操作列宽度。
+ * @param server - 当前行的 Server
+ * @returns 可用操作数量
+ */
 function serverActionCount(server: MinecraftServer): number {
   if (server.deletedAt) return 2
   let count = 3
@@ -457,6 +462,11 @@ const columns = computed<DataTableColumns<MinecraftServer>>(() => {
   return [serverColumn, stateColumn, responsiveActionsColumn]
 })
 
+/**
+ * 计算该 Server 的运行时长秒数。
+ * @param server - 目标 Server
+ * @returns 运行秒数，未运行时为 0
+ */
 function uptimeSeconds(server: MinecraftServer): number {
   if (server.state !== 'running') return 0
   const uptime = serverUptimes.value[server.id]
@@ -465,6 +475,11 @@ function uptimeSeconds(server: MinecraftServer): number {
   return Math.max(0, Math.floor(uptime.seconds) + elapsedSinceSample)
 }
 
+/**
+ * 把运行时长格式化成天时分秒文本。
+ * @param server - 目标 Server
+ * @returns 运行时长文本，未运行时返回破折号
+ */
 function formatServerUptime(server: MinecraftServer): string {
   if (server.state !== 'running') return '—'
   const seconds = uptimeSeconds(server)
@@ -479,6 +494,13 @@ function formatServerUptime(server: MinecraftServer): string {
   return `${minutes} 分钟`
 }
 
+/**
+ * 以一次采样为基准记录运行时长，供本地按秒推算。
+ * @param serverID - 目标 Server ID
+ * @param seconds - 采样时刻的运行秒数
+ * @param timestamp - 采样时间戳
+ * @returns 无返回值
+ */
 function updateServerUptime(serverID: string, seconds: number, timestamp: string): void {
   const sampledAt = Date.parse(timestamp)
   if (!Number.isFinite(sampledAt)) return
@@ -490,6 +512,10 @@ function updateServerUptime(serverID: string, seconds: number, timestamp: string
   }
 }
 
+/**
+ * 批量拉取运行中 Server 的运行时长基准。
+ * @returns 加载完成后的 Promise
+ */
 async function loadServerUptimes(): Promise<void> {
   const runningServers = store.servers.filter((server) => server.state === 'running')
   const runningIDs = new Set(runningServers.map((server) => server.id))
@@ -505,12 +531,16 @@ async function loadServerUptimes(): Promise<void> {
           .sort((left, right) => Date.parse(right.timestamp) - Date.parse(left.timestamp))[0]
         if (uptimeSample) updateServerUptime(server.id, uptimeSample.value, uptimeSample.timestamp)
       } catch {
-        // Uptime is supplementary list data; the realtime metric stream may still populate it.
+        // 运行时长属于列表的补充数据;实时指标流仍可能继续回填它。
       }
     }),
   )
 }
 
+/**
+ * 重新加载 Server 列表与运行时长。
+ * @returns 刷新完成后的 Promise
+ */
 async function refresh(): Promise<void> {
   try {
     await store.refresh()
@@ -520,6 +550,13 @@ async function refresh(): Promise<void> {
   }
 }
 
+/**
+ * 按生命周期操作结果推送成功或失败通知。
+ * @param server - 目标 Server
+ * @param action - 生命周期动作
+ * @param error - 失败时的错误，成功时为空
+ * @returns 无返回值
+ */
 function notifyLifecycleOperation(
   server: MinecraftServer,
   action: string,
@@ -533,6 +570,11 @@ function notifyLifecycleOperation(
   })
 }
 
+/**
+ * 启动 Server 并跟踪操作进度。
+ * @param server - 目标 Server
+ * @returns 启动完成后的 Promise
+ */
 async function startLifecycle(server: MinecraftServer): Promise<void> {
   lifecycleActions.value[server.id] = 'start'
   let operationID = ''
@@ -596,6 +638,11 @@ async function startLifecycle(server: MinecraftServer): Promise<void> {
   }
 }
 
+/**
+ * 停止 Server 并跟踪操作进度。
+ * @param server - 目标 Server
+ * @returns 停止完成后的 Promise
+ */
 async function stopLifecycle(server: MinecraftServer): Promise<void> {
   lifecycleActions.value[server.id] = 'stop'
   let operationID = ''
@@ -611,6 +658,11 @@ async function stopLifecycle(server: MinecraftServer): Promise<void> {
   }
 }
 
+/**
+ * 重启 Server 并跟踪操作进度。
+ * @param server - 目标 Server
+ * @returns 重启完成后的 Promise
+ */
 async function restartLifecycle(server: MinecraftServer): Promise<void> {
   lifecycleActions.value[server.id] = 'restart'
   let operationID = ''
@@ -653,6 +705,11 @@ async function restartLifecycle(server: MinecraftServer): Promise<void> {
   }
 }
 
+/**
+ * 二次确认后软删除 Server，保留远端文件。
+ * @param server - 目标 Server
+ * @returns 删除完成后的 Promise
+ */
 async function softDelete(server: MinecraftServer): Promise<void> {
   const confirmed = await interactions.confirm({
     title: '软删除 Minecraft Server？',
@@ -670,6 +727,11 @@ async function softDelete(server: MinecraftServer): Promise<void> {
   }
 }
 
+/**
+ * 恢复一个已软删除的 Server。
+ * @param server - 目标 Server
+ * @returns 恢复完成后的 Promise
+ */
 async function restore(server: MinecraftServer): Promise<void> {
   try {
     await store.restore(server.id)
@@ -678,6 +740,10 @@ async function restore(server: MinecraftServer): Promise<void> {
   }
 }
 
+/**
+ * 打开导入已有 Server 的表单。
+ * @returns 无返回值
+ */
 function openImport(): void {
   inspection.value = null
   importSSHSessionID.value = sshSessions.sessions[0]?.id ?? ''
@@ -691,6 +757,10 @@ function openImport(): void {
   void loadImportJavaRuntimes()
 }
 
+/**
+ * 为导入表单加载所选 SSH Session 上的 Java 运行时。
+ * @returns 加载完成后的 Promise
+ */
 async function loadImportJavaRuntimes(): Promise<void> {
   importJavaError.value = null
   importJavaRuntimes.value = []
@@ -710,6 +780,10 @@ async function loadImportJavaRuntimes(): Promise<void> {
   }
 }
 
+/**
+ * 探测远端目录，识别可导入的 Server 信息。
+ * @returns 探测完成后的 Promise
+ */
 async function inspectImport(): Promise<void> {
   if (!importSSHSessionID.value || !importPath.value.trim()) return
   importLoading.value = true
@@ -731,6 +805,10 @@ async function inspectImport(): Promise<void> {
   }
 }
 
+/**
+ * 按探测结果提交 Server 导入。
+ * @returns 导入完成后的 Promise
+ */
 async function submitImport(): Promise<void> {
   if (
     !inspection.value ||
@@ -779,6 +857,11 @@ async function submitImport(): Promise<void> {
   }
 }
 
+/**
+ * 打开指定 Server 的编辑表单。
+ * @param server - 待编辑的 Server
+ * @returns 无返回值
+ */
 function openEdit(server: MinecraftServer): void {
   editTarget.value = server
   editDraft.value = {
@@ -805,6 +888,10 @@ function openEdit(server: MinecraftServer): void {
   editVisible.value = true
 }
 
+/**
+ * 提交 Server 编辑内容。
+ * @returns 保存完成后的 Promise
+ */
 async function submitEdit(): Promise<void> {
   if (!editTarget.value || !editDraft.value) return
   editLoading.value = true
@@ -824,6 +911,11 @@ async function submitEdit(): Promise<void> {
   }
 }
 
+/**
+ * 打开硬删除确认表单。
+ * @param server - 待硬删除的 Server
+ * @returns 无返回值
+ */
 function openHardDelete(server: MinecraftServer): void {
   hardDeleteTarget.value = server
   confirmedDeleteName.value = ''
@@ -831,12 +923,20 @@ function openHardDelete(server: MinecraftServer): void {
   hardDeleteVisible.value = true
 }
 
+/**
+ * 把确认输入框自动填成目标 Server 名称。
+ * @returns 无返回值
+ */
 function fillHardDeleteConfirmation(): void {
   if (!hardDeleteTarget.value) return
   confirmedDeleteName.value = hardDeleteTarget.value.name
   confirmedDeletePath.value = hardDeleteTarget.value.remotePath
 }
 
+/**
+ * 校验确认输入后硬删除 Server 及其远端文件。
+ * @returns 删除完成后的 Promise
+ */
 async function submitHardDelete(): Promise<void> {
   if (!hardDeleteTarget.value) return
   const targetID = hardDeleteTarget.value.id
@@ -863,6 +963,12 @@ async function submitHardDelete(): Promise<void> {
   }
 }
 
+/**
+ * 推送一条错误通知。
+ * @param title - 通知标题
+ * @param error - 捕获到的错误
+ * @returns 无返回值
+ */
 function notifyError(title: string, error: unknown): void {
   notifications.push({
     kind: 'error',

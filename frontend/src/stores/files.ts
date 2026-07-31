@@ -53,6 +53,12 @@ export const useFilesStore = defineStore('files', () => {
     operations.active.filter((operation) => operation.targetType === 'file'),
   )
 
+  /**
+   * 加载 SSH Session 列表并进入初始目录。
+   * @param preferredSessionID - 优先选中的 SSH Session ID
+   * @param initialPath - 初始目录路径
+   * @returns 初始化完成后的 Promise
+   */
   async function initialize(preferredSessionID = '', initialPath = '~'): Promise<void> {
     loading.value = true
     sessionError.value = null
@@ -83,6 +89,11 @@ export const useFilesStore = defineStore('files', () => {
     }
   }
 
+  /**
+   * 切换目标 SSH Session 并重置浏览历史。
+   * @param id - SSH Session ID
+   * @returns 切换完成后的 Promise
+   */
   async function selectSession(id: string): Promise<void> {
     selectedSessionID.value = id
     currentPath.value = ''
@@ -93,6 +104,12 @@ export const useFilesStore = defineStore('files', () => {
     await navigate('~', false)
   }
 
+  /**
+   * 进入指定远端目录，可选择是否记入前进后退历史。
+   * @param path - 目标目录路径
+   * @param recordHistory - 是否记入浏览历史
+   * @returns 跳转完成后的 Promise
+   */
   async function navigate(path: string, recordHistory = true): Promise<void> {
     if (!selectedSessionID.value) return
     loading.value = true
@@ -118,6 +135,10 @@ export const useFilesStore = defineStore('files', () => {
     }
   }
 
+  /**
+   * 回到浏览历史中的上一个目录。
+   * @returns 跳转完成后的 Promise
+   */
   async function back(): Promise<void> {
     if (!canBack.value) return
     historyIndex.value--
@@ -125,6 +146,10 @@ export const useFilesStore = defineStore('files', () => {
     if (path !== undefined) await navigate(path, false)
   }
 
+  /**
+   * 前进到浏览历史中的下一个目录。
+   * @returns 跳转完成后的 Promise
+   */
   async function forward(): Promise<void> {
     if (!canForward.value) return
     historyIndex.value++
@@ -132,12 +157,21 @@ export const useFilesStore = defineStore('files', () => {
     if (path !== undefined) await navigate(path, false)
   }
 
+  /**
+   * 进入上级目录。
+   * @returns 跳转完成后的 Promise
+   */
   async function up(): Promise<void> {
     if (!currentPath.value || currentPath.value === '/') return
     const parent = currentPath.value.slice(0, currentPath.value.lastIndexOf('/')) || '/'
     await navigate(parent)
   }
 
+  /**
+   * 打开远端条目：目录则进入，文件则载入文本编辑器。
+   * @param entry - 目标远端条目
+   * @returns 打开完成后的 Promise
+   */
   async function open(entry: RemoteFile): Promise<void> {
     if (entry.kind === 'directory') {
       await navigate(entry.path)
@@ -157,6 +191,10 @@ export const useFilesStore = defineStore('files', () => {
     }
   }
 
+  /**
+   * 重新读取当前打开的远端文本文件。
+   * @returns 重载完成后的 Promise
+   */
   async function reloadDocument(): Promise<void> {
     if (!document.value) return
     document.value = await readRemoteText(
@@ -167,6 +205,12 @@ export const useFilesStore = defineStore('files', () => {
     conflictMessage.value = ''
   }
 
+  /**
+   * 按预期版本保存当前远端文本文件。
+   * @param content - 完整文件内容
+   * @param expectedVersion - 读取时拿到的版本标识
+   * @returns 保存完成后的 Promise
+   */
   async function saveDocument(content: string, expectedVersion: string): Promise<void> {
     if (!document.value) return
     saving.value = true
@@ -190,6 +234,12 @@ export const useFilesStore = defineStore('files', () => {
     }
   }
 
+  /**
+   * 把当前内容另存为远端新文件。
+   * @param path - 目标文件路径
+   * @param content - 文件内容
+   * @returns 保存完成后的 Promise
+   */
   async function saveDocumentAs(path: string, content: string): Promise<void> {
     saving.value = true
     try {
@@ -206,6 +256,11 @@ export const useFilesStore = defineStore('files', () => {
     }
   }
 
+  /**
+   * 执行一次会改变目录内容的操作，完成后自动刷新列表。
+   * @param action - 待执行的异步动作
+   * @returns 操作完成后的 Promise
+   */
   async function mutate(action: () => Promise<void>): Promise<void> {
     loading.value = true
     try {
@@ -216,6 +271,10 @@ export const useFilesStore = defineStore('files', () => {
     }
   }
 
+  /**
+   * 选择本地文件并上传到当前远端目录。
+   * @returns 上传发起后的 Promise
+   */
   async function upload(): Promise<void> {
     if (!selectedSessionID.value) return
     const result = await pickAndUploadRemoteFiles(
@@ -228,6 +287,11 @@ export const useFilesStore = defineStore('files', () => {
     }
   }
 
+  /**
+   * 选择本地保存位置并下载远端文件。
+   * @param entry - 目标远端条目
+   * @returns 下载发起后的 Promise
+   */
   async function download(entry: RemoteFile): Promise<void> {
     if (!selectedSessionID.value || entry.kind !== 'file') return
     const result = await pickAndDownloadRemoteFile(
@@ -240,6 +304,12 @@ export const useFilesStore = defineStore('files', () => {
     }
   }
 
+  /**
+   * 在远端解压 ZIP 压缩包到指定目录。
+   * @param entry - 压缩包条目
+   * @param destinationPath - 解压目标目录
+   * @returns 解压发起后的 Promise
+   */
   async function extractZIP(entry: RemoteFile, destinationPath: string): Promise<void> {
     if (!selectedSessionID.value || entry.kind !== 'file') return
     const result = await extractRemoteZIP(

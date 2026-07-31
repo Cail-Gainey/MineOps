@@ -310,6 +310,11 @@ interface BaseTokenColours {
   lineHighlight: string
 }
 
+/**
+ * 按底色推导出整套基础主题令牌。
+ * @param colours - 主题的基准配色
+ * @returns 基础主题令牌
+ */
 function createBaseTokens(colours: BaseTokenColours): ThemeBaseTokens {
   const dark = isDarkColour(colours.canvas)
   return {
@@ -344,6 +349,11 @@ function createBaseTokens(colours: BaseTokenColours): ThemeBaseTokens {
   }
 }
 
+/**
+ * 判断一个十六进制颜色是否属于深色。
+ * @param colour - 十六进制颜色
+ * @returns 深色时返回 true
+ */
 function isDarkColour(colour: string): boolean {
   const value = colour.replace('#', '')
   const red = Number.parseInt(value.slice(0, 2), 16)

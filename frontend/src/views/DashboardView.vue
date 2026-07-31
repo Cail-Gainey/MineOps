@@ -164,6 +164,11 @@ const serverTypeSummary = computed(() => {
   return types.length ? types.slice(0, 3).join(' · ') : '尚未配置服务器类型'
 })
 
+/**
+ * 把任务状态映射成标签配色。
+ * @param operation - 目标任务
+ * @returns naive-ui 标签的语义类型
+ */
 function operationType(operation: Operation): 'default' | 'info' | 'success' | 'warning' | 'error' {
   switch (operation.state) {
     case 'running':
@@ -179,14 +184,29 @@ function operationType(operation: Operation): 'default' | 'info' | 'success' | '
   }
 }
 
+/**
+ * 跳转到指定路径。
+ * @param path - 目标路由路径
+ * @returns 无返回值
+ */
 function navigate(path: string): void {
   void router.push(path)
 }
 
+/**
+ * 跳转到某台 Server 详情页的玩家分页。
+ * @param serverID - 目标 Server ID
+ * @returns 无返回值
+ */
 function navigateToPlayers(serverID: string): void {
   void router.push({ name: 'server-detail', params: { serverID }, query: { tab: 'players' } })
 }
 
+/**
+ * 批量刷新运行中 Server 的在线玩家数，丢弃过期请求的结果。
+ * @param targetServers - 待刷新的 Server 列表
+ * @returns 刷新完成后的 Promise
+ */
 async function refreshOnlinePlayers(targetServers: MinecraftServer[]): Promise<void> {
   const sequence = ++onlinePlayerRefreshSequence
   const runningServers = targetServers.filter((server) => server.state === 'running')
@@ -249,6 +269,11 @@ async function refreshOnlinePlayers(targetServers: MinecraftServer[]): Promise<v
   }
 }
 
+/**
+ * 在 Server 处于运行中时防抖地安排一次在线玩家刷新。
+ * @param serverID - 触发刷新的 Server ID
+ * @returns 无返回值
+ */
 function scheduleOnlinePlayerRefresh(serverID: string): void {
   if (!servers.value.some((server) => server.id === serverID && server.state === 'running')) return
   window.clearTimeout(playerRefreshTimer)
@@ -257,6 +282,10 @@ function scheduleOnlinePlayerRefresh(serverID: string): void {
   }, 200)
 }
 
+/**
+ * 重新加载仪表盘的 Server、任务与在线玩家数据。
+ * @returns 刷新完成后的 Promise
+ */
 async function refresh(): Promise<void> {
   loading.value = true
   try {

@@ -128,23 +128,47 @@ const serverTypeLabels: Record<string, string> = {
   bungeecord: 'BungeeCord',
 }
 
+/**
+ * 校验路由传入的分页标识，非法时回落到概览。
+ * @param tab - 路由中的分页标识
+ * @returns 合法的分页标识
+ */
 function resolveDetailTab(tab: unknown): string {
   const value = typeof tab === 'string' ? tab : ''
   return detailTabs.has(value) ? value : 'overview'
 }
 
+/**
+ * 把生命周期状态映射成中文标签。
+ * @param state - 生命周期状态标识
+ * @returns 中文标签，未知状态原样返回
+ */
 function lifecycleStateLabel(state: string): string {
   return lifecycleStateLabels[state] ?? state
 }
 
+/**
+ * 把安装完整性状态映射成中文标签。
+ * @param state - 安装状态标识
+ * @returns 中文标签，未知状态原样返回
+ */
 function installationStatusLabel(state: string): string {
   return installationStatusLabels[state] ?? state
 }
 
+/**
+ * 把安装任务状态映射成中文标签。
+ * @param state - 安装任务状态标识
+ * @returns 中文标签，未知状态原样返回
+ */
 function installationTaskStateLabel(state: string): string {
   return installationTaskStateLabels[state] ?? state
 }
 
+/**
+ * 加载 Server 列表，供详情页顶部快速切换。
+ * @returns 加载完成后的 Promise
+ */
 async function loadServerNavigation(): Promise<void> {
   try {
     serverList.value = await listMinecraftServers()
@@ -158,6 +182,11 @@ async function loadServerNavigation(): Promise<void> {
   }
 }
 
+/**
+ * 切换到另一台 Server 的详情页。
+ * @param serverID - 目标 Server ID，为空或同一台时忽略
+ * @returns 无返回值
+ */
 function navigateToServer(serverID: string | null): void {
   if (!serverID || serverID === server.value?.id) return
   void router.push({
@@ -167,7 +196,11 @@ function navigateToServer(serverID: string | null): void {
   })
 }
 
-/** Loads the newly registered Server so all following management features share its durable identity. */
+/**
+ * 重新加载当前 Server 详情，可选择跳过生命周期探测。
+ * @param probeLifecycle - 是否顺带探测运行状态
+ * @returns 刷新完成后的 Promise
+ */
 async function refresh(probeLifecycle = true): Promise<void> {
   loadError.value = null
   try {
@@ -194,6 +227,10 @@ async function refresh(probeLifecycle = true): Promise<void> {
   }
 }
 
+/**
+ * 重新探测当前 Server 的安装完整性。
+ * @returns 探测完成后的 Promise
+ */
 async function refreshInstallationStatus(): Promise<void> {
   if (!server.value || installationChecking.value) return
   installationChecking.value = true
@@ -207,6 +244,10 @@ async function refreshInstallationStatus(): Promise<void> {
   }
 }
 
+/**
+ * 启动当前 Server。
+ * @returns 启动完成后的 Promise
+ */
 async function start(): Promise<void> {
   if (!server.value) return
   actionLoading.value = true
@@ -271,6 +312,11 @@ async function start(): Promise<void> {
   }
 }
 
+/**
+ * 停止当前 Server，可选择强制结束。
+ * @param force - 是否强制结束进程
+ * @returns 停止完成后的 Promise
+ */
 async function stop(force = false): Promise<void> {
   if (!server.value) return
   if (force) {
@@ -295,6 +341,10 @@ async function stop(force = false): Promise<void> {
   }
 }
 
+/**
+ * 重启当前 Server。
+ * @returns 重启完成后的 Promise
+ */
 async function restart(): Promise<void> {
   if (!server.value) return
   actionLoading.value = true
@@ -337,6 +387,12 @@ async function restart(): Promise<void> {
   }
 }
 
+/**
+ * 推送一条生命周期操作错误通知。
+ * @param title - 通知标题
+ * @param error - 捕获到的错误
+ * @returns 无返回值
+ */
 function notifyActionError(title: string, error: unknown): void {
   notifications.push({
     kind: 'error',

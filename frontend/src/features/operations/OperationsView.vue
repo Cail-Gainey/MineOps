@@ -65,18 +65,38 @@ const typeOptions = Object.entries(typeLabels).map(([value, label]) => ({ label,
 const targetOptions = Object.entries(targetLabels).map(([value, label]) => ({ label, value }))
 const stateOptions = Object.entries(stateLabels).map(([value, label]) => ({ label, value }))
 
+/**
+ * 把任务类型映射成中文标签。
+ * @param value - 任务类型标识
+ * @returns 中文标签，未知类型原样返回
+ */
 function typeLabel(value: string): string {
   return typeLabels[value] ?? value
 }
 
+/**
+ * 把任务目标类型映射成中文标签。
+ * @param value - 目标类型标识
+ * @returns 中文标签，未知类型原样返回
+ */
 function targetLabel(value: string): string {
   return targetLabels[value] ?? value
 }
 
+/**
+ * 把任务状态映射成中文标签。
+ * @param value - 任务状态标识
+ * @returns 中文标签，未知状态原样返回
+ */
 function stateLabel(value: string): string {
   return stateLabels[value] ?? value
 }
 
+/**
+ * 判断一条任务是否满足当前的关键字与筛选条件。
+ * @param operation - 待判断的任务
+ * @returns 满足全部筛选条件时返回 true
+ */
 function matchesFilters(operation: Operation): boolean {
   if (typeFilter.value && operation.type !== typeFilter.value) return false
   if (targetFilter.value && operation.targetType !== targetFilter.value) return false
@@ -105,6 +125,10 @@ function matchesFilters(operation: Operation): boolean {
 const filteredActive = computed(() => operations.active.filter(matchesFilters))
 const filteredHistory = computed(() => operations.history.filter(matchesFilters))
 
+/**
+ * 清空关键字与全部筛选条件。
+ * @returns 无返回值
+ */
 function clearFilters(): void {
   keyword.value = ''
   typeFilter.value = null
@@ -112,10 +136,21 @@ function clearFilters(): void {
   stateFilter.value = null
 }
 
+/**
+ * 判断某条任务是否有进行中的操作。
+ * @param id - 任务 ID
+ * @returns 有进行中操作时返回 true
+ */
 function operationActionPending(id: string): boolean {
   return pendingActionIDs.value.has(id)
 }
 
+/**
+ * 标记或清除某条任务的操作进行中状态。
+ * @param id - 任务 ID
+ * @param pending - 是否进行中
+ * @returns 无返回值
+ */
 function setOperationActionPending(id: string, pending: boolean): void {
   const next = new Set(pendingActionIDs.value)
   if (pending) next.add(id)
@@ -123,6 +158,11 @@ function setOperationActionPending(id: string, pending: boolean): void {
   pendingActionIDs.value = next
 }
 
+/**
+ * 判断一条任务是否可以重试。
+ * @param operation - 待判断的任务
+ * @returns 可重试时返回 true
+ */
 function canRetry(operation: Operation): boolean {
   return (
     operation.type === 'install' &&
@@ -130,6 +170,11 @@ function canRetry(operation: Operation): boolean {
   )
 }
 
+/**
+ * 把任务状态映射成标签配色。
+ * @param state - 任务状态标识
+ * @returns naive-ui 标签的语义类型
+ */
 function stateType(state: string): 'default' | 'info' | 'success' | 'warning' | 'error' {
   switch (state) {
     case 'running':
@@ -245,6 +290,11 @@ const columns: DataTableColumns<Operation> = [
   },
 ]
 
+/**
+ * 按任务当前状态构建右键菜单项。
+ * @param row - 当前行的任务
+ * @returns 下拉菜单项数组
+ */
 function contextOptions(row: Operation): DropdownOption[] {
   const options: DropdownOption[] = [{ label: '查看详情', key: 'details' }]
   if (row.state === 'pending' || row.state === 'running') {
@@ -260,6 +310,11 @@ function contextOptions(row: Operation): DropdownOption[] {
   return options
 }
 
+/**
+ * 二次确认后取消一条进行中的任务。
+ * @param operation - 目标任务
+ * @returns 取消完成后的 Promise
+ */
 async function confirmCancel(operation: Operation): Promise<void> {
   const confirmed = await interactions.confirm({
     title: '取消后台任务？',
@@ -291,6 +346,11 @@ async function confirmCancel(operation: Operation): Promise<void> {
   }
 }
 
+/**
+ * 二次确认后重试一条失败的安装任务。
+ * @param operation - 目标任务
+ * @returns 重试完成后的 Promise
+ */
 async function confirmRetry(operation: Operation): Promise<void> {
   const confirmed = await interactions.confirm({
     title: '重试安装任务？',
@@ -321,6 +381,11 @@ async function confirmRetry(operation: Operation): Promise<void> {
   }
 }
 
+/**
+ * 二次确认后删除一条任务记录。
+ * @param operation - 目标任务
+ * @returns 删除完成后的 Promise
+ */
 async function confirmDelete(operation: Operation): Promise<void> {
   const confirmed = await interactions.confirm({
     title: '删除任务记录？',
@@ -352,6 +417,10 @@ async function confirmDelete(operation: Operation): Promise<void> {
   }
 }
 
+/**
+ * 二次确认后清空全部任务历史。
+ * @returns 清空完成后的 Promise
+ */
 async function confirmClearHistory(): Promise<void> {
   if (!operations.history.length) return
   const confirmed = await interactions.confirm({
@@ -384,11 +453,21 @@ async function confirmClearHistory(): Promise<void> {
   }
 }
 
+/**
+ * 把任务详情对象格式化成可读的 JSON 文本。
+ * @param details - 任务详情，可为空
+ * @returns JSON 文本，无内容时返回短横线
+ */
 function formatDetails(details: Record<string, unknown> | undefined): string {
   if (!details || Object.keys(details).length === 0) return '-'
   return JSON.stringify(details, null, 2)
 }
 
+/**
+ * 拉取最新任务状态并打开详情抽屉。
+ * @param operation - 目标任务
+ * @returns 打开完成后的 Promise
+ */
 async function showDetails(operation: Operation): Promise<void> {
   let current = operation
   try {
@@ -417,6 +496,11 @@ async function showDetails(operation: Operation): Promise<void> {
   })
 }
 
+/**
+ * 把任务 ID 复制到剪贴板。
+ * @param operation - 目标任务
+ * @returns 复制完成后的 Promise
+ */
 async function copyOperationID(operation: Operation): Promise<void> {
   try {
     await navigator.clipboard.writeText(operation.id)
@@ -436,6 +520,12 @@ async function copyOperationID(operation: Operation): Promise<void> {
   }
 }
 
+/**
+ * 分发右键菜单选中的动作。
+ * @param key - 菜单项 key
+ * @param operation - 当前行的任务
+ * @returns 无返回值
+ */
 function handleContextAction(key: string | number, operation: Operation): void {
   if (key === 'details') showDetails(operation)
   if (key === 'cancel') void confirmCancel(operation)

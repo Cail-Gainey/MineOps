@@ -12,7 +12,7 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-// SparkCapabilityRecord is the one-row-per-Server durable capability representation.
+// SparkCapabilityRecord 是每台 Server 一行的持久化能力记录。
 type SparkCapabilityRecord struct {
 	ServerID          string `gorm:"primaryKey;size:36"`
 	Status            string `gorm:"index;size:32"`
@@ -38,7 +38,7 @@ type SparkCapabilityRecord struct {
 	SchemaVersion     int
 }
 
-// SparkSnapshotRecord is the indexed durable TPS/MSPT snapshot representation.
+// SparkSnapshotRecord 是带索引的持久化 TPS/MSPT Snapshot 记录。
 type SparkSnapshotRecord struct {
 	ID                 string `gorm:"primaryKey;size:36"`
 	ServerID           string `gorm:"index:idx_spark_snapshot_server_time,priority:1;size:36"`
@@ -68,7 +68,7 @@ type SparkSnapshotRecord struct {
 	SchemaVersion      int
 }
 
-// SparkReportRecord is the indexed durable report workflow representation.
+// SparkReportRecord 是带索引的持久化报告流程记录。
 type SparkReportRecord struct {
 	ID                  string  `gorm:"primaryKey;size:36"`
 	ServerID            string  `gorm:"index:idx_spark_report_server_created,priority:1;size:36"`
@@ -96,6 +96,7 @@ type sparkRepository struct {
 	metrics  *gorm.DB
 }
 
+// SaveCapability 持久化某个 Server 探测到的 Spark 能力。
 func (r *sparkRepository) SaveCapability(ctx context.Context, capability *model.SparkCapability) error {
 	if capability == nil {
 		return apperror.New(apperror.CodeValidationRequired, "Spark Capability 不能为空")
@@ -110,6 +111,7 @@ func (r *sparkRepository) SaveCapability(ctx context.Context, capability *model.
 	return nil
 }
 
+// GetCapability 返回某个 Server 已持久化的 Spark 能力。
 func (r *sparkRepository) GetCapability(ctx context.Context, serverID model.ID) (*model.SparkCapability, error) {
 	if !serverID.Valid() {
 		return nil, apperror.New(apperror.CodeValidationInvalidArgument, "Spark Server ID 无效")
@@ -122,6 +124,7 @@ func (r *sparkRepository) GetCapability(ctx context.Context, serverID model.ID) 
 	return &capability, nil
 }
 
+// CreateSnapshot 向监控数据库追加一条 TPS/MSPT Snapshot。
 func (r *sparkRepository) CreateSnapshot(ctx context.Context, snapshot *model.SparkSnapshot) error {
 	if snapshot == nil {
 		return apperror.New(apperror.CodeValidationRequired, "Spark Snapshot 不能为空")
@@ -136,6 +139,7 @@ func (r *sparkRepository) CreateSnapshot(ctx context.Context, snapshot *model.Sp
 	return nil
 }
 
+// LatestSnapshot 返回某个 Server 最新的一条 TPS/MSPT Snapshot。
 func (r *sparkRepository) LatestSnapshot(ctx context.Context, serverID model.ID) (*model.SparkSnapshot, error) {
 	var record SparkSnapshotRecord
 	if err := r.metrics.WithContext(ctx).Where("server_id = ?", serverID.String()).Order("collected_at desc").First(&record).Error; err != nil {
@@ -145,6 +149,7 @@ func (r *sparkRepository) LatestSnapshot(ctx context.Context, serverID model.ID)
 	return &snapshot, nil
 }
 
+// ListSnapshots 按时间倒序分页返回 TPS/MSPT Snapshot 历史。
 func (r *sparkRepository) ListSnapshots(ctx context.Context, query repository.SparkSnapshotQuery) ([]model.SparkSnapshot, error) {
 	database := r.metrics.WithContext(ctx).Order("collected_at desc")
 	if query.ServerID.Valid() {
@@ -161,6 +166,7 @@ func (r *sparkRepository) ListSnapshots(ctx context.Context, query repository.Sp
 	return result, nil
 }
 
+// DeleteSnapshotsBefore 删除早于保留期界线的一批 Snapshot,单次批量有上限。
 func (r *sparkRepository) DeleteSnapshotsBefore(ctx context.Context, before time.Time, limit int) (int64, error) {
 	if limit <= 0 || limit > 50_000 {
 		limit = 10_000
@@ -182,6 +188,7 @@ func (r *sparkRepository) DeleteSnapshotsBefore(ctx context.Context, before time
 	return result.RowsAffected, nil
 }
 
+// DeleteServerSnapshots 删除某个 Server 的全部 TPS/MSPT Snapshot 历史。
 func (r *sparkRepository) DeleteServerSnapshots(ctx context.Context, serverID model.ID, batchSize int) (int64, error) {
 	if !serverID.Valid() {
 		return 0, apperror.New(apperror.CodeValidationInvalidArgument, "Spark Snapshot Server ID 无效")
@@ -211,6 +218,7 @@ func (r *sparkRepository) DeleteServerSnapshots(ctx context.Context, serverID mo
 	return total, nil
 }
 
+// CreateReport 持久化一份 Spark 健康报告或性能分析报告。
 func (r *sparkRepository) CreateReport(ctx context.Context, report *model.SparkReport) error {
 	if report == nil {
 		return apperror.New(apperror.CodeValidationRequired, "Spark Report 不能为空")
@@ -225,6 +233,7 @@ func (r *sparkRepository) CreateReport(ctx context.Context, report *model.SparkR
 	return nil
 }
 
+// UpdateReport 更新一份已有 Spark 报告的可变字段。
 func (r *sparkRepository) UpdateReport(ctx context.Context, report *model.SparkReport) error {
 	if report == nil {
 		return apperror.New(apperror.CodeValidationRequired, "Spark Report 不能为空")
@@ -247,6 +256,7 @@ func (r *sparkRepository) UpdateReport(ctx context.Context, report *model.SparkR
 	return nil
 }
 
+// GetReport 按标识返回一份 Spark 报告。
 func (r *sparkRepository) GetReport(ctx context.Context, id model.ID) (*model.SparkReport, error) {
 	var record SparkReportRecord
 	if err := r.database.WithContext(ctx).First(&record, "id = ?", id.String()).Error; err != nil {
@@ -256,6 +266,7 @@ func (r *sparkRepository) GetReport(ctx context.Context, id model.ID) (*model.Sp
 	return &report, nil
 }
 
+// ListReports 按时间倒序分页返回 Spark 报告。
 func (r *sparkRepository) ListReports(ctx context.Context, query repository.SparkReportQuery) ([]model.SparkReport, error) {
 	database := r.database.WithContext(ctx).Order("created_at desc")
 	if query.ServerID.Valid() {

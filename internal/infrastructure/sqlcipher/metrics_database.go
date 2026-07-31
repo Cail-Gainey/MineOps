@@ -7,7 +7,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// MetricsMigrations returns the immutable monitoring-database migration sequence.
+// MetricsMigrations 返回监控数据库不可变的迁移序列。
 // 该库不加密:只放 Metric 序列字典、原始样本、分钟/小时聚合与 Spark Snapshot,全部是数值时序,
 // 不含凭据、口令或玩家身份。加密库的迁移序列与此完全独立,两边版本号互不影响。
 func MetricsMigrations() []Migration {
@@ -34,7 +34,7 @@ func MetricsMigrations() []Migration {
 	}
 }
 
-// BootstrapMetricsDatabase opens and migrates the unencrypted monitoring database.
+// BootstrapMetricsDatabase 打开未加密的监控数据库并执行迁移。
 func BootstrapMetricsDatabase(ctx context.Context, path string) (*Connection, error) {
 	connection, err := OpenPlainConnection(ctx, ConnectionOptions{Path: path})
 	if err != nil {

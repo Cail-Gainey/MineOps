@@ -32,7 +32,7 @@ export const useLocaleStore = defineStore('locale', () => {
   }
 
   /**
-   * Applies the saved 12/24-hour display preference.
+   * 应用已保存的 12/24 小时制显示偏好。
    * @param value - Settings 中保存的时间格式
    * @returns void
    */
@@ -41,7 +41,7 @@ export const useLocaleStore = defineStore('locale', () => {
   }
 
   /**
-   * Formats one timestamp using the committed language and 12/24-hour preference.
+   * 按已提交的语言与 12/24 小时制偏好格式化时间。
    * @param value - Date、时间戳或可解析的日期字符串
    * @returns 本地化日期时间文本
    */

@@ -23,7 +23,10 @@ export const useMinecraftServersStore = defineStore('minecraft-servers', () => {
     [...new Set(servers.value.map((server) => server.group).filter(Boolean))].sort(),
   )
 
-  /** Loads Minecraft Servers using current filters. */
+  /**
+   * 重新加载 Minecraft Server 列表。
+   * @returns 刷新完成后的 Promise
+   */
   async function refresh(): Promise<void> {
     loading.value = true
     error.value = null
@@ -44,20 +47,28 @@ export const useMinecraftServersStore = defineStore('minecraft-servers', () => {
     }
   }
 
-  /** Soft-deletes one Server and reloads the list. */
+  /**
+   * 软删除一台 Server 并刷新列表。
+   * @param id - Server ID
+   * @returns 删除完成后的 Promise
+   */
   async function softDelete(id: string): Promise<void> {
     await softDeleteMinecraftServer(id)
     await refresh()
   }
 
-  /** Restores one soft-deleted Server and reloads the list. */
+  /**
+   * 恢复一台已软删除的 Server 并刷新列表。
+   * @param id - Server ID
+   * @returns 恢复完成后的 Promise
+   */
   async function restore(id: string): Promise<void> {
     await restoreMinecraftServer(id)
     await refresh()
   }
 
   /**
-   * Updates editable Server metadata without changing its SSH binding or remote path.
+   * 更新 Server 的可编辑元数据,不改动 SSH 绑定与远端路径。
    * @param {string} id - Durable Minecraft Server identifier.
    * @param {MinecraftServerInput} input - Complete update command with immutable identity fields preserved.
    * @returns {Promise<MinecraftServer>} The updated Server record.

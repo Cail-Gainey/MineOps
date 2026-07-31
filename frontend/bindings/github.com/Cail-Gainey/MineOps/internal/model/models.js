@@ -335,7 +335,7 @@ export class ConsoleSession {
 }
 
 /**
- * DownloadSettings contains source, timeout, retry, concurrency, proxy, and cache policy.
+ * DownloadSettings 存放下载源、超时、重试、并发、代理与缓存策略。
  */
 export class DownloadSettings {
     /**
@@ -444,7 +444,7 @@ export class DownloadSettings {
 }
 
 /**
- * DownloadSourceSettings is one ordered official or mirror endpoint in the download source registry.
+ * DownloadSourceSettings 是下载源注册表中一个有序的官方源或镜像源端点。
  */
 export class DownloadSourceSettings {
     /**
@@ -524,7 +524,7 @@ export class DownloadSourceSettings {
 }
 
 /**
- * FirewallSettings contains the preferred firewall backend and confirmation behavior.
+ * FirewallSettings 存放首选防火墙后端与确认行为。
  */
 export class FirewallSettings {
     /**
@@ -590,7 +590,7 @@ export class FirewallSettings {
 }
 
 /**
- * GeneralSettings contains language and common desktop behavior.
+ * GeneralSettings 存放语言与常规桌面行为设置。
  */
 export class GeneralSettings {
     /**
@@ -1174,7 +1174,7 @@ export class LaunchProfile {
 }
 
 /**
- * LayoutSettings contains the persisted Root Layout visibility and sizing preferences.
+ * LayoutSettings 存放持久化的根布局显隐与尺寸偏好。
  */
 export class LayoutSettings {
     /**
@@ -1233,7 +1233,7 @@ export class LayoutSettings {
 }
 
 /**
- * LoggingSettings contains runtime log level and retention limits.
+ * LoggingSettings 存放运行期日志等级与保留上限。
  */
 export class LoggingSettings {
     /**
@@ -2131,7 +2131,7 @@ export class MinecraftServer {
 }
 
 /**
- * MirrorSettings contains approved source overrides without credential material.
+ * MirrorSettings 存放已审核的镜像源覆盖项,不含任何凭据材料。
  */
 export class MirrorSettings {
     /**
@@ -2176,7 +2176,7 @@ export class MirrorSettings {
 }
 
 /**
- * MonitoringSettings contains collection and retention defaults.
+ * MonitoringSettings 存放采集与保留期的默认值。
  */
 export class MonitoringSettings {
     /**
@@ -2442,7 +2442,7 @@ export class Operation {
 }
 
 /**
- * PathSettings contains controlled local default directories.
+ * PathSettings 存放受控的本地默认目录。
  */
 export class PathSettings {
     /**
@@ -3111,7 +3111,7 @@ export class PlayerSessionQuery {
 }
 
 /**
- * ProxySettings contains non-secret proxy routing and an encrypted credential reference.
+ * ProxySettings 存放非机密的代理路由信息与一个加密凭据引用。
  */
 export class ProxySettings {
     /**
@@ -3487,7 +3487,7 @@ export class RemoteTextDocument {
 }
 
 /**
- * SSHSettings contains secure global defaults inherited by SSH Sessions without explicit overrides.
+ * SSHSettings 存放全局安全默认值,未显式覆盖的 SSH Session 继承这些值。
  */
 export class SSHSettings {
     /**
@@ -3613,7 +3613,7 @@ export class SSHSettings {
 }
 
 /**
- * SettingsSnapshot is the complete validated application configuration loaded from encrypted SQLite.
+ * SettingsSnapshot 是从加密 SQLite 载入并校验通过的完整应用配置。
  */
 export class SettingsSnapshot {
     /**
@@ -4303,7 +4303,7 @@ export class SparkSnapshot {
 }
 
 /**
- * StorageSettings contains non-secret backup preferences and destructive-operation safeguards.
+ * StorageSettings 存放非机密的备份偏好与破坏性操作的保护开关。
  */
 export class StorageSettings {
     /**
@@ -4445,7 +4445,7 @@ export const TerminalSessionState = {
 };
 
 /**
- * TerminalSettings contains xterm typography, cursor, behavior, and colour preferences.
+ * TerminalSettings 存放 xterm 的字体排印、光标、行为与配色偏好。
  */
 export class TerminalSettings {
     /**
@@ -4592,7 +4592,7 @@ export class TerminalSettings {
 }
 
 /**
- * ThemeSettings contains the persisted semantic theme selection.
+ * ThemeSettings 存放持久化的语义化主题选择。
  */
 export class ThemeSettings {
     /**

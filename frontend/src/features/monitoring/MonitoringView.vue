@@ -162,12 +162,24 @@ const kpis = [
   { label: 'Java 内存', metric: 'process.rss' },
 ]
 
+/**
+ * 把 Tooltip 传入的值格式化成两位小数并附加单位。
+ * @param value - 单点数值，或 ECharts 传入的 [时间, 值] 数组
+ * @param unit - 换算后的显示单位，空串表示无单位
+ * @returns 可直接展示的数值文本，非有限数返回破折号
+ */
 function formatChartValue(value: unknown, unit = ''): string {
   const candidate = Array.isArray(value) ? value[value.length - 1] : value
   const numeric = Number(candidate)
   return Number.isFinite(numeric) ? `${numeric.toFixed(2)}${unit ? ` ${unit}` : ''}` : '—'
 }
 
+/**
+ * 由查询结果构建折线图配置，并按最大量级统一换算显示单位。
+ * @param result - 一次 Metric 查询的序列结果，为空时生成空图
+ * @param compact - 是否为 240px 高的小趋势图（省略图例并收窄留白）
+ * @returns ECharts 配置对象
+ */
 function createChartOption(result: MetricQueryResult | null, compact = false): ChartOption {
   const axisColour = isDark.value ? '#94a3b8' : '#475569'
   const splitColour = isDark.value ? '#334155' : '#e2e8f0'
@@ -284,12 +296,22 @@ const collectorStatus = computed<{
   return { type: 'default', label: '尚未采集', loading: false }
 })
 
+/**
+ * 把字节数换算成合适的存储单位。
+ * @param value - 字节数，负数或非有限数视为不可用
+ * @returns 带单位的容量文本
+ */
 function formatBytes(value: number): string {
   if (!Number.isFinite(value) || value < 0) return '不可用'
   const scale = byteDisplayScale(value)
   return `${(value / scale.factor).toFixed(2)} ${scale.unit}`
 }
 
+/**
+ * 把一个 Metric 样本换算成带单位的展示文本。
+ * @param sample - 最新样本，缺失时返回破折号
+ * @returns 带单位的数值文本，TPS 触顶时前缀大于号
+ */
 function formatSample(sample: MetricSample | undefined): string {
   if (!sample) return '—'
   const scale = metricDisplayScale(sample.unit, sample.value)
@@ -297,6 +319,10 @@ function formatSample(sample: MetricSample | undefined): string {
   return `${prefix}${(sample.value / scale.factor).toFixed(2)}${scale.unit ? ` ${scale.unit}` : ''}`
 }
 
+/**
+ * 锁定嵌入模式的目标 Server 后刷新监控数据，失败时推送通知。
+ * @returns 刷新完成后的 Promise
+ */
 async function refresh(): Promise<void> {
   try {
     lockSelectedServer()
@@ -311,6 +337,10 @@ async function refresh(): Promise<void> {
   }
 }
 
+/**
+ * 嵌入模式下把选中 Server 固定为外部传入的目标。
+ * @returns 无返回值
+ */
 function lockSelectedServer(): void {
   if (!props.embedded || !props.lockedServerID) return
   if (servers.value.some((server) => server.id === props.lockedServerID)) {
@@ -318,6 +348,10 @@ function lockSelectedServer(): void {
   }
 }
 
+/**
+ * 按路由参数或嵌入属性选定 Server 并加载其监控数据。
+ * @returns 加载完成后的 Promise
+ */
 async function loadSelectedServer(): Promise<void> {
   const preferredServerID = props.embedded
     ? props.lockedServerID
@@ -327,6 +361,10 @@ async function loadSelectedServer(): Promise<void> {
   await monitoring.refresh()
 }
 
+/**
+ * 平滑滚动到历史趋势区块。
+ * @returns 无返回值
+ */
 function scrollToMetricHistory(): void {
   metricHistorySection.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
@@ -334,6 +372,7 @@ function scrollToMetricHistory(): void {
 /**
  * 监听常用指标趋势区块进入视口，首次可见后一次性建图并停止观察。
  * 没有 IntersectionObserver 时直接建图，保证功能不依赖该能力。
+ * @returns 无返回值
  */
 function observeOverviewCharts(): void {
   if (typeof IntersectionObserver === 'undefined') {
@@ -358,11 +397,19 @@ function observeOverviewCharts(): void {
   )
 }
 
+/**
+ * 切换 Server 时同步路由查询参数并重新加载数据。
+ * @returns 切换完成后的 Promise
+ */
 async function changeServer(): Promise<void> {
   await router.replace({ query: { ...route.query, serverID: selectedServerID.value || undefined } })
   await refresh()
 }
 
+/**
+ * 暂停或恢复所选 Server 的自动采集，并刷新页面状态。
+ * @returns 操作完成后的 Promise
+ */
 async function toggleMonitoring(): Promise<void> {
   if (!selectedServerID.value || monitoringActionLoading.value) return
   const paused = overview.value?.collector?.paused === true
@@ -391,6 +438,10 @@ async function toggleMonitoring(): Promise<void> {
   }
 }
 
+/**
+ * 二次确认后清理所选 Server 的全部监控历史数据。
+ * @returns 清理完成后的 Promise
+ */
 async function clearHistory(): Promise<void> {
   if (!selectedServer.value || monitoringActionLoading.value) return
   const confirmed = await interactions.confirm({

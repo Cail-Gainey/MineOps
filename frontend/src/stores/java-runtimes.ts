@@ -31,7 +31,10 @@ export const useJavaRuntimesStore = defineStore('java-runtimes', () => {
   const discoveryError = ref<unknown>(null)
   const installError = ref<unknown>(null)
 
-  /** Loads persisted Java Runtimes using current filters. */
+  /**
+   * 重新加载当前 SSH Session 上的 Java 运行时列表。
+   * @returns 刷新完成后的 Promise
+   */
   async function refresh(): Promise<void> {
     if (!sshSessionID.value) {
       runtimes.value = []
@@ -49,7 +52,10 @@ export const useJavaRuntimesStore = defineStore('java-runtimes', () => {
     }
   }
 
-  /** Discovers verified remote Java candidates in policy order. */
+  /**
+   * 在远端主机上探测可用的 Java 候选。
+   * @returns 探测完成后的 Promise
+   */
   async function discover(): Promise<void> {
     if (!sshSessionID.value) return
     discovering.value = true
@@ -64,7 +70,11 @@ export const useJavaRuntimesStore = defineStore('java-runtimes', () => {
     }
   }
 
-  /** Imports one candidate and refreshes persisted rows. */
+  /**
+   * 把远端某个 Java 可执行文件登记为运行时并刷新列表。
+   * @param executablePath - 远端可执行文件路径
+   * @returns 登记后的 Java 运行时
+   */
   async function importPath(executablePath: string): Promise<JavaRuntime> {
     const javaRuntime = await importJavaRuntime(sshSessionID.value, executablePath)
     await refresh()
@@ -72,7 +82,7 @@ export const useJavaRuntimesStore = defineStore('java-runtimes', () => {
   }
 
   /**
-   * Starts one managed remote JDK installation Operation.
+   * 发起一次受管的远端 JDK 安装任务。
    * @param majorVersion - Approved Java major version
    * @param architecture - Linux JDK architecture
    * @returns Started Operation ID
@@ -103,18 +113,31 @@ export const useJavaRuntimesStore = defineStore('java-runtimes', () => {
     }
   }
 
-  /** Sets the default Runtime for the selected SSH Session. */
+  /**
+   * 把某个 Java 运行时设为该主机的默认项。
+   * @param id - Java 运行时 ID
+   * @returns 设置完成后的 Promise
+   */
   async function setDefault(id: string): Promise<void> {
     await setDefaultJavaRuntime(sshSessionID.value, id)
     await refresh()
   }
 
-  /** Deletes a registration and refreshes persisted rows. */
+  /**
+   * 删除一条 Java 运行时登记并刷新列表。
+   * @param id - Java 运行时 ID
+   * @returns 删除完成后的 Promise
+   */
   async function remove(id: string): Promise<void> {
     await deleteJavaRuntime(id)
     await refresh()
   }
 
+  /**
+   * 跟踪 JDK 安装任务进度，结束后刷新运行时列表。
+   * @param operation - 安装任务
+   * @returns 无返回值
+   */
   function applyInstallOperation(operation: Operation): void {
     installOperation.value = operation
     if (operation.state === 'pending' || operation.state === 'running') return

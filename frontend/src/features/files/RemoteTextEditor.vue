@@ -51,6 +51,11 @@ let model: monaco.editor.ITextModel | null = null
 let changeSubscription: monaco.IDisposable | null = null
 let savedValue = ''
 
+/**
+ * 按文件扩展名推断编辑器语法高亮语言。
+ * @param filePath - 远端文件路径
+ * @returns Monaco 语言标识
+ */
 function languageForPath(filePath: string): string {
   const extension = filePath.split('.').pop()?.toLowerCase()
   if (extension === 'json') return 'json'
@@ -60,6 +65,10 @@ function languageForPath(filePath: string): string {
   return 'plaintext'
 }
 
+/**
+ * 按当前明暗模式注册并应用编辑器主题。
+ * @returns 无返回值
+ */
 function applyTheme(): void {
   monaco.editor.defineTheme('mineops-remote-editor', {
     base: theme.isDark ? 'vs-dark' : 'vs',
@@ -76,6 +85,11 @@ function applyTheme(): void {
   monaco.editor.setTheme('mineops-remote-editor')
 }
 
+/**
+ * 用新文档替换编辑器模型并重置脏标记。
+ * @param document - 远端文本文档
+ * @returns 无返回值
+ */
 function replaceModel(document: RemoteTextDocument): void {
   const documentPath = document.path.startsWith('/') ? document.path : `/${document.path}`
   const uri = monaco.Uri.from({
@@ -104,15 +118,26 @@ function replaceModel(document: RemoteTextDocument): void {
   })
 }
 
+/**
+ * 向外抛出保存事件，携带内容与版本标识。
+ * @returns 无返回值
+ */
 function save(): void {
   emit('save', model?.getValue() ?? '', props.document.versionToken)
 }
 
+/**
+ * 向外抛出另存为事件，携带当前内容。
+ * @returns 无返回值
+ */
 function saveAs(): void {
   emit('saveAs', model?.getValue() ?? '')
 }
 
-/** Requests editor closure and protects unsaved content with a global confirmation. */
+/**
+ * 请求关闭编辑器；存在未保存修改时先二次确认。
+ * @returns 允许关闭时返回 true
+ */
 async function requestClose(): Promise<boolean> {
   if (dirty.value) {
     const confirmed = await interactions.confirm({

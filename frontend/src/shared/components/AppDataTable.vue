@@ -61,10 +61,20 @@ const tableOptionalProps = computed(() => ({
   ...(props.scrollX === undefined ? {} : { scrollX: props.scrollX }),
 }))
 
+/**
+ * 把任意异常转换成可展示的错误文本。
+ * @param error - 捕获到的错误
+ * @returns 错误文本
+ */
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error ?? '数据加载失败')
 }
 
+/**
+ * 判断错误是否为权限不足。
+ * @param error - 捕获到的错误
+ * @returns 属于权限不足时返回 true
+ */
 function permissionDenied(error: unknown): boolean {
   return Boolean(
     error &&
@@ -74,6 +84,11 @@ function permissionDenied(error: unknown): boolean {
   )
 }
 
+/**
+ * 为表格每一行绑定右键菜单等事件属性。
+ * @param row - 当前行数据
+ * @returns 绑定到行元素的属性对象
+ */
 function rowProps(row: Row): Record<string, unknown> {
   return {
     onDblclick: () => emit('open', row),
@@ -95,6 +110,11 @@ function rowProps(row: Row): Record<string, unknown> {
   }
 }
 
+/**
+ * 关闭右键菜单并向外抛出选中的动作。
+ * @param key - 菜单项 key
+ * @returns 无返回值
+ */
 function selectContextAction(key: string | number): void {
   contextVisible.value = false
   if (contextRow.value) emit('contextAction', key, contextRow.value)

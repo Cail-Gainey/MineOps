@@ -26,6 +26,11 @@ export const useAlertNotificationStore = defineStore('alert-notifications', () =
   let unsubscribe: (() => void) | null = null
   let audioContext: AudioContext | null = null
 
+  /**
+   * 记录该告警已通知过，用于抑制重复弹窗。
+   * @param eventID - 告警事件 ID
+   * @returns 无返回值
+   */
   function remember(eventID: string): void {
     const now = Date.now()
     rememberedActiveEvents.set(eventID, now)
@@ -40,6 +45,13 @@ export const useAlertNotificationStore = defineStore('alert-notifications', () =
     }
   }
 
+  /**
+   * 判断当前时刻是否落在静默时段内，支持跨零点区间。
+   * @param now - 当前时刻
+   * @param start - 静默开始时刻
+   * @param end - 静默结束时刻
+   * @returns 处于静默时段时返回 true
+   */
   function isQuietTime(now: Date, start: string, end: string): boolean {
     if (!start || !end || start === end) return false
     const currentMinutes = now.getHours() * 60 + now.getMinutes()
@@ -50,6 +62,10 @@ export const useAlertNotificationStore = defineStore('alert-notifications', () =
       : currentMinutes >= startMinutes || currentMinutes < endMinutes
   }
 
+  /**
+   * 播放一次告警提示音。
+   * @returns 播放完成后的 Promise
+   */
   async function playAlertSound(): Promise<void> {
     try {
       const context = audioContext ?? new AudioContext()
@@ -73,6 +89,11 @@ export const useAlertNotificationStore = defineStore('alert-notifications', () =
     }
   }
 
+  /**
+   * 按事件 ID 增量合并活跃告警列表。
+   * @param event - 告警事件
+   * @returns 无返回值
+   */
   function mergeAlertEvent(event: AlertEvent): void {
     const index = activeEvents.value.findIndex((candidate) => candidate.id === event.id)
     if (event.state !== 'active') {
@@ -83,6 +104,11 @@ export const useAlertNotificationStore = defineStore('alert-notifications', () =
     else activeEvents.value.unshift(event)
   }
 
+  /**
+   * 合并告警并按静默时段与去重规则决定是否提醒。
+   * @param event - 告警事件
+   * @returns 无返回值
+   */
   function handleAlert(event: AlertEvent): void {
     mergeAlertEvent(event)
     if (event.state !== 'active' || rememberedActiveEvents.has(event.id)) return
@@ -142,14 +168,20 @@ export const useAlertNotificationStore = defineStore('alert-notifications', () =
     if (index >= 0) activeEvents.value.splice(index, 1)
   }
 
-  /** Starts the application-level Alert notification subscription. */
+  /**
+   * 订阅告警事件推送。
+   * @returns 无返回值
+   */
   function start(): void {
     if (unsubscribe) return
     unsubscribe = subscribeAlertEvents(handleAlert)
     void refresh().catch(() => undefined)
   }
 
-  /** Stops the application-level Alert notification subscription and releases audio resources. */
+  /**
+   * 取消告警事件订阅。
+   * @returns 无返回值
+   */
   function stop(): void {
     unsubscribe?.()
     unsubscribe = null

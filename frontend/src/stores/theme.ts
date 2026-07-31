@@ -191,6 +191,12 @@ export const useThemeStore = defineStore('theme', () => {
   }
 })
 
+/**
+ * 把十六进制颜色转换成带透明度的 rgba 字符串。
+ * @param colour - 十六进制颜色
+ * @param opacity - 不透明度 0 到 1
+ * @returns rgba 颜色字符串
+ */
 function withOpacity(colour: string, opacity: number): string {
   const value = colour.replace('#', '')
   if (value.length !== 6) return colour
@@ -200,16 +206,33 @@ function withOpacity(colour: string, opacity: number): string {
   return `rgba(${red}, ${green}, ${blue}, ${opacity})`
 }
 
+/**
+ * 把不透明度约束到 0 到 1 之间。
+ * @param opacity - 原始不透明度
+ * @returns 约束后的不透明度
+ */
 function clampOpacity(opacity: number): number {
   return Math.min(1, Math.max(0, opacity))
 }
 
+/**
+ * 按遮罩强度生成背景蒙层的渐变值。
+ * @param strength - 遮罩强度 0 到 1
+ * @returns CSS 渐变字符串
+ */
 function createBackgroundOverlay(strength: number): string {
   const strong = Math.min(1, strength + 0.12)
   const soft = Math.max(0, strength * 0.72)
   return `linear-gradient(135deg, ${withOpacity('#000000', strong)}, ${withOpacity('#000000', soft)})`
 }
 
+/**
+ * 按权重混合两个十六进制颜色。
+ * @param first - 第一个颜色
+ * @param second - 第二个颜色
+ * @param secondWeight - 第二个颜色的权重 0 到 1
+ * @returns 混合后的十六进制颜色
+ */
 function mixHexColours(first: string, second: string, secondWeight: number): string {
   const firstValue = first.replace('#', '')
   const secondValue = second.replace('#', '')

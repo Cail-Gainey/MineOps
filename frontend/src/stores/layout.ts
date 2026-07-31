@@ -8,6 +8,10 @@ export const useLayoutStore = defineStore('layout', () => {
   const topBarVisible = ref(true)
   const bottomBarVisible = ref(true)
 
+  /**
+   * 折叠或展开侧栏。
+   * @returns 无返回值
+   */
   function toggleSidebar(): void {
     sidebarCollapsed.value = !sidebarCollapsed.value
   }

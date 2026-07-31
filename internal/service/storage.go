@@ -12,7 +12,7 @@ import (
 	"github.com/Cail-Gainey/MineOps/internal/infrastructure/sqlcipher"
 )
 
-// StorageStatus describes the active encrypted database and staged offline maintenance.
+// StorageStatus 描述当前加密数据库与已排队的离线维护任务。
 type StorageStatus struct {
 	DatabasePath       string                       `json:"databasePath"`
 	DataDirectory      string                       `json:"dataDirectory"`
@@ -25,7 +25,7 @@ type StorageStatus struct {
 	PendingMaintenance sqlcipher.PendingMaintenance `json:"pendingMaintenance"`
 }
 
-// StorageManager exposes online backup and safe next-start restore or key-rotation workflows.
+// StorageManager 对外暴露在线备份,以及安全的下次启动恢复与密钥轮换流程。
 type StorageManager struct {
 	backup        *sqlcipher.BackupManager
 	databasePath  string
@@ -34,7 +34,7 @@ type StorageManager struct {
 	keyVersion    int
 }
 
-// NewStorageManager creates the storage and security boundary for one active encrypted database.
+// NewStorageManager 为当前加密数据库创建存储与安全边界。
 func NewStorageManager(backup *sqlcipher.BackupManager, databasePath, dataDirectory, databaseID string, keyVersion int) (*StorageManager, error) {
 	if backup == nil || strings.TrimSpace(databasePath) == "" || strings.TrimSpace(dataDirectory) == "" || strings.TrimSpace(databaseID) == "" || keyVersion <= 0 {
 		return nil, apperror.New(apperror.CodeValidationRequired, "StorageManager 依赖不能为空")
@@ -42,7 +42,7 @@ func NewStorageManager(backup *sqlcipher.BackupManager, databasePath, dataDirect
 	return &StorageManager{backup: backup, databasePath: databasePath, dataDirectory: dataDirectory, databaseID: databaseID, keyVersion: keyVersion}, nil
 }
 
-// Status returns database size, encryption/key state, and staged offline maintenance.
+// Status 返回数据库体积、加密与密钥状态,以及已排队的离线维护任务。
 func (m *StorageManager) Status() (StorageStatus, error) {
 	info, err := os.Stat(m.databasePath)
 	if err != nil {
@@ -59,37 +59,37 @@ func (m *StorageManager) Status() (StorageStatus, error) {
 	}, nil
 }
 
-// CreateBackup creates one consistent online portable backup.
+// CreateBackup 在线创建一份一致的便携备份。
 func (m *StorageManager) CreateBackup(ctx context.Context, destination string) (sqlcipher.BackupInfo, error) {
 	return m.backup.Create(ctx, destination)
 }
 
-// ScheduleRestore verifies and stages a portable backup for installation before the next database open.
+// ScheduleRestore 校验便携备份并排队到下次打开数据库之前安装。
 func (m *StorageManager) ScheduleRestore(backupPath string) (sqlcipher.BackupInfo, error) {
 	return sqlcipher.StageRestore(backupPath, m.dataDirectory)
 }
 
-// ScheduleKeyRotation requests a SQLCipher key rotation before the next database open.
+// ScheduleKeyRotation 排队一次在下次打开数据库之前执行的 SQLCipher 密钥轮换。
 func (m *StorageManager) ScheduleKeyRotation() error {
 	return sqlcipher.StageKeyRotation(m.dataDirectory)
 }
 
-// ScheduleVacuum requests a VACUUM before the next database open to release SQLite free pages.
+// ScheduleVacuum 排队一次在下次打开数据库前执行的 VACUUM,释放 SQLite 空闲页。
 func (m *StorageManager) ScheduleVacuum() error {
 	return sqlcipher.StageVacuum(m.dataDirectory)
 }
 
-// ScheduleDatabaseReset requests deleting both databases and the stored key before the next database open.
+// ScheduleDatabaseReset 排队在下次打开数据库前删除两个库文件与系统密钥。
 func (m *StorageManager) ScheduleDatabaseReset() error {
 	return sqlcipher.StageDatabaseReset(m.dataDirectory)
 }
 
-// CancelPendingMaintenance removes all staged offline database work.
+// CancelPendingMaintenance 清除全部已排队的离线数据库任务。
 func (m *StorageManager) CancelPendingMaintenance() error {
 	return sqlcipher.CancelPendingMaintenance(m.dataDirectory)
 }
 
-// OpenDataDirectory opens the controlled data directory with the platform file manager.
+// OpenDataDirectory 用系统文件管理器打开受控数据目录。
 func (m *StorageManager) OpenDataDirectory(ctx context.Context) error {
 	var command *exec.Cmd
 	switch runtime.GOOS {

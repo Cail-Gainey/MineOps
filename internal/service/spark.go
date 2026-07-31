@@ -31,7 +31,7 @@ import (
 	"github.com/Cail-Gainey/MineOps/internal/repository"
 )
 
-// SparkInstallPlan describes an exact approved artifact, source, target, backup, checksum, and restart impact.
+// SparkInstallPlan 描述已核准的确切构件、来源、目标路径、备份、校验和与重启影响。
 type SparkInstallPlan struct {
 	ServerID          model.ID                  `json:"serverID"`
 	ServerName        string                    `json:"serverName"`
@@ -62,7 +62,7 @@ type SparkInstallPlan struct {
 	PlanDigest        string                    `json:"planDigest"`
 }
 
-// SparkInstallDependency describes one exact dependency installed with a Spark mod.
+// SparkInstallDependency 描述随 Spark 模组一并安装的一个确切依赖。
 type SparkInstallDependency struct {
 	Name              string   `json:"name"`
 	Version           string   `json:"version"`
@@ -78,7 +78,7 @@ type SparkInstallDependency struct {
 	MatchPattern      string   `json:"matchPattern"`
 }
 
-// SparkInstallResult contains the installed capability and exact plan used for the mutation.
+// SparkInstallResult 承载安装后的能力与本次变更所用的确切计划。
 type SparkInstallResult struct {
 	Capability model.SparkCapability `json:"capability"`
 	Plan       SparkInstallPlan      `json:"plan"`
@@ -108,7 +108,7 @@ type remoteSparkBatch struct {
 	raw         string
 }
 
-// SparkManager owns capability detection, approved installation, versioned commands, snapshots, and reports.
+// SparkManager 负责能力探测、受核准的安装、版本化命令、Snapshot 与报告。
 type SparkManager struct {
 	clock      model.Clock
 	store      repository.Store
@@ -142,7 +142,7 @@ var (
 	sparkArtifactVersionPattern = regexp.MustCompile(`(?i)\bspark[-_]v?([0-9]+(?:\.[0-9]+){2})(?:[-_.]|$)`)
 )
 
-// NewSparkManager creates the Minecraft spark application service with no Apache Spark dependency.
+// NewSparkManager 创建 Minecraft spark 应用服务,与 Apache Spark 无关。
 func NewSparkManager(clock model.Clock, store repository.Store, settings *appsettings.Manager, clients *SSHClientFactory, processes *RemoteProcessController, metrics *MetricManager, collector *MetricCollector, operations *OperationRunner, downloads *DownloadManager, logger *applog.Logger) (*SparkManager, error) {
 	if clock == nil || store == nil || settings == nil || clients == nil || processes == nil || metrics == nil || collector == nil || operations == nil || downloads == nil {
 		return nil, apperror.New(apperror.CodeValidationRequired, "Spark Service 依赖不能为空")
@@ -157,7 +157,7 @@ func NewSparkManager(clock model.Clock, store repository.Store, settings *appset
 	}, nil
 }
 
-// ServerStarted schedules immediate Spark collector deployment and backlog synchronisation.
+// ServerStarted 立即调度 Spark 采集器部署与积压数据同步。
 func (m *SparkManager) ServerStarted(serverID model.ID) {
 	if !serverID.Valid() {
 		return
@@ -168,7 +168,7 @@ func (m *SparkManager) ServerStarted(serverID model.ID) {
 	}
 }
 
-// ServerStopped schedules immediate shutdown of the remote Spark collector.
+// ServerStopped 立即调度远端 Spark 采集器的停止。
 func (m *SparkManager) ServerStopped(serverID model.ID) {
 	if !serverID.Valid() {
 		return
@@ -281,7 +281,7 @@ func (m *SparkManager) forgetPlan(digest string) {
 	m.plansMu.Unlock()
 }
 
-// Run periodically collects locked Spark TPS/MSPT snapshots for running Servers with an available saved capability.
+// Run 周期性地为已保存可用能力且处于运行中的 Server 采集锁定的 TPS/MSPT Snapshot。
 func (m *SparkManager) Run(ctx context.Context) error {
 	settingsChanged := make(chan struct{}, 1)
 	unsubscribe := m.settings.Subscribe(func(change appsettings.Change) {
@@ -414,7 +414,7 @@ func shouldReprobeSparkCapability(capability *model.SparkCapability, now time.Ti
 	return capability.ParserVersion != minecraftspark.ParserVersion || capability.SourceSchemaHash != minecraftspark.SourceSchemaHash
 }
 
-// Probe detects exact artifact, server family, version compatibility, running permission, and collection method.
+// Probe 探测确切构件、服务端家族、版本兼容性、运行权限与采集方式。
 func (m *SparkManager) Probe(ctx context.Context, serverID model.ID) (model.SparkCapability, error) {
 	unlock := m.lockServer(serverID)
 	defer unlock()
@@ -515,7 +515,7 @@ func (m *SparkManager) probeLocked(ctx context.Context, serverID model.ID) (mode
 	return capability, nil
 }
 
-// sparkUnavailableProbeMessage preserves the actual console probe failure without claiming every platform has built-in Spark.
+// sparkUnavailableProbeMessage 保留控制台探测的真实失败原因,不臆断所有平台都内置 Spark。
 func sparkUnavailableProbeMessage(server model.MinecraftServer, commandErr error) string {
 	builtIn := server.Type == enums.ServerPaper || server.Type == enums.ServerPurpur || server.Type == enums.ServerFolia
 	running := server.State == enums.LifecycleRunning || server.State == enums.LifecycleStarting
@@ -538,7 +538,7 @@ func sparkUnavailableProbeMessage(server model.MinecraftServer, commandErr error
 	return "未检测到 Minecraft spark Artifact，且运行中的服务器无法执行 Spark 探测命令"
 }
 
-// PlanInstall computes the exact approved artifact, target path, backup location, and restart impact without mutating the Server.
+// PlanInstall 计算确切的核准构件、目标路径、备份位置与重启影响,不改动 Server。
 func (m *SparkManager) PlanInstall(ctx context.Context, serverID model.ID) (SparkInstallPlan, error) {
 	unlock := m.lockServer(serverID)
 	defer unlock()
@@ -652,7 +652,7 @@ func (m *SparkManager) planInstallLocked(ctx context.Context, serverID model.ID,
 	return plan, nil
 }
 
-// Install downloads, verifies, backs up, and atomically replaces one approved Spark artifact after explicit confirmation.
+// Install 在显式确认后下载、校验、备份并原子替换一个已核准的 Spark 构件。
 func (m *SparkManager) Install(ctx context.Context, serverID model.ID, planDigest string, confirmed bool) (SparkInstallResult, error) {
 	if !confirmed {
 		return SparkInstallResult{}, apperror.New(apperror.CodeValidationConflict, "安装或升级 Spark 前必须确认批准来源、目标路径和重启影响")
@@ -842,7 +842,7 @@ if [ -n "$backup" ] && [ -f "$backup" ]; then mv -- "$backup" "$existing"; fi`
 	return SparkInstallResult{Capability: capability, Plan: plan}, nil
 }
 
-// Rollback restores the latest recorded Spark backup and preserves the replaced artifact for diagnosis.
+// Rollback 恢复最近一次记录的 Spark 备份,并保留被替换的构件供排查。
 func (m *SparkManager) Rollback(ctx context.Context, serverID model.ID, confirmed bool) (model.SparkCapability, error) {
 	if !confirmed {
 		return model.SparkCapability{}, apperror.New(apperror.CodeValidationConflict, "Spark 回滚前必须确认替换影响")
@@ -1193,7 +1193,7 @@ func (m *SparkManager) clearRemoteHistory(ctx context.Context, server model.Mine
 	return nil
 }
 
-// CollectSnapshot executes only the locked TPS command, parses the exact baseline grammar, persists it, and ingests unified metrics.
+// CollectSnapshot 只执行锁定的 TPS 命令,按确切基线语法解析、持久化,并写入统一指标。
 func (m *SparkManager) CollectSnapshot(ctx context.Context, serverID model.ID) (model.SparkSnapshot, error) {
 	unlock := m.lockServer(serverID)
 	defer unlock()
@@ -1347,7 +1347,7 @@ func sparkMetricSamples(snapshot model.SparkSnapshot, pluginVersion string) []mo
 	return samples
 }
 
-// StartHealthReport starts one durable privacy-confirmed Spark health upload operation.
+// StartHealthReport 发起一次已确认隐私风险的持久化 Spark 健康报告上传操作。
 func (m *SparkManager) StartHealthReport(ctx context.Context, serverID model.ID, privacyAcknowledged bool) (model.SparkReport, error) {
 	if !privacyAcknowledged && m.settings.Snapshot().Monitoring.ReportPrivacyConfirmation {
 		return model.SparkReport{}, apperror.New(apperror.CodeValidationConflict, "Spark 外部报告可能包含服务器信息，必须先确认隐私风险")
@@ -1415,7 +1415,7 @@ func (m *SparkManager) StartHealthReport(ctx context.Context, serverID model.ID,
 	return report, nil
 }
 
-// StartProfiler starts a cancellable explicit-duration profiler operation and records the official viewer reference.
+// StartProfiler 发起一次可取消、时长显式的性能分析操作,并记录官方查看器引用。
 func (m *SparkManager) StartProfiler(ctx context.Context, serverID model.ID, durationSeconds int, privacyAcknowledged bool) (model.SparkReport, error) {
 	if durationSeconds < 5 || durationSeconds > 600 {
 		return model.SparkReport{}, apperror.New(apperror.CodeValidationInvalidArgument, "Spark Profiler 时长必须在 5 到 600 秒之间")
@@ -1504,7 +1504,7 @@ func (m *SparkManager) StartProfiler(ctx context.Context, serverID model.ID, dur
 	return report, nil
 }
 
-// GetCapability returns persisted Spark capability evidence for one Server.
+// GetCapability 返回某台 Server 已持久化的 Spark 能力证据。
 func (m *SparkManager) GetCapability(ctx context.Context, serverID model.ID) (*model.SparkCapability, error) {
 	capability, err := m.store.Spark().GetCapability(ctx, serverID)
 	if err != nil {
@@ -1528,17 +1528,17 @@ func (m *SparkManager) GetCapability(ctx context.Context, serverID model.ID) (*m
 	return capability, nil
 }
 
-// LatestSnapshot returns the latest persisted Spark health observation.
+// LatestSnapshot 返回最近一次持久化的 Spark 健康观测。
 func (m *SparkManager) LatestSnapshot(ctx context.Context, serverID model.ID) (*model.SparkSnapshot, error) {
 	return m.store.Spark().LatestSnapshot(ctx, serverID)
 }
 
-// ListSnapshots returns bounded Spark snapshot history.
+// ListSnapshots 返回有界的 Spark Snapshot 历史。
 func (m *SparkManager) ListSnapshots(ctx context.Context, query repository.SparkSnapshotQuery) ([]model.SparkSnapshot, error) {
 	return m.store.Spark().ListSnapshots(ctx, query)
 }
 
-// ListReports returns bounded health and profiler report history.
+// ListReports 返回有界的健康报告与性能分析报告历史。
 func (m *SparkManager) ListReports(ctx context.Context, query repository.SparkReportQuery) ([]model.SparkReport, error) {
 	return m.store.Spark().ListReports(ctx, query)
 }
@@ -1555,7 +1555,7 @@ func (m *SparkManager) DeleteReport(ctx context.Context, reportID model.ID) erro
 	return m.store.Spark().DeleteReport(ctx, reportID)
 }
 
-// RecoverInterruptedReports reconciles Spark Report state after Operation recovery on application startup.
+// RecoverInterruptedReports 在应用启动的 Operation 恢复之后校正 Spark 报告状态。
 func (m *SparkManager) RecoverInterruptedReports(ctx context.Context) error {
 	reports, err := m.store.Spark().ListReports(ctx, repository.SparkReportQuery{Limit: 1000})
 	if err != nil {

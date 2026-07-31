@@ -60,6 +60,10 @@ const columns: DataTableColumns<ServerBackup> = [
   },
 ]
 
+/**
+ * 加载该 Server 的目录备份列表。
+ * @returns 加载完成后的 Promise
+ */
 async function load(): Promise<void> {
   loading.value = true
   error.value = null
@@ -72,6 +76,10 @@ async function load(): Promise<void> {
   }
 }
 
+/**
+ * 二次确认后创建一份 Server 目录备份。
+ * @returns 创建发起后的 Promise
+ */
 async function create(): Promise<void> {
   const confirmed = await interactions.confirm({
     title: '创建服务器目录备份？',
@@ -94,6 +102,11 @@ async function create(): Promise<void> {
   }
 }
 
+/**
+ * 二次确认后用指定备份恢复 Server 目录。
+ * @param backup - 目标备份
+ * @returns 恢复发起后的 Promise
+ */
 async function restore(backup: ServerBackup): Promise<void> {
   const confirmed = await interactions.confirm({
     title: '从备份恢复服务器目录？',
@@ -118,6 +131,12 @@ async function restore(backup: ServerBackup): Promise<void> {
   }
 }
 
+/**
+ * 推送一条备份操作错误通知。
+ * @param title - 通知标题
+ * @param reason - 捕获到的错误
+ * @returns 无返回值
+ */
 function notifyError(title: string, reason: unknown): void {
   notifications.push({
     kind: 'error',

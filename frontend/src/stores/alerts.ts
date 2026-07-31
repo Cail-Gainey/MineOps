@@ -34,7 +34,11 @@ export const useAlertsStore = defineStore('alerts', () => {
   const activeEvents = computed(() => events.value.filter((event) => event.state === 'active'))
   const historicalEvents = computed(() => events.value.filter((event) => event.state !== 'active'))
 
-  /** Loads rules and incident history for one Server. */
+  /**
+   * 重新加载指定 Server 的阈值规则与告警事件。
+   * @param selectedServerID - 目标 Server ID，默认沿用当前选中项
+   * @returns 刷新完成后的 Promise
+   */
   async function refresh(selectedServerID = serverID.value): Promise<void> {
     serverID.value = selectedServerID
     loading.value = true
@@ -59,39 +63,62 @@ export const useAlertsStore = defineStore('alerts', () => {
     }
   }
 
-  /** Creates one rule for the active Server. */
+  /**
+   * 创建一条阈值规则并刷新列表。
+   * @param rule - 待创建的规则
+   * @returns 创建完成后的 Promise
+   */
   async function create(rule: AlertRule): Promise<void> {
     await createAlertRule(rule)
     await refresh()
   }
 
-  /** Saves enablement or threshold changes to one rule. */
+  /**
+   * 更新一条阈值规则并刷新列表。
+   * @param rule - 含 ID 的规则内容
+   * @returns 更新完成后的 Promise
+   */
   async function update(rule: AlertRule): Promise<void> {
     await updateAlertRule(rule)
     await refresh()
   }
 
-  /** Deletes one rule and refreshes recovered incident state. */
+  /**
+   * 删除一条阈值规则并刷新列表。
+   * @param ruleID - 规则 ID
+   * @returns 删除完成后的 Promise
+   */
   async function remove(ruleID: string): Promise<void> {
     await deleteAlertRule(ruleID)
     await refresh()
   }
 
-  /** Acknowledges one incident and merges the returned durable state. */
+  /**
+   * 确认一条告警事件并就地更新列表。
+   * @param eventID - 事件 ID
+   * @returns 确认完成后的 Promise
+   */
   async function acknowledge(eventID: string): Promise<void> {
     const updated = await acknowledgeAlert(eventID)
     const index = events.value.findIndex((event) => event.id === updated.id)
     if (index >= 0) events.value[index] = updated
   }
 
-  /** Permanently deletes one incident from the active Server history. */
+  /**
+   * 删除一条告警事件并就地更新列表。
+   * @param eventID - 事件 ID
+   * @returns 删除完成后的 Promise
+   */
   async function removeEvent(eventID: string): Promise<void> {
     await deleteAlertEvent(eventID)
     const index = events.value.findIndex((event) => event.id === eventID)
     if (index >= 0) events.value.splice(index, 1)
   }
 
-  /** Starts the global durable Alert Event subscription. */
+  /**
+   * 订阅告警事件推送。
+   * @returns 无返回值
+   */
   function startSubscription(): void {
     unsubscribe?.()
     unsubscribe = subscribeAlertEvents((event) => {
@@ -102,7 +129,10 @@ export const useAlertsStore = defineStore('alerts', () => {
     })
   }
 
-  /** Stops the Alert Event subscription. */
+  /**
+   * 取消告警事件订阅。
+   * @returns 无返回值
+   */
   function stopSubscription(): void {
     unsubscribe?.()
     unsubscribe = null

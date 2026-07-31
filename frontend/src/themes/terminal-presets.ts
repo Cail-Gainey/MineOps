@@ -49,7 +49,12 @@ const solarized: ITheme = {
   brightWhite: '#fdf6e3',
 }
 
-/** Resolves semantic, built-in, or custom Terminal colours into an xterm theme. */
+/**
+ * 按终端配色预设与当前语义主题解析出 xterm 主题。
+ * @param settings - 终端设置
+ * @param semantic - 当前语义主题令牌
+ * @returns xterm 主题对象
+ */
 export function resolveTerminalTheme(
   settings: TerminalSettings,
   semantic: SemanticThemeTokens,

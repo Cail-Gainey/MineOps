@@ -22,7 +22,7 @@ import (
 	"github.com/Cail-Gainey/MineOps/internal/service"
 )
 
-// Runtime contains manually composed stage 1 services and their owned resources.
+// Runtime 持有手工组装的基础服务及其自有资源。
 type Runtime struct {
 	Settings              *appsettings.Manager
 	Threads               *appthread.Pool
@@ -67,7 +67,7 @@ type Runtime struct {
 	shutdown        *service.ShutdownGroup
 }
 
-// NewRuntime initializes secure storage, encrypted SQLite, migrations, repositories, Settings, and Operations.
+// NewRuntime 初始化安全存储、加密 SQLite、迁移、Repository、Settings 与 Operations。
 func NewRuntime(ctx context.Context, logger *applog.Logger, logWriter *applog.RotatingWriter) (*Runtime, error) {
 	shutdown := service.NewShutdownGroup(ctx, logger)
 	exitGuard := service.NewExitGuard()
@@ -399,7 +399,7 @@ func NewRuntime(ctx context.Context, logger *applog.Logger, logWriter *applog.Ro
 	}, nil
 }
 
-// Close releases the encrypted database after Wails services have stopped their goroutines.
+// Close 在 Wails 服务停止各自 goroutine 之后释放数据库连接。
 func (r *Runtime) Close() error {
 	if r == nil {
 		return nil
@@ -429,7 +429,7 @@ func (r *Runtime) Close() error {
 	return errors.Join(shutdownError, threadError, databaseError)
 }
 
-// JoinCloseError combines application and Runtime shutdown failures.
+// JoinCloseError 合并应用与 Runtime 的关闭失败。
 func JoinCloseError(applicationError error, runtimeError error) error {
 	return errors.Join(applicationError, runtimeError)
 }

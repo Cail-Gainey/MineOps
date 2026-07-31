@@ -78,6 +78,10 @@ const comparisonOptions = [
 ]
 const modalTitle = computed(() => (editingRuleID.value ? '编辑阈值规则' : '新建阈值规则'))
 
+/**
+ * 把规则表单恢复为默认值并退出编辑态。
+ * @returns 无返回值
+ */
 function resetDraft(): void {
   editingRuleID.value = ''
   Object.assign(draft, {
@@ -91,11 +95,20 @@ function resetDraft(): void {
   })
 }
 
+/**
+ * 打开新建阈值规则的表单。
+ * @returns 无返回值
+ */
 function openCreate(): void {
   resetDraft()
   showRuleModal.value = true
 }
 
+/**
+ * 打开指定阈值规则的编辑表单。
+ * @param rule - 待编辑的规则
+ * @returns 无返回值
+ */
 function openEdit(rule: AlertRule): void {
   editingRuleID.value = rule.id
   Object.assign(draft, {
@@ -110,6 +123,10 @@ function openEdit(rule: AlertRule): void {
   showRuleModal.value = true
 }
 
+/**
+ * 按当前是新建还是编辑提交阈值规则。
+ * @returns 保存完成后的 Promise
+ */
 async function saveRule(): Promise<void> {
   try {
     const existing = rules.value.find((rule) => rule.id === editingRuleID.value)
@@ -143,10 +160,21 @@ async function saveRule(): Promise<void> {
   }
 }
 
+/**
+ * 启用或停用一条阈值规则。
+ * @param rule - 目标规则
+ * @param enabled - 是否启用
+ * @returns 切换完成后的 Promise
+ */
 async function toggleRule(rule: AlertRule, enabled: boolean): Promise<void> {
   await alerts.update(new AlertRule({ ...rule, enabled }))
 }
 
+/**
+ * 二次确认后删除一条阈值规则。
+ * @param rule - 目标规则
+ * @returns 删除完成后的 Promise
+ */
 async function removeRule(rule: AlertRule): Promise<void> {
   const confirmed = await interactions.confirm({
     title: '删除阈值规则？',
@@ -159,6 +187,11 @@ async function removeRule(rule: AlertRule): Promise<void> {
   if (confirmed) await alerts.remove(rule.id)
 }
 
+/**
+ * 二次确认后删除一条告警记录。
+ * @param event - 目标告警事件
+ * @returns 删除完成后的 Promise
+ */
 async function removeEvent(event: AlertEvent): Promise<void> {
   const confirmed = await interactions.confirm({
     title: '删除告警记录？',
@@ -189,6 +222,12 @@ async function removeEvent(event: AlertEvent): Promise<void> {
   }
 }
 
+/**
+ * 跳转到监控页并定位到该告警对应的指标与时刻。
+ * @param metric - 指标名称
+ * @param timestamp - 告警发生时刻
+ * @returns 跳转完成后的 Promise
+ */
 async function jumpToMetric(metric: string, timestamp: string): Promise<void> {
   await router.push({
     path: '/monitoring',

@@ -33,11 +33,21 @@ export const useOperationsStore = defineStore('operations', () => {
 
   const activeCount = computed(() => active.value.length)
 
+  /**
+   * 取任务的开始时间毫秒值，缺失时回落到创建时间。
+   * @param operation - 目标任务
+   * @returns 毫秒时间戳
+   */
   function operationStartedAt(operation: Operation): number {
     const timestamp = Date.parse(operation.startedAt ?? operation.createdAt)
     return Number.isFinite(timestamp) ? timestamp : 0
   }
 
+  /**
+   * 按开始时间倒序排列任务。
+   * @param items - 任务数组
+   * @returns 排序后的新数组
+   */
   function sortByStartedAt(items: Operation[]): Operation[] {
     return [...items].sort((left, right) => {
       const timeDifference = operationStartedAt(right) - operationStartedAt(left)
@@ -45,6 +55,11 @@ export const useOperationsStore = defineStore('operations', () => {
     })
   }
 
+  /**
+   * 按 ID 把一条任务合并进活动列表或历史列表。
+   * @param operation - 目标任务
+   * @returns 无返回值
+   */
   function merge(operation: Operation): void {
     const previous =
       active.value.find((item) => item.id === operation.id) ??
@@ -74,6 +89,10 @@ export const useOperationsStore = defineStore('operations', () => {
     }
   }
 
+  /**
+   * 重新加载活动任务与历史任务。
+   * @returns 刷新完成后的 Promise
+   */
   async function refresh(): Promise<void> {
     loading.value = true
     activeError.value = null
@@ -92,32 +111,52 @@ export const useOperationsStore = defineStore('operations', () => {
     }
   }
 
+  /**
+   * 取消一条任务并刷新列表。
+   * @param id - 任务 ID
+   * @returns 取消完成后的 Promise
+   */
   async function cancel(id: string): Promise<void> {
     await cancelOperation(id)
     await refresh()
   }
 
-  /** Deletes one terminal Operation from durable history. */
+  /**
+   * 删除一条任务历史记录。
+   * @param id - 任务 ID
+   * @returns 删除完成后的 Promise
+   */
   async function deleteHistory(id: string): Promise<void> {
     await deleteOperationHistory(id)
     history.value = history.value.filter((operation) => operation.id !== id)
   }
 
-  /** Clears all terminal Operation history and returns the deleted row count. */
+  /**
+   * 清空全部任务历史。
+   * @returns 删除的记录数
+   */
   async function clearHistory(): Promise<number> {
     const deleted = await clearOperationHistory()
     history.value = []
     return deleted
   }
 
-  /** Loads the latest durable state for one Operation. */
+  /**
+   * 按 ID 拉取一条任务并合并到本地状态。
+   * @param id - 任务 ID
+   * @returns 任务详情
+   */
   async function get(id: string): Promise<Operation> {
     const operation = await getOperation(id)
     merge(operation)
     return operation
   }
 
-  /** Retries a checkpointed installation Operation through its owning Installation Task. */
+  /**
+   * 重试一条失败的安装任务。
+   * @param operation - 目标任务
+   * @returns 新任务的 Operation ID
+   */
   async function retry(operation: Operation): Promise<string> {
     if (
       operation.type !== 'install' ||
@@ -135,11 +174,19 @@ export const useOperationsStore = defineStore('operations', () => {
     return started.operationID
   }
 
+  /**
+   * 订阅任务进度推送。
+   * @returns 无返回值
+   */
   function startSubscription(): void {
     unsubscribe?.()
     unsubscribe = subscribeOperationProgress(merge)
   }
 
+  /**
+   * 取消任务进度订阅。
+   * @returns 无返回值
+   */
   function stopSubscription(): void {
     unsubscribe?.()
     unsubscribe = null

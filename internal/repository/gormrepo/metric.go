@@ -17,7 +17,7 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-// MetricSeriesRecord is the dictionary row for one (Server, Source, Metric, Tags) identity.
+// MetricSeriesRecord 是 (Server, Source, Metric, Tags) 四元组身份的字典行。
 // 原始与聚合表只保留 series_id 小整数外键:四元组文本键(36+36+96+64 字节)原本要在每一行、
 // 以及每一条复合索引里各重复存一遍,是 Metric 表体积的主要来源。
 type MetricSeriesRecord struct {
@@ -30,10 +30,10 @@ type MetricSeriesRecord struct {
 	SchemaVersion int
 }
 
-// TableName pins the metric series dictionary table name.
+// TableName 固定 Metric 序列字典的表名。
 func (MetricSeriesRecord) TableName() string { return "metric_series_records" }
 
-// MetricSampleRecord is one raw sample: series foreign key, epoch milliseconds, value.
+// MetricSampleRecord 是一条原始样本:序列外键 + epoch 毫秒 + 数值。
 type MetricSampleRecord struct {
 	ID          uint64 `gorm:"primaryKey;autoIncrement"`
 	SeriesID    uint32 `gorm:"index:idx_metric_raw_series_time,priority:1"`
@@ -41,10 +41,10 @@ type MetricSampleRecord struct {
 	Value       float64
 }
 
-// TableName keeps latest-series SQL aligned with the migration contract.
+// TableName 让取最新序列的 SQL 与迁移契约保持一致。
 func (MetricSampleRecord) TableName() string { return "metric_sample_records" }
 
-// MetricMinuteRecord is one minute aggregate keyed by series and epoch-millisecond bucket.
+// MetricMinuteRecord 是一条分钟聚合,以序列与 epoch 毫秒桶为键。
 type MetricMinuteRecord struct {
 	ID       uint64 `gorm:"primaryKey;autoIncrement"`
 	SeriesID uint32 `gorm:"uniqueIndex:idx_metric_minute_unique,priority:1"`
@@ -57,10 +57,10 @@ type MetricMinuteRecord struct {
 	Latest   float64
 }
 
-// TableName pins the minute aggregate table name.
+// TableName 固定分钟聚合的表名。
 func (MetricMinuteRecord) TableName() string { return "metric_minute_records" }
 
-// MetricHourRecord is one hour aggregate keyed by series and epoch-millisecond bucket.
+// MetricHourRecord 是一条小时聚合,以序列与 epoch 毫秒桶为键。
 type MetricHourRecord struct {
 	ID       uint64 `gorm:"primaryKey;autoIncrement"`
 	SeriesID uint32 `gorm:"uniqueIndex:idx_metric_hour_unique,priority:1"`
@@ -73,17 +73,17 @@ type MetricHourRecord struct {
 	Latest   float64
 }
 
-// TableName pins the hour aggregate table name.
+// TableName 固定小时聚合的表名。
 func (MetricHourRecord) TableName() string { return "metric_hour_records" }
 
-// MetricSeriesCache resolves series identities to dictionary IDs without a round trip per written batch.
+// MetricSeriesCache 把序列身份解析成字典 ID,避免每批写入都回表查询。
 type MetricSeriesCache struct {
 	mu         sync.RWMutex
 	idByKey    map[string]uint32
 	recordByID map[uint32]MetricSeriesRecord
 }
 
-// NewMetricSeriesCache creates the process-wide metric series dictionary cache.
+// NewMetricSeriesCache 创建进程级的 Metric 序列字典缓存。
 func NewMetricSeriesCache() *MetricSeriesCache {
 	return &MetricSeriesCache{idByKey: make(map[string]uint32), recordByID: make(map[uint32]MetricSeriesRecord)}
 }
@@ -125,6 +125,7 @@ type metricRepository struct {
 	series   *MetricSeriesCache
 }
 
+// InsertSamples 解析每条样本的序列身份,并追加一个有界的原始样本批次。
 func (r *metricRepository) InsertSamples(ctx context.Context, samples []model.MetricSample) error {
 	if len(samples) == 0 {
 		return nil
@@ -143,7 +144,7 @@ func (r *metricRepository) InsertSamples(ctx context.Context, samples []model.Me
 	return nil
 }
 
-// resolveSeries returns the dictionary ID for one identity, inserting it on first sight.
+// resolveSeries 返回某个身份对应的字典 ID,首次出现时插入新行。
 func (r *metricRepository) resolveSeries(ctx context.Context, serverID, sourceID, metric string, tags map[string]string, schemaVersion int) (uint32, error) {
 	tagsKey := metricTagsKey(tags)
 	key := metricSeriesKey(serverID, sourceID, metric, tagsKey)
@@ -172,7 +173,7 @@ func (r *metricRepository) resolveSeries(ctx context.Context, serverID, sourceID
 	return record.ID, nil
 }
 
-// seriesForQuery returns the dictionary rows matching one Server/Metric/Source filter.
+// seriesForQuery 返回匹配 Server、Metric 与可选 Source 过滤条件的字典行。
 func (r *metricRepository) seriesForQuery(ctx context.Context, serverID model.ID, metrics []string, sourceID model.ID) ([]MetricSeriesRecord, error) {
 	database := r.database.WithContext(ctx).Where("server_id = ?", serverID.String())
 	if len(metrics) > 0 {
@@ -191,6 +192,7 @@ func (r *metricRepository) seriesForQuery(ctx context.Context, serverID model.ID
 	return records, nil
 }
 
+// ListSamples 返回某个 Server、Metric 与可选 Source 在时间区间内的原始样本。
 func (r *metricRepository) ListSamples(ctx context.Context, query model.MetricQuery) ([]model.MetricSample, error) {
 	series, err := r.seriesForQuery(ctx, query.ServerID, []string{query.Metric.String()}, query.SourceID)
 	if err != nil {
@@ -210,6 +212,7 @@ func (r *metricRepository) ListSamples(ctx context.Context, query model.MetricQu
 	return r.samplesFromRecords(records), nil
 }
 
+// ListSamplesRange 用游标分页返回全部序列的原始样本,供降采样使用。
 func (r *metricRepository) ListSamplesRange(ctx context.Context, start, end time.Time, cursor repository.MetricSampleCursor, limit int) ([]model.MetricSample, repository.MetricSampleCursor, error) {
 	if limit <= 0 || limit > 100_000 {
 		limit = 100_000
@@ -231,6 +234,7 @@ func (r *metricRepository) ListSamplesRange(ctx context.Context, start, end time
 	return r.samplesFromRecords(records), next, nil
 }
 
+// UpsertAggregates 按序列与桶键幂等写入分钟和小时聚合。
 func (r *metricRepository) UpsertAggregates(ctx context.Context, aggregates []model.MetricAggregate) error {
 	if len(aggregates) == 0 {
 		return nil
@@ -273,6 +277,7 @@ func (r *metricRepository) UpsertAggregates(ctx context.Context, aggregates []mo
 	return nil
 }
 
+// ListAggregates 返回某个 Server 与 Metric 在时间区间内的分钟或小时聚合。
 func (r *metricRepository) ListAggregates(ctx context.Context, query model.MetricQuery) ([]model.MetricAggregate, error) {
 	series, err := r.seriesForQuery(ctx, query.ServerID, []string{query.Metric.String()}, query.SourceID)
 	if err != nil {
@@ -306,6 +311,7 @@ func (r *metricRepository) ListAggregates(ctx context.Context, query model.Metri
 	return result, nil
 }
 
+// Latest 返回某个 Server 下每个序列的最新一条样本。
 func (r *metricRepository) Latest(ctx context.Context, serverID model.ID, metrics []enums.MetricType) ([]model.MetricSample, error) {
 	if len(metrics) == 0 {
 		return nil, nil
@@ -349,6 +355,7 @@ func (r *metricRepository) Latest(ctx context.Context, serverID model.ID, metric
 	return samples, nil
 }
 
+// DeleteBefore 删除早于保留期界线的一批数据,单次批量有上限。
 func (r *metricRepository) DeleteBefore(ctx context.Context, granularity enums.MetricGranularity, before time.Time, limit int) (int64, error) {
 	if limit <= 0 || limit > 50_000 {
 		limit = 10_000
@@ -375,6 +382,7 @@ func (r *metricRepository) DeleteBefore(ctx context.Context, granularity enums.M
 	return result.RowsAffected, nil
 }
 
+// StorageUsage 返回监控数据库的 SQLite 页使用量,供容量判定使用。
 func (r *metricRepository) StorageUsage(ctx context.Context) (repository.MetricStorageUsage, error) {
 	var pageSize, pageCount, freePages int64
 	for _, query := range []struct {
@@ -396,6 +404,7 @@ func (r *metricRepository) StorageUsage(ctx context.Context) (repository.MetricS
 	return repository.MetricStorageUsage{UsedBytes: usedPages * pageSize}, nil
 }
 
+// DeleteServer 删除某个 Server 的全部样本、聚合与序列字典行。
 func (r *metricRepository) DeleteServer(ctx context.Context, serverID model.ID, batchSize int) (int64, error) {
 	if !serverID.Valid() {
 		return 0, apperror.New(apperror.CodeValidationInvalidArgument, "Metric Server ID 无效")
@@ -438,7 +447,7 @@ func (r *metricRepository) DeleteServer(ctx context.Context, serverID model.ID, 
 	return total, nil
 }
 
-// warmSeries loads any dictionary rows referenced by the records but missing from the cache.
+// warmSeries 补载记录引用到、但缓存中缺失的序列字典行。
 func (r *metricRepository) warmSeries(ctx context.Context, records []MetricSampleRecord) error {
 	missing := make([]uint32, 0)
 	seen := make(map[uint32]struct{})

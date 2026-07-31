@@ -33,7 +33,7 @@ type metricAggregateAccumulator struct {
 	schemaVersion int
 }
 
-// RunMaintenance performs one mutually exclusive bounded downsample and retention pass.
+// RunMaintenance 互斥地执行一轮有界的降采样与保留清理。
 func (m *MetricManager) RunMaintenance(ctx context.Context) (model.MetricMaintenanceResult, error) {
 	m.maintenanceMu.Lock()
 	defer m.maintenanceMu.Unlock()
@@ -55,7 +55,7 @@ func (m *MetricManager) RunMaintenance(ctx context.Context) (model.MetricMainten
 	return deleted, nil
 }
 
-// downsampleGranularity rolls up only buckets completed since the last watermark, with one-step overlap for stragglers.
+// downsampleGranularity 只重算水位线之后已完成的桶,并回退一步以覆盖迟到样本。
 func (m *MetricManager) downsampleGranularity(ctx context.Context, now time.Time, granularity enums.MetricGranularity) (int, error) {
 	step, lookback, watermark := time.Minute, 2*time.Hour, &m.minuteRolledUpTo
 	if granularity == enums.MetricGranularityHour {

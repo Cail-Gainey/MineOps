@@ -40,6 +40,10 @@ const unsubscribeSecondInstance = subscribeSecondInstance((data) => {
   secondInstanceResult.value = `${data.workingDir} / ${data.args.length} 个参数`
 })
 
+/**
+ * 执行一次 Binding 调用验证并展示结果。
+ * @returns 验证完成后的 Promise
+ */
 async function verifyBinding(): Promise<void> {
   bindingResult.value = '执行中'
   try {
@@ -52,6 +56,10 @@ async function verifyBinding(): Promise<void> {
   }
 }
 
+/**
+ * 发起一次可取消的等待，用于验证取消传播。
+ * @returns 发起完成后的 Promise
+ */
 async function startCancellation(): Promise<void> {
   cancellationResult.value = '等待取消'
   pendingWait = runCancellationWait(5_000)
@@ -64,10 +72,18 @@ async function startCancellation(): Promise<void> {
   }
 }
 
+/**
+ * 取消正在进行的等待验证。
+ * @returns 无返回值
+ */
 function cancelWait(): void {
   pendingWait?.cancel('用户取消阶段 0 Binding Spike')
 }
 
+/**
+ * 创建临时加密数据库并验证 SQLCipher 可用性。
+ * @returns 验证完成后的 Promise
+ */
 async function verifySQLCipher(): Promise<void> {
   sqlCipherRunning.value = true
   sqlCipherResult.value = '正在创建临时加密数据库'
@@ -102,6 +118,10 @@ async function verifySQLCipher(): Promise<void> {
   }
 }
 
+/**
+ * 订阅并启动事件批量推送验证。
+ * @returns 启动完成后的 Promise
+ */
 async function startEvents(): Promise<void> {
   unsubscribeEventSpike?.()
   receivedBatches.value = 0
@@ -122,6 +142,10 @@ async function startEvents(): Promise<void> {
   }
 }
 
+/**
+ * 停止事件推送验证并取消订阅。
+ * @returns 停止完成后的 Promise
+ */
 async function stopEvents(): Promise<void> {
   try {
     const status = await stopEventSpike()

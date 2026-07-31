@@ -9,25 +9,25 @@ import (
 	"github.com/Cail-Gainey/MineOps/internal/service"
 )
 
-// StorageResult contains storage state, a completed backup, or a stable desktop error.
+// StorageResult 承载存储状态、已完成的备份或稳定的桌面错误。
 type StorageResult struct {
 	Status *service.StorageStatus `json:"status,omitempty"`
 	Backup *sqlcipher.BackupInfo  `json:"backup,omitempty"`
 	Error  *apperror.DTO          `json:"error,omitempty"`
 }
 
-// StorageService exposes encrypted database status, backup, restore, and key-rotation workflows.
+// StorageService 对外暴露加密数据库状态、备份、恢复与密钥轮换流程。
 type StorageService struct {
 	manager *service.StorageManager
 	logger  *applog.Logger
 }
 
-// NewStorageService creates the desktop storage and security facade.
+// NewStorageService 创建桌面侧的存储与安全门面。
 func NewStorageService(manager *service.StorageManager, logger *applog.Logger) *StorageService {
 	return &StorageService{manager: manager, logger: logger}
 }
 
-// GetStatus returns the current encrypted database and pending maintenance state.
+// GetStatus 返回当前加密数据库状态与已排队的维护任务。
 func (s *StorageService) GetStatus(ctx context.Context) (result StorageResult) {
 	defer s.recover(ctx, "StorageService.GetStatus", &result)
 	status, err := s.manager.Status()
@@ -38,7 +38,7 @@ func (s *StorageService) GetStatus(ctx context.Context) (result StorageResult) {
 	return StorageResult{Status: &status}
 }
 
-// CreateBackup creates one consistent online .mineops-backup file.
+// CreateBackup 在线创建一份一致的 .mineops-backup 备份文件。
 func (s *StorageService) CreateBackup(ctx context.Context, destination string) (result StorageResult) {
 	defer s.recover(ctx, "StorageService.CreateBackup", &result)
 	backup, err := s.manager.CreateBackup(ctx, destination)
@@ -49,7 +49,7 @@ func (s *StorageService) CreateBackup(ctx context.Context, destination string) (
 	return StorageResult{Backup: &backup}
 }
 
-// ScheduleRestore verifies and stages a backup for restoration on the next application start.
+// ScheduleRestore 校验备份并排队到下次启动时恢复。
 func (s *StorageService) ScheduleRestore(ctx context.Context, backupPath string) (result StorageResult) {
 	defer s.recover(ctx, "StorageService.ScheduleRestore", &result)
 	backup, err := s.manager.ScheduleRestore(backupPath)
@@ -65,7 +65,7 @@ func (s *StorageService) ScheduleRestore(ctx context.Context, backupPath string)
 	return StorageResult{Backup: &backup, Status: &status}
 }
 
-// ScheduleKeyRotation stages a SQLCipher key rotation for the next application start.
+// ScheduleKeyRotation 排队一次下次启动执行的 SQLCipher 密钥轮换。
 func (s *StorageService) ScheduleKeyRotation(ctx context.Context) (result StorageResult) {
 	defer s.recover(ctx, "StorageService.ScheduleKeyRotation", &result)
 	if err := s.manager.ScheduleKeyRotation(); err != nil {
@@ -80,7 +80,7 @@ func (s *StorageService) ScheduleKeyRotation(ctx context.Context) (result Storag
 	return StorageResult{Status: &status}
 }
 
-// ScheduleVacuum stages a VACUUM for the next application start to release SQLite free pages.
+// ScheduleVacuum 排队一次下次启动执行的 VACUUM,释放 SQLite 空闲页占用的文件空间。
 func (s *StorageService) ScheduleVacuum(ctx context.Context) (result StorageResult) {
 	defer s.recover(ctx, "StorageService.ScheduleVacuum", &result)
 	if err := s.manager.ScheduleVacuum(); err != nil {
@@ -95,7 +95,7 @@ func (s *StorageService) ScheduleVacuum(ctx context.Context) (result StorageResu
 	return StorageResult{Status: &status}
 }
 
-// ScheduleDatabaseReset stages deleting both databases and the stored key for the next application start.
+// ScheduleDatabaseReset 排队一次下次启动执行的清空数据库:删除两个库文件与系统密钥。
 func (s *StorageService) ScheduleDatabaseReset(ctx context.Context) (result StorageResult) {
 	defer s.recover(ctx, "StorageService.ScheduleDatabaseReset", &result)
 	if err := s.manager.ScheduleDatabaseReset(); err != nil {
@@ -110,7 +110,7 @@ func (s *StorageService) ScheduleDatabaseReset(ctx context.Context) (result Stor
 	return StorageResult{Status: &status}
 }
 
-// CancelPendingMaintenance clears staged restore, key-rotation, and vacuum work.
+// CancelPendingMaintenance 取消全部已排队的下次启动维护任务。
 func (s *StorageService) CancelPendingMaintenance(ctx context.Context) (result StorageResult) {
 	defer s.recover(ctx, "StorageService.CancelPendingMaintenance", &result)
 	if err := s.manager.CancelPendingMaintenance(); err != nil {
@@ -125,7 +125,7 @@ func (s *StorageService) CancelPendingMaintenance(ctx context.Context) (result S
 	return StorageResult{Status: &status}
 }
 
-// OpenDataDirectory opens the controlled MineOps data directory.
+// OpenDataDirectory 打开受控的 MineOps 数据目录。
 func (s *StorageService) OpenDataDirectory(ctx context.Context) (result ActionResult) {
 	defer func() {
 		var err error

@@ -79,6 +79,10 @@ watch(
 
 watch(draft, clearTestResult)
 
+/**
+ * 校验并提交 SSH Session 的新建或编辑。
+ * @returns 提交完成后的 Promise
+ */
 async function submit(): Promise<void> {
   if (submitting.value || testing.value) return
   submitting.value = true
@@ -96,6 +100,10 @@ async function submit(): Promise<void> {
   }
 }
 
+/**
+ * 用表单当前内容测试 SSH 连通性。
+ * @returns 测试完成后的 Promise
+ */
 async function testConnection(): Promise<void> {
   if (testing.value || submitting.value) return
   const revision = testRevision
@@ -114,22 +122,38 @@ async function testConnection(): Promise<void> {
   }
 }
 
+/**
+ * 关闭表单并清除内存中的口令与私钥口令。
+ * @returns 无返回值
+ */
 function close(): void {
   if (submitting.value || testing.value) return
   clearSecrets()
   emit('update:show', false)
 }
 
+/**
+ * 放弃修改，把表单恢复到打开时的内容。
+ * @returns 无返回值
+ */
 function discard(): void {
   Object.assign(draft, initial)
 }
 
+/**
+ * 作废上一次连通性测试结果。
+ * @returns 无返回值
+ */
 function clearTestResult(): void {
   testRevision += 1
   testResult.value = null
   testError.value = ''
 }
 
+/**
+ * 清除表单中缓存的口令与私钥口令。
+ * @returns 无返回值
+ */
 function clearSecrets(): void {
   draft.secret = ''
   draft.passphrase = ''
@@ -137,10 +161,19 @@ function clearSecrets(): void {
   initial.passphrase = ''
 }
 
+/**
+ * 把认证方式标识映射成中文标签。
+ * @param authType - 认证方式标识
+ * @returns 中文标签，未知方式原样返回
+ */
 function authTypeLabel(authType: string): string {
   return authOptions.find((option) => option.value === authType)?.label ?? authType
 }
 
+/**
+ * 构造一份空白的 SSH Session 输入。
+ * @returns 空白 SSH Session 输入
+ */
 function emptyInput(): SSHSessionInput {
   return {
     name: '',
@@ -162,6 +195,11 @@ function emptyInput(): SSHSessionInput {
   }
 }
 
+/**
+ * 把已有 SSH Session 转换成表单输入，不带密文。
+ * @param session - 源 SSH Session
+ * @returns 表单输入内容
+ */
 function fromSession(session: SSHSessionDTO): SSHSessionInput {
   return {
     name: session.name,

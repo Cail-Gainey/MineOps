@@ -159,14 +159,29 @@ const sparkCollectionStatus = computed(() => {
   return { type: 'default' as const, label: '服务器停止，采集已停止' }
 })
 
+/**
+ * 把数值四舍五入到两位小数。
+ * @param value - 原始数值
+ * @returns 保留两位小数的数值
+ */
 function roundToTwo(value: number): number {
   return Number(value.toFixed(2))
 }
 
+/**
+ * 把可选数值四舍五入到两位小数，缺失时返回 null 以便图表断线。
+ * @param value - 可选原始数值
+ * @returns 保留两位小数的数值，输入缺失时为 null
+ */
 function roundOptionalToTwo(value: number | undefined): number | null {
   return value === undefined ? null : roundToTwo(value)
 }
 
+/**
+ * 把 Tooltip 传入的值格式化成两位小数。
+ * @param value - 单点数值，或 ECharts 传入的 [时间, 值] 数组
+ * @returns 数值文本，非有限数返回破折号
+ */
 function formatChartValue(value: unknown): string {
   const candidate = Array.isArray(value) ? value[value.length - 1] : value
   const numeric = Number(candidate)
@@ -275,6 +290,11 @@ const distributionOption = computed<ChartOption>(() => ({
   ],
 }))
 
+/**
+ * 把 Spark 能力状态映射成标签配色。
+ * @param status - Spark 能力状态字符串
+ * @returns naive-ui 标签的语义类型
+ */
 function statusType(status: string | undefined): 'default' | 'success' | 'warning' | 'error' {
   if (status === 'available') return 'success'
   if (status === 'unknown' || status === 'collecting') return 'warning'
@@ -282,24 +302,51 @@ function statusType(status: string | undefined): 'default' | 'success' | 'warnin
   return 'default'
 }
 
+/**
+ * 把指标数值格式化成带单位的文本。
+ * @param value - 指标数值，缺失时返回破折号
+ * @param suffix - 单位后缀
+ * @param digits - 保留小数位数
+ * @returns 带单位的数值文本
+ */
 function formatMetric(value: number | undefined, suffix: string, digits = 2): string {
   return value === undefined ? '—' : `${value.toFixed(digits)} ${suffix}`
 }
 
+/**
+ * 格式化 TPS，触顶时加前缀大于号表示实际值可能更高。
+ * @param value - TPS 数值，缺失时返回破折号
+ * @param capped - 该值是否被服务端截顶
+ * @returns TPS 展示文本
+ */
 function formatTPS(value: number | undefined, capped: boolean | undefined): string {
   if (value === undefined) return '—'
   return `${capped ? '>' : ''}${value.toFixed(2)} TPS`
 }
 
+/**
+ * 把校验算法名规范成带连字符的展示形式。
+ * @param algorithm - 校验算法名，如 sha512
+ * @returns 规范化后的算法标签
+ */
 function checksumLabel(algorithm: string): string {
   return algorithm.toUpperCase().replace('SHA', 'SHA-')
 }
 
+/**
+ * 把构件字节数换算成 MiB 展示文本。
+ * @param bytes - 构件字节数，非正数表示未声明
+ * @returns 带单位的体积文本
+ */
 function formatArtifactSize(bytes: number): string {
   if (bytes <= 0) return '未声明'
   return `${(bytes / 1024 / 1024).toFixed(2)} MiB`
 }
 
+/**
+ * 切换目标 Server 并重新加载性能数据，锁定模式下忽略。
+ * @returns 切换完成后的 Promise
+ */
 async function changeServer(): Promise<void> {
   if (props.lockedServerID) return
   await router.replace({ query: { ...route.query, serverID: selectedServerID.value || undefined } })
@@ -307,6 +354,10 @@ async function changeServer(): Promise<void> {
   await refreshPerformance()
 }
 
+/**
+ * 重新加载所选 Server 的 Spark 能力、快照与报告。
+ * @returns 刷新完成后的 Promise
+ */
 async function refreshPerformance(): Promise<void> {
   try {
     await performance.refresh()
@@ -320,14 +371,26 @@ async function refreshPerformance(): Promise<void> {
   }
 }
 
+/**
+ * 重新探测远端 Spark 能力。
+ * @returns 探测完成后的 Promise
+ */
 async function probeSparkCapability(): Promise<void> {
   await runAction(() => performance.probe(), 'Spark 探测完成')
 }
 
+/**
+ * 立即采集一次 TPS/MSPT 快照。
+ * @returns 采集完成后的 Promise
+ */
 async function collectSnapshot(): Promise<void> {
   await runAction(() => performance.collect(), 'Spark TPS/MSPT 已采集')
 }
 
+/**
+ * 暂停或恢复该 Server 的 Spark 采集。
+ * @returns 操作完成后的 Promise
+ */
 async function toggleSparkCollection(): Promise<void> {
   if (!selectedServerID.value || collectionActionLoading.value) return
   const paused = collectorPaused.value
@@ -356,6 +419,10 @@ async function toggleSparkCollection(): Promise<void> {
   }
 }
 
+/**
+ * 二次确认后清理该 Server 的 Spark 历史数据。
+ * @returns 清理完成后的 Promise
+ */
 async function clearSparkHistory(): Promise<void> {
   if (!selectedServer.value || collectionActionLoading.value) return
   const confirmed = await interactions.confirm({
@@ -391,6 +458,12 @@ async function clearSparkHistory(): Promise<void> {
   }
 }
 
+/**
+ * 执行一次性能页动作并统一处理加载态、成功通知与错误通知。
+ * @param action - 待执行的异步动作
+ * @param title - 成功时的通知标题
+ * @returns 动作完成后的 Promise
+ */
 async function runAction(action: () => Promise<unknown>, title: string): Promise<void> {
   try {
     await action()
@@ -433,10 +506,18 @@ async function runAction(action: () => Promise<unknown>, title: string): Promise
   }
 }
 
+/**
+ * 生成 Spark 安装计划供用户确认。
+ * @returns 生成完成后的 Promise
+ */
 async function prepareInstall(): Promise<void> {
   await runAction(() => performance.planInstall(), 'Spark 安装计划已生成')
 }
 
+/**
+ * 二次确认后按计划安装 Spark。
+ * @returns 安装完成后的 Promise
+ */
 async function confirmInstall(): Promise<void> {
   if (!installPlan.value) return
   const dependencyImpact = installPlan.value.dependencies
@@ -456,6 +537,10 @@ async function confirmInstall(): Promise<void> {
   if (confirmed) await runAction(() => performance.install(), 'Spark Artifact 已安装')
 }
 
+/**
+ * 二次确认后回滚到安装前的备份。
+ * @returns 回滚完成后的 Promise
+ */
 async function confirmRollback(): Promise<void> {
   if (!capability.value?.backupPath || !selectedServer.value) return
   const confirmed = await interactions.confirm({
@@ -470,6 +555,10 @@ async function confirmRollback(): Promise<void> {
   if (confirmed) await runAction(() => performance.rollback(), 'Spark Artifact 已回滚')
 }
 
+/**
+ * 确认隐私风险后生成 Spark 健康报告。
+ * @returns 生成完成后的 Promise
+ */
 async function createHealthReport(): Promise<void> {
   if (!reportPrivacyConfirmation.value) {
     await runAction(() => performance.healthReport(), 'Health Report Operation 已启动')
@@ -484,6 +573,10 @@ async function createHealthReport(): Promise<void> {
   if (confirmed) await runAction(() => performance.healthReport(), 'Health Report Operation 已启动')
 }
 
+/**
+ * 确认隐私风险后发起一次 Spark 性能分析。
+ * @returns 发起完成后的 Promise
+ */
 async function createProfiler(): Promise<void> {
   if (!reportPrivacyConfirmation.value) {
     await runAction(() => performance.profiler(), 'Profiler Operation 已启动')
@@ -499,6 +592,11 @@ async function createProfiler(): Promise<void> {
   if (confirmed) await runAction(() => performance.profiler(), 'Profiler Operation 已启动')
 }
 
+/**
+ * 确认隐私风险后打开报告的外部链接。
+ * @param report - 目标 Spark 报告
+ * @returns 打开完成后的 Promise
+ */
 async function openReport(report: SparkReport): Promise<void> {
   if (!report.reportURL) return
   if (!reportPrivacyConfirmation.value) {
@@ -515,6 +613,11 @@ async function openReport(report: SparkReport): Promise<void> {
   if (confirmed) await openExternalReport(report.reportURL)
 }
 
+/**
+ * 用系统浏览器打开报告链接。
+ * @param reportURL - 报告的外部地址
+ * @returns 打开完成后的 Promise
+ */
 async function openExternalReport(reportURL: string): Promise<void> {
   try {
     await Browser.OpenURL(reportURL)
@@ -528,10 +631,20 @@ async function openExternalReport(reportURL: string): Promise<void> {
   }
 }
 
+/**
+ * 把报告类型映射成中文标签。
+ * @param kind - 报告类型
+ * @returns 中文标签，未知类型原样返回
+ */
 function reportKindLabel(kind: string): string {
   return kind === 'health' ? '健康报告' : kind === 'profiler' ? '性能分析' : kind
 }
 
+/**
+ * 把报告状态映射成中文标签。
+ * @param state - 报告状态
+ * @returns 中文标签，未知状态原样返回
+ */
 function reportStateLabel(state: string): string {
   const labels: Record<string, string> = {
     pending: '等待中',
@@ -543,6 +656,11 @@ function reportStateLabel(state: string): string {
   return labels[state] ?? state
 }
 
+/**
+ * 二次确认后删除一份 Spark 报告。
+ * @param report - 待删除的报告
+ * @returns 删除完成后的 Promise
+ */
 async function deleteReport(report: SparkReport): Promise<void> {
   const confirmed = await interactions.confirm({
     title: '删除 Spark 报告记录？',
@@ -558,6 +676,11 @@ async function deleteReport(report: SparkReport): Promise<void> {
   }, '报告记录已删除')
 }
 
+/**
+ * 加载 Server 列表并选定目标后拉取性能数据。
+ * @param preferredServerID - 优先选中的 Server ID
+ * @returns 加载完成后的 Promise
+ */
 async function loadPerformance(preferredServerID: string): Promise<void> {
   try {
     await performance.loadServers(preferredServerID)

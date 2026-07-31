@@ -75,6 +75,11 @@ const option = computed<ChartOption>(() => {
   }
 })
 
+/**
+ * 生成含空洞的指标点序列，用于验证图表渲染。
+ * @param count - 生成点数
+ * @returns 指标点数组
+ */
 function createPoints(count: number): MetricPoint[] {
   const start = Date.now() - count * 1_000
   return Array.from({ length: count }, (_, index) => {
@@ -83,11 +88,19 @@ function createPoints(count: number): MetricPoint[] {
   })
 }
 
+/**
+ * 载入十万点数据，用于验证 LTTB 降采样表现。
+ * @returns 无返回值
+ */
 function loadOneHundredThousandPoints(): void {
   points.value = createPoints(100_000)
   status.value = '100,000 点 / LTTB 降采样 / 包含空洞'
 }
 
+/**
+ * 开始或停止实时追加数据。
+ * @returns 无返回值
+ */
 function toggleRealtime(): void {
   if (realtimeTimer !== null) {
     window.clearInterval(realtimeTimer)

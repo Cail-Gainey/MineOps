@@ -68,6 +68,11 @@ let attachmentGeneration = 0
 let retryTimer: number | null = null
 const pendingEvents: ConsoleEvent[] = []
 
+/**
+ * 把后端推送的 Base64 输出解码成字节数组。
+ * @param value - Base64 字符串
+ * @returns 解码后的字节数组
+ */
 function decodeBase64(value: string): Uint8Array {
   const binary = window.atob(value)
   const bytes = new Uint8Array(binary.length)
@@ -75,6 +80,11 @@ function decodeBase64(value: string): Uint8Array {
   return bytes
 }
 
+/**
+ * 推送一条控制台错误通知。
+ * @param error - 捕获到的错误
+ * @returns 无返回值
+ */
 function showError(error: unknown): void {
   notifications.push({
     kind: 'error',
@@ -84,12 +94,20 @@ function showError(error: unknown): void {
   })
 }
 
+/**
+ * 取消已安排的重连定时器。
+ * @returns 无返回值
+ */
 function clearRetry(): void {
   if (retryTimer === null) return
   window.clearTimeout(retryTimer)
   retryTimer = null
 }
 
+/**
+ * 在仍需附着时安排一次控制台重连。
+ * @returns 无返回值
+ */
 function scheduleRetry(): void {
   if (!shouldAttach.value || disposed || retryTimer !== null) return
   retryTimer = window.setTimeout(() => {
@@ -98,6 +116,11 @@ function scheduleRetry(): void {
   }, 1_000)
 }
 
+/**
+ * 处理后端推送的控制台输出与关闭事件。
+ * @param event - 控制台事件
+ * @returns 无返回值
+ */
 function handleEvent(event: ConsoleEvent): void {
   if (!sessionID && opening) {
     pendingEvents.push(event)
@@ -133,6 +156,10 @@ function handleEvent(event: ConsoleEvent): void {
   }
 }
 
+/**
+ * 附着到 Server 控制台并开始接收输出。
+ * @returns 附着完成后的 Promise
+ */
 async function attach(): Promise<void> {
   if (sessionID || opening || disposed || !shouldAttach.value) return
   clearRetry()
@@ -165,6 +192,10 @@ async function attach(): Promise<void> {
   }
 }
 
+/**
+ * 从控制台分离，保留远端会话继续运行。
+ * @returns 分离完成后的 Promise
+ */
 async function detach(): Promise<void> {
   attachmentGeneration += 1
   clearRetry()
@@ -176,6 +207,10 @@ async function detach(): Promise<void> {
   await detachServerConsole(id).catch(showError)
 }
 
+/**
+ * 在控制台回滚缓冲中查找下一处匹配。
+ * @returns 无返回值
+ */
 function findNext(): void {
   if (!searchText.value) return
   status.value = searchAddon?.findNext(searchText.value, { caseSensitive: false })
@@ -183,11 +218,19 @@ function findNext(): void {
     : `未找到：${searchText.value}`
 }
 
+/**
+ * 把控制台当前选区复制到剪贴板。
+ * @returns 复制完成后的 Promise
+ */
 async function copySelection(): Promise<void> {
   const selection = terminal?.getSelection() ?? ''
   if (selection) await navigator.clipboard.writeText(selection)
 }
 
+/**
+ * 把输入框中的命令发送到 Server 控制台。
+ * @returns 发送完成后的 Promise
+ */
 async function sendCommand(): Promise<void> {
   const command = commandText.value.trim()
   if (!command || !sessionID) return
@@ -200,6 +243,10 @@ async function sendCommand(): Promise<void> {
   }
 }
 
+/**
+ * 清空控制台显示内容，不影响远端会话。
+ * @returns 无返回值
+ */
 function clearTerminal(): void {
   terminal?.clear()
 }

@@ -1,4 +1,4 @@
-// Package bootstrap assembles MineOps application dependencies and desktop services.
+// Package bootstrap 组装 MineOps 的应用依赖与桌面服务。
 package bootstrap
 
 import (
@@ -28,7 +28,7 @@ func init() {
 	application.RegisterEvent[desktopservices.FileDropEvent](constants.FileDropEventName)
 }
 
-// NewApplication creates the MineOps desktop application composition root.
+// NewApplication 创建 MineOps 桌面应用的组装根。
 func NewApplication(assets embed.FS, runtime *Runtime, logger *applog.Logger) *application.App {
 	var mainWindow *application.WebviewWindow
 	var quitting atomic.Bool
@@ -189,7 +189,7 @@ func NewApplication(assets embed.FS, runtime *Runtime, logger *applog.Logger) *a
 		app.Event.Emit(constants.SettingsChangedEventName, desktopservices.SettingsChangedEvent{Category: change.Category.String()})
 	})
 
-	// 桌面外壳去浏览器化:锁定缩放、关闭默认右键菜单与 macOS 前后退/捏合手势(详见 openspec desktop-shell-chrome)。
+	// 桌面外壳去浏览器化:锁定缩放、关闭默认右键菜单与 macOS 前后退/捏合手势
 	macPreferences := application.MacWebviewPreferences{}
 	macPreferences.AllowsMagnification.Set(false)
 	macPreferences.AllowsBackForwardNavigationGestures.Set(false)

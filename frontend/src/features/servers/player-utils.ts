@@ -174,12 +174,22 @@ export function resolveSelectedPlayer<Player extends PlayerOverviewLike>(
   return players.find((player) => player.identityID === identityID) ?? null
 }
 
+/**
+ * 把 ISO 时间字符串解析成毫秒数。
+ * @param value - ISO 时间字符串，可为空
+ * @returns 毫秒时间戳，无法解析时为 0
+ */
 function timestampValue(value?: string | null): number {
   if (!value) return 0
   const timestamp = Date.parse(value)
   return Number.isFinite(timestamp) ? timestamp : 0
 }
 
+/**
+ * 取玩家本次实际加入时间的毫秒值，优先使用当前在线记录。
+ * @param player - 玩家总览
+ * @returns 毫秒时间戳，未在线时为 0
+ */
 function effectiveCurrentJoinedAtMillis(player: PlayerOverviewLike): number {
   const joinedAt = player.currentJoinedAt ? Date.parse(player.currentJoinedAt) : Number.NaN
   const lastActivityAt = player.lastActivityAt ? Date.parse(player.lastActivityAt) : Number.NaN

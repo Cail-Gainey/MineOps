@@ -62,8 +62,9 @@ type Runtime struct {
 	DatabaseID            string
 	KeyVersion            int
 
-	database *sqlcipher.Connection
-	shutdown *service.ShutdownGroup
+	database        *sqlcipher.Connection
+	metricsDatabase *sqlcipher.Connection
+	shutdown        *service.ShutdownGroup
 }
 
 // NewRuntime initializes secure storage, encrypted SQLite, migrations, repositories, Settings, and Operations.
@@ -92,6 +93,7 @@ func NewRuntime(ctx context.Context, logger *applog.Logger, logWriter *applog.Ro
 	}
 	dataDirectory := filepath.Join(filepath.Dir(logDirectory), constants.DataDirectoryName)
 	databasePath := filepath.Join(dataDirectory, constants.DatabaseFileName)
+	metricsDatabasePath := filepath.Join(dataDirectory, constants.MetricsDatabaseFileName)
 	keyStore := sqlcipher.SystemKeyStore{}
 	if storageMode == applog.RuntimeDevelopment {
 		keyStore = sqlcipher.NewDevelopmentSystemKeyStore()
@@ -103,68 +105,87 @@ func NewRuntime(ctx context.Context, logger *applog.Logger, logWriter *applog.Ro
 	if err != nil {
 		return nil, err
 	}
-	store, err := gormrepo.NewStore(databaseResult.Connection.GORM())
+	metricsConnection, err := sqlcipher.BootstrapMetricsDatabase(ctx, metricsDatabasePath)
 	if err != nil {
+		_ = databaseResult.Connection.Close()
+		return nil, err
+	}
+	store, err := gormrepo.NewStore(databaseResult.Connection.GORM(), metricsConnection.GORM())
+	if err != nil {
+		_ = metricsConnection.Close()
+		_ = metricsConnection.Close()
 		_ = databaseResult.Connection.Close()
 		return nil, err
 	}
 	settings, err := appsettings.NewManager(store)
 	if err != nil {
+		_ = metricsConnection.Close()
 		_ = databaseResult.Connection.Close()
 		return nil, err
 	}
 	if _, err := settings.Load(ctx); err != nil {
+		_ = metricsConnection.Close()
 		_ = databaseResult.Connection.Close()
 		return nil, err
 	}
 	background, err := service.NewBackgroundManager(settings, dataDirectory)
 	if err != nil {
+		_ = metricsConnection.Close()
 		_ = databaseResult.Connection.Close()
 		return nil, err
 	}
 	backup, err := sqlcipher.NewBackupManager(databaseResult.Connection, databasePath, keyStore)
 	if err != nil {
+		_ = metricsConnection.Close()
 		_ = databaseResult.Connection.Close()
 		return nil, err
 	}
 	storage, err := service.NewStorageManager(backup, databasePath, dataDirectory, databaseResult.DatabaseID, databaseResult.KeyVersion)
 	if err != nil {
+		_ = metricsConnection.Close()
 		_ = databaseResult.Connection.Close()
 		return nil, err
 	}
 	diagnostic, err := service.NewDiagnosticManager(model.SystemClock{}, store, settings, logDirectory, runtimeMode)
 	if err != nil {
+		_ = metricsConnection.Close()
 		_ = databaseResult.Connection.Close()
 		return nil, err
 	}
 	operations, err := service.NewOperationRunner(shutdown.Context(), model.SystemClock{}, store, logger, desktevents.OperationPublisher{})
 	if err != nil {
+		_ = metricsConnection.Close()
 		_ = databaseResult.Connection.Close()
 		return nil, err
 	}
 	sshSessions, err := service.NewSSHSessionManager(model.SystemClock{}, store)
 	if err != nil {
+		_ = metricsConnection.Close()
 		_ = databaseResult.Connection.Close()
 		return nil, err
 	}
 	knownHosts, err := service.NewKnownHostManager(model.SystemClock{}, store)
 	if err != nil {
+		_ = metricsConnection.Close()
 		_ = databaseResult.Connection.Close()
 		return nil, err
 	}
 	sshClients, err := service.NewSSHClientFactory(sshSessions, knownHosts)
 	if err != nil {
+		_ = metricsConnection.Close()
 		_ = databaseResult.Connection.Close()
 		return nil, err
 	}
 	files, err := service.NewFileManager(model.SystemClock{}, store, settings, sshClients, operations)
 	if err != nil {
+		_ = metricsConnection.Close()
 		_ = databaseResult.Connection.Close()
 		return nil, err
 	}
 	httpClient := httpclient.New(httpclient.Config{Retries: 2, MaximumResponseSize: 8 * 1024 * 1024})
 	downloads, err := service.NewDownloadManager(model.SystemClock{}, store, settings, httpClient, threadPool, logger, dataDirectory)
 	if err != nil {
+		_ = metricsConnection.Close()
 		_ = databaseResult.Connection.Close()
 		return nil, err
 	}
@@ -172,33 +193,39 @@ func NewRuntime(ctx context.Context, logger *applog.Logger, logWriter *applog.Ro
 	desktopUpdates, err := service.NewDesktopUpdateManager(model.SystemClock{}, settings, downloads, desktopReleaseCatalog, logger)
 	if err != nil {
 		downloads.Close()
+		_ = metricsConnection.Close()
 		_ = databaseResult.Connection.Close()
 		return nil, err
 	}
 	if err := shutdown.Go("desktop-update", desktopUpdates.Run); err != nil {
 		downloads.Close()
+		_ = metricsConnection.Close()
 		_ = databaseResult.Connection.Close()
 		return nil, err
 	}
 	jdkCatalog := jdkcatalog.NewAdoptiumCatalog(httpClient, downloads)
 	javaRuntimes, err := service.NewJavaRuntimeManager(model.SystemClock{}, store, sshClients, settings, jdkCatalog, operations, remoteProbePool)
 	if err != nil {
+		_ = metricsConnection.Close()
 		_ = databaseResult.Connection.Close()
 		return nil, err
 	}
 	firewall, err := service.NewFirewallManager(model.SystemClock{}, store, sshClients, settings)
 	if err != nil {
 		downloads.Close()
+		_ = metricsConnection.Close()
 		_ = databaseResult.Connection.Close()
 		return nil, err
 	}
 	minecraftServers, err := service.NewMinecraftServerManager(model.SystemClock{}, store, settings, sshClients, operations, firewall)
 	if err != nil {
+		_ = metricsConnection.Close()
 		_ = databaseResult.Connection.Close()
 		return nil, err
 	}
 	installationRunner, err := service.NewInstallationRunner(model.SystemClock{}, store, operations, installWavePool)
 	if err != nil {
+		_ = metricsConnection.Close()
 		_ = databaseResult.Connection.Close()
 		return nil, err
 	}
@@ -224,50 +251,59 @@ func NewRuntime(ctx context.Context, logger *applog.Logger, logWriter *applog.Ro
 	)
 	installations, err := service.NewInstallationManager(model.SystemClock{}, store, settings, sshClients, javaRuntimes, jdkCatalog, catalogs, installationRunner, firewall)
 	if err != nil {
+		_ = metricsConnection.Close()
 		_ = databaseResult.Connection.Close()
 		return nil, err
 	}
 	if err := operations.RecoverInterrupted(ctx); err != nil {
+		_ = metricsConnection.Close()
 		_ = databaseResult.Connection.Close()
 		return nil, err
 	}
 	if err := installationRunner.RecoverInterrupted(ctx); err != nil {
+		_ = metricsConnection.Close()
 		_ = databaseResult.Connection.Close()
 		return nil, err
 	}
 	processes, err := service.NewRemoteProcessController(model.SystemClock{}, store, sshClients, settings)
 	if err != nil {
 		downloads.Close()
+		_ = metricsConnection.Close()
 		_ = databaseResult.Connection.Close()
 		return nil, err
 	}
 	lifecycle, err := service.NewLifecycleManager(model.SystemClock{}, store, operations, processes, firewall)
 	if err != nil {
 		downloads.Close()
+		_ = metricsConnection.Close()
 		_ = databaseResult.Connection.Close()
 		return nil, err
 	}
 	playerActivity, err := service.NewPlayerActivityManager(model.SystemClock{}, store, settings, sshClients, processes, logger, desktevents.PlayerPublisher{})
 	if err != nil {
 		downloads.Close()
+		_ = metricsConnection.Close()
 		_ = databaseResult.Connection.Close()
 		return nil, err
 	}
 	lifecycle.SetObserver(playerActivity)
 	if err := shutdown.Go("player-activity", playerActivity.Run); err != nil {
 		downloads.Close()
+		_ = metricsConnection.Close()
 		_ = databaseResult.Connection.Close()
 		return nil, err
 	}
 	if err := shutdown.Go("lifecycle-monitor", func(recoveryCtx context.Context) error { return lifecycle.Monitor(recoveryCtx, 5*time.Second) }); err != nil {
 		downloads.Close()
+		_ = metricsConnection.Close()
 		_ = databaseResult.Connection.Close()
 		return nil, err
 	}
 	metricBus := service.NewMetricBus(model.SystemClock{}, desktevents.MetricPublisher{}, logger)
-	metrics, err := service.NewMetricManager(model.SystemClock{}, store, settings, metricBus, databasePath, logger)
+	metrics, err := service.NewMetricManager(model.SystemClock{}, store, settings, metricBus, metricsDatabasePath, logger)
 	if err != nil {
 		downloads.Close()
+		_ = metricsConnection.Close()
 		_ = databaseResult.Connection.Close()
 		return nil, err
 	}
@@ -277,63 +313,74 @@ func NewRuntime(ctx context.Context, logger *applog.Logger, logWriter *applog.Ro
 		})
 	}); err != nil {
 		downloads.Close()
+		_ = metricsConnection.Close()
 		_ = databaseResult.Connection.Close()
 		return nil, err
 	}
 	if err := shutdown.Go("metric-maintenance", metrics.Maintain); err != nil {
 		downloads.Close()
+		_ = metricsConnection.Close()
 		_ = databaseResult.Connection.Close()
 		return nil, err
 	}
 	metricCollector, err := service.NewMetricCollector(model.SystemClock{}, store, settings, sshClients, metrics, logger)
 	if err != nil {
 		downloads.Close()
+		_ = metricsConnection.Close()
 		_ = databaseResult.Connection.Close()
 		return nil, err
 	}
 	if err := shutdown.Go("metric-collector", metricCollector.Run); err != nil {
 		downloads.Close()
+		_ = metricsConnection.Close()
 		_ = databaseResult.Connection.Close()
 		return nil, err
 	}
 	alerts, err := service.NewAlertManager(model.SystemClock{}, store, desktevents.AlertPublisher{}, logger)
 	if err != nil {
 		downloads.Close()
+		_ = metricsConnection.Close()
 		_ = databaseResult.Connection.Close()
 		return nil, err
 	}
 	metrics.SetObserver(alerts)
 	if err := shutdown.Go("alert-evaluator", alerts.Run); err != nil {
 		downloads.Close()
+		_ = metricsConnection.Close()
 		_ = databaseResult.Connection.Close()
 		return nil, err
 	}
 	spark, err := service.NewSparkManager(model.SystemClock{}, store, settings, sshClients, processes, metrics, metricCollector, operations, downloads, logger)
 	if err != nil {
 		downloads.Close()
+		_ = metricsConnection.Close()
 		_ = databaseResult.Connection.Close()
 		return nil, err
 	}
 	lifecycle.SetObserver(spark)
 	if err := spark.RecoverInterruptedReports(ctx); err != nil {
 		downloads.Close()
+		_ = metricsConnection.Close()
 		_ = databaseResult.Connection.Close()
 		return nil, err
 	}
 	if err := shutdown.Go("spark-collector", spark.Run); err != nil {
 		downloads.Close()
+		_ = metricsConnection.Close()
 		_ = databaseResult.Connection.Close()
 		return nil, err
 	}
 	performance, err := service.NewPerformanceManager(store, spark, metrics)
 	if err != nil {
 		downloads.Close()
+		_ = metricsConnection.Close()
 		_ = databaseResult.Connection.Close()
 		return nil, err
 	}
 	monitoring, err := service.NewMonitoringManager(model.SystemClock{}, store, settings, metrics, metricCollector, spark)
 	if err != nil {
 		downloads.Close()
+		_ = metricsConnection.Close()
 		_ = databaseResult.Connection.Close()
 		return nil, err
 	}
@@ -348,7 +395,7 @@ func NewRuntime(ctx context.Context, logger *applog.Logger, logWriter *applog.Ro
 		DesktopPrefs: desktopPrefs, DesktopUpdates: desktopUpdates, DesktopReleaseCatalog: desktopReleaseCatalog,
 		ExitGuard: exitGuard, Store: store, DataDirectory: dataDirectory, DatabasePath: databasePath,
 		DatabaseID: databaseResult.DatabaseID, KeyVersion: databaseResult.KeyVersion,
-		database: databaseResult.Connection, shutdown: shutdown,
+		database: databaseResult.Connection, metricsDatabase: metricsConnection, shutdown: shutdown,
 	}, nil
 }
 
@@ -373,8 +420,11 @@ func (r *Runtime) Close() error {
 		}
 	}
 	var databaseError error
+	if r.metricsDatabase != nil {
+		databaseError = r.metricsDatabase.Close()
+	}
 	if r.database != nil {
-		databaseError = r.database.Close()
+		databaseError = errors.Join(databaseError, r.database.Close())
 	}
 	return errors.Join(shutdownError, threadError, databaseError)
 }

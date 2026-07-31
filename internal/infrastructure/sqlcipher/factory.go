@@ -34,13 +34,27 @@ func OpenConnection(ctx context.Context, options ConnectionOptions) (*Connection
 	if options.Path == "" || len(options.Key) != 32 {
 		return nil, apperror.New(apperror.CodeValidationInvalidArgument, "数据库路径和 256-bit 密钥不能为空")
 	}
+	return openDatabase(ctx, buildDSN(options.Path, options.Key), options, "打开加密数据库失败", "验证加密数据库连接失败")
+}
+
+// OpenPlainConnection opens an unencrypted GORM database for bulk data that carries no credentials or privacy.
+// go.mod 把 mattn/go-sqlite3 替换成了 SQLCipher 驱动,不带 _pragma_key 的连接就是标准 SQLite:
+// 监控时序是纯数值,放在这里可以完全省掉逐页 AES 加解密与 HMAC 校验。
+func OpenPlainConnection(ctx context.Context, options ConnectionOptions) (*Connection, error) {
+	if options.Path == "" {
+		return nil, apperror.New(apperror.CodeValidationInvalidArgument, "数据库路径不能为空")
+	}
+	dsn := fmt.Sprintf("%s?_foreign_keys=on&_journal_mode=WAL&_busy_timeout=%d", options.Path, constants.DefaultBusyTimeoutMillis)
+	return openDatabase(ctx, dsn, options, "打开监控数据库失败", "验证监控数据库连接失败")
+}
+
+func openDatabase(ctx context.Context, dsn string, options ConnectionOptions, openMessage, pingMessage string) (*Connection, error) {
 	if err := os.MkdirAll(filepath.Dir(options.Path), 0o700); err != nil {
 		return nil, apperror.Wrap(apperror.CodeIOWriteFailed, "创建数据库目录失败", err)
 	}
-	dsn := buildDSN(options.Path, options.Key)
 	database, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{Logger: logger.Default.LogMode(logger.Silent)})
 	if err != nil {
-		return nil, apperror.Wrap(apperror.CodeCryptoDecryptFailed, "打开加密数据库失败", err)
+		return nil, apperror.Wrap(apperror.CodeCryptoDecryptFailed, openMessage, err)
 	}
 	pool, err := database.DB()
 	if err != nil {
@@ -58,7 +72,7 @@ func OpenConnection(ctx context.Context, options ConnectionOptions) (*Connection
 	pool.SetMaxIdleConns(maxIdle)
 	if err := pool.PingContext(ctx); err != nil {
 		_ = pool.Close()
-		return nil, apperror.Wrap(apperror.CodeCryptoDecryptFailed, "验证加密数据库连接失败", err)
+		return nil, apperror.Wrap(apperror.CodeCryptoDecryptFailed, pingMessage, err)
 	}
 	return &Connection{database: database, pool: pool}, nil
 }

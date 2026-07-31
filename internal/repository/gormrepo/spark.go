@@ -89,7 +89,12 @@ type SparkReportRecord struct {
 	SchemaVersion       int
 }
 
-type sparkRepository struct{ database *gorm.DB }
+// sparkRepository 跨两个库:Capability 与 Report 可能带远端路径和玩家名,留在加密库;
+// Snapshot 只有 TPS/MSPT 数值,和 Metric 一起放未加密监控库,两者才能在同一个事务里原子写入。
+type sparkRepository struct {
+	database *gorm.DB
+	metrics  *gorm.DB
+}
 
 func (r *sparkRepository) SaveCapability(ctx context.Context, capability *model.SparkCapability) error {
 	if capability == nil {
@@ -125,7 +130,7 @@ func (r *sparkRepository) CreateSnapshot(ctx context.Context, snapshot *model.Sp
 		return err
 	}
 	record := snapshotToRecord(*snapshot)
-	if err := r.database.WithContext(ctx).Create(&record).Error; err != nil {
+	if err := r.metrics.WithContext(ctx).Create(&record).Error; err != nil {
 		return apperror.Wrap(apperror.CodeIOWriteFailed, "创建 Spark Snapshot 失败", err)
 	}
 	return nil
@@ -133,7 +138,7 @@ func (r *sparkRepository) CreateSnapshot(ctx context.Context, snapshot *model.Sp
 
 func (r *sparkRepository) LatestSnapshot(ctx context.Context, serverID model.ID) (*model.SparkSnapshot, error) {
 	var record SparkSnapshotRecord
-	if err := r.database.WithContext(ctx).Where("server_id = ?", serverID.String()).Order("collected_at desc").First(&record).Error; err != nil {
+	if err := r.metrics.WithContext(ctx).Where("server_id = ?", serverID.String()).Order("collected_at desc").First(&record).Error; err != nil {
 		return nil, mapSparkNotFound("Spark Snapshot 不存在", err)
 	}
 	snapshot := recordToSnapshot(record)
@@ -141,7 +146,7 @@ func (r *sparkRepository) LatestSnapshot(ctx context.Context, serverID model.ID)
 }
 
 func (r *sparkRepository) ListSnapshots(ctx context.Context, query repository.SparkSnapshotQuery) ([]model.SparkSnapshot, error) {
-	database := r.database.WithContext(ctx).Order("collected_at desc")
+	database := r.metrics.WithContext(ctx).Order("collected_at desc")
 	if query.ServerID.Valid() {
 		database = database.Where("server_id = ?", query.ServerID.String())
 	}
@@ -161,7 +166,7 @@ func (r *sparkRepository) DeleteSnapshotsBefore(ctx context.Context, before time
 		limit = 10_000
 	}
 	var ids []string
-	database := r.database.WithContext(ctx).Model(&SparkSnapshotRecord{}).
+	database := r.metrics.WithContext(ctx).Model(&SparkSnapshotRecord{}).
 		Where("collected_at < ?", before.UTC()).
 		Order("collected_at asc").Limit(limit)
 	if err := database.Pluck("id", &ids).Error; err != nil {
@@ -170,7 +175,7 @@ func (r *sparkRepository) DeleteSnapshotsBefore(ctx context.Context, before time
 	if len(ids) == 0 {
 		return 0, nil
 	}
-	result := r.database.WithContext(ctx).Delete(&SparkSnapshotRecord{}, "id IN ?", ids)
+	result := r.metrics.WithContext(ctx).Delete(&SparkSnapshotRecord{}, "id IN ?", ids)
 	if result.Error != nil {
 		return 0, apperror.Wrap(apperror.CodeIOWriteFailed, "清理 Spark Snapshot 数据失败", result.Error)
 	}
@@ -187,14 +192,14 @@ func (r *sparkRepository) DeleteServerSnapshots(ctx context.Context, serverID mo
 	var total int64
 	for {
 		var ids []string
-		if err := r.database.WithContext(ctx).Model(&SparkSnapshotRecord{}).
+		if err := r.metrics.WithContext(ctx).Model(&SparkSnapshotRecord{}).
 			Where("server_id = ?", serverID.String()).Limit(batchSize).Pluck("id", &ids).Error; err != nil {
 			return total, apperror.Wrap(apperror.CodeIOReadFailed, "查询待删除 Server Spark Snapshot 失败", err)
 		}
 		if len(ids) == 0 {
 			break
 		}
-		result := r.database.WithContext(ctx).Delete(&SparkSnapshotRecord{}, "id IN ?", ids)
+		result := r.metrics.WithContext(ctx).Delete(&SparkSnapshotRecord{}, "id IN ?", ids)
 		if result.Error != nil {
 			return total, apperror.Wrap(apperror.CodeIOWriteFailed, "删除 Server Spark Snapshot 历史失败", result.Error)
 		}

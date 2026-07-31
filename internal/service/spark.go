@@ -1295,7 +1295,8 @@ func (m *SparkManager) persistSnapshot(ctx context.Context, server model.Minecra
 		return model.SparkSnapshot{}, err
 	}
 	insert := func() error {
-		return m.store.Transaction(ctx, func(registry repository.Registry) error {
+		// Snapshot 与 Metric 现在都落在未加密的监控库,必须用监控库事务才能原子写入。
+		return m.store.MetricsTransaction(ctx, func(registry repository.Registry) error {
 			if err := registry.Spark().CreateSnapshot(ctx, &snapshot); err != nil {
 				return err
 			}

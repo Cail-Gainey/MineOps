@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 
 	"github.com/Cail-Gainey/MineOps/internal/global/apperror"
+	"github.com/Cail-Gainey/MineOps/internal/global/constants"
 )
 
 const (
@@ -163,6 +164,34 @@ func ApplyPendingMaintenance(ctx context.Context, dataDirectory, databasePath st
 		if err := vacuumDatabaseOffline(ctx, databasePath, keyStore); err != nil {
 			return err
 		}
+		// 监控库通常是两个库里更大的那个,一并整理,否则缩短保留期释放的页永远还不回磁盘。
+		if err := vacuumMetricsDatabaseOffline(ctx, filepath.Join(dataDirectory, constants.MetricsDatabaseFileName)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func vacuumMetricsDatabaseOffline(ctx context.Context, databasePath string) error {
+	if _, err := os.Stat(databasePath); os.IsNotExist(err) {
+		return nil
+	} else if err != nil {
+		return apperror.Wrap(apperror.CodeIOReadFailed, "检查监控数据库文件失败", err)
+	}
+	connection, err := OpenPlainConnection(ctx, ConnectionOptions{Path: databasePath, MaxOpenConns: 1, MaxIdleConns: 1})
+	if err != nil {
+		return err
+	}
+	if _, err := connection.pool.ExecContext(ctx, "PRAGMA wal_checkpoint(TRUNCATE)"); err != nil {
+		_ = connection.Close()
+		return apperror.Wrap(apperror.CodeIOWriteFailed, "监控库整理前 WAL Checkpoint 失败", err)
+	}
+	if _, err := connection.pool.ExecContext(ctx, "VACUUM"); err != nil {
+		_ = connection.Close()
+		return apperror.Wrap(apperror.CodeIOWriteFailed, "监控库存储整理 VACUUM 失败", err)
+	}
+	if err := connection.Close(); err != nil {
+		return apperror.Wrap(apperror.CodeIOWriteFailed, "关闭监控库整理连接失败", err)
 	}
 	return nil
 }

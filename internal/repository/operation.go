@@ -55,4 +55,6 @@ type Registry interface {
 type Store interface {
 	Registry
 	Transaction(context.Context, func(Registry) error) error
+	// MetricsTransaction 在未加密的监控库上开事务,供 Metric 与 Spark Snapshot 的原子写入使用。
+	MetricsTransaction(context.Context, func(Registry) error) error
 }

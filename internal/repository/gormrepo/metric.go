@@ -5,6 +5,8 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"sort"
+	"sync"
 	"time"
 
 	"github.com/Cail-Gainey/MineOps/internal/global/apperror"
@@ -15,75 +17,113 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-// MetricSampleRecord is the indexed raw metric representation.
-type MetricSampleRecord struct {
-	ID            uint64    `gorm:"primaryKey;autoIncrement"`
-	ServerID      string    `gorm:"index:idx_metric_raw_query,priority:1;index:idx_metric_raw_series,priority:1;size:36"`
-	SourceID      string    `gorm:"index:idx_metric_raw_source,priority:1;index:idx_metric_raw_series,priority:2;size:36"`
-	Metric        string    `gorm:"index:idx_metric_raw_query,priority:2;index:idx_metric_raw_source,priority:2;index:idx_metric_raw_series,priority:3;size:96"`
-	Timestamp     time.Time `gorm:"index:idx_metric_raw_query,priority:3;index:idx_metric_raw_source,priority:3;index:idx_metric_raw_series,priority:5;index:idx_metric_raw_time"`
-	Value         float64
-	TagsKey       string            `gorm:"index:idx_metric_raw_series,priority:4;size:64"`
+// MetricSeriesRecord is the dictionary row for one (Server, Source, Metric, Tags) identity.
+// 原始与聚合表只保留 series_id 小整数外键:四元组文本键(36+36+96+64 字节)原本要在每一行、
+// 以及每一条复合索引里各重复存一遍,是 Metric 表体积的主要来源。
+type MetricSeriesRecord struct {
+	ID            uint32            `gorm:"primaryKey;autoIncrement"`
+	ServerID      string            `gorm:"uniqueIndex:idx_metric_series_identity,priority:1;index:idx_metric_series_lookup,priority:1;size:36"`
+	SourceID      string            `gorm:"uniqueIndex:idx_metric_series_identity,priority:2;size:36"`
+	Metric        string            `gorm:"uniqueIndex:idx_metric_series_identity,priority:3;index:idx_metric_series_lookup,priority:2;size:96"`
+	TagsKey       string            `gorm:"uniqueIndex:idx_metric_series_identity,priority:4;size:64"`
 	Tags          map[string]string `gorm:"serializer:json"`
 	SchemaVersion int
+}
+
+// TableName pins the metric series dictionary table name.
+func (MetricSeriesRecord) TableName() string { return "metric_series_records" }
+
+// MetricSampleRecord is one raw sample: series foreign key, epoch milliseconds, value.
+type MetricSampleRecord struct {
+	ID          uint64 `gorm:"primaryKey;autoIncrement"`
+	SeriesID    uint32 `gorm:"index:idx_metric_raw_series_time,priority:1"`
+	TimestampMS int64  `gorm:"index:idx_metric_raw_series_time,priority:2;index:idx_metric_raw_time"`
+	Value       float64
 }
 
 // TableName keeps latest-series SQL aligned with the migration contract.
 func (MetricSampleRecord) TableName() string { return "metric_sample_records" }
 
-// MetricMinuteRecord is one minute aggregate row with minute-specific SQLite indexes.
+// MetricMinuteRecord is one minute aggregate keyed by series and epoch-millisecond bucket.
 type MetricMinuteRecord struct {
-	ID            uint64    `gorm:"primaryKey;autoIncrement"`
-	ServerID      string    `gorm:"uniqueIndex:idx_metric_minute_unique,priority:1;index:idx_metric_minute_query,priority:1;size:36"`
-	SourceID      string    `gorm:"uniqueIndex:idx_metric_minute_unique,priority:2;size:36"`
-	Metric        string    `gorm:"uniqueIndex:idx_metric_minute_unique,priority:3;index:idx_metric_minute_query,priority:2;size:96"`
-	Bucket        time.Time `gorm:"uniqueIndex:idx_metric_minute_unique,priority:4;index:idx_metric_minute_query,priority:3;index:idx_metric_minute_bucket"`
-	TagsKey       string    `gorm:"uniqueIndex:idx_metric_minute_unique,priority:5;size:64"`
-	Count         int64
-	Average       float64
-	Minimum       float64
-	Maximum       float64
-	P95           float64
-	Latest        float64
-	Tags          map[string]string `gorm:"serializer:json"`
-	SchemaVersion int
+	ID       uint64 `gorm:"primaryKey;autoIncrement"`
+	SeriesID uint32 `gorm:"uniqueIndex:idx_metric_minute_unique,priority:1"`
+	BucketMS int64  `gorm:"uniqueIndex:idx_metric_minute_unique,priority:2;index:idx_metric_minute_bucket"`
+	Count    int64
+	Average  float64
+	Minimum  float64
+	Maximum  float64
+	P95      float64
+	Latest   float64
 }
 
-// MetricHourRecord is one hour aggregate row with hour-specific SQLite indexes.
+// TableName pins the minute aggregate table name.
+func (MetricMinuteRecord) TableName() string { return "metric_minute_records" }
+
+// MetricHourRecord is one hour aggregate keyed by series and epoch-millisecond bucket.
 type MetricHourRecord struct {
-	ID            uint64    `gorm:"primaryKey;autoIncrement"`
-	ServerID      string    `gorm:"uniqueIndex:idx_metric_hour_unique,priority:1;index:idx_metric_hour_query,priority:1;size:36"`
-	SourceID      string    `gorm:"uniqueIndex:idx_metric_hour_unique,priority:2;size:36"`
-	Metric        string    `gorm:"uniqueIndex:idx_metric_hour_unique,priority:3;index:idx_metric_hour_query,priority:2;size:96"`
-	Bucket        time.Time `gorm:"uniqueIndex:idx_metric_hour_unique,priority:4;index:idx_metric_hour_query,priority:3;index:idx_metric_hour_bucket"`
-	TagsKey       string    `gorm:"uniqueIndex:idx_metric_hour_unique,priority:5;size:64"`
-	Count         int64
-	Average       float64
-	Minimum       float64
-	Maximum       float64
-	P95           float64
-	Latest        float64
-	Tags          map[string]string `gorm:"serializer:json"`
-	SchemaVersion int
+	ID       uint64 `gorm:"primaryKey;autoIncrement"`
+	SeriesID uint32 `gorm:"uniqueIndex:idx_metric_hour_unique,priority:1"`
+	BucketMS int64  `gorm:"uniqueIndex:idx_metric_hour_unique,priority:2;index:idx_metric_hour_bucket"`
+	Count    int64
+	Average  float64
+	Minimum  float64
+	Maximum  float64
+	P95      float64
+	Latest   float64
 }
 
-type metricAggregateRecord struct {
-	ServerID      string
-	SourceID      string
-	Metric        string
-	Bucket        time.Time
-	TagsKey       string
-	Count         int64
-	Average       float64
-	Minimum       float64
-	Maximum       float64
-	P95           float64
-	Latest        float64
-	Tags          map[string]string
-	SchemaVersion int
+// TableName pins the hour aggregate table name.
+func (MetricHourRecord) TableName() string { return "metric_hour_records" }
+
+// MetricSeriesCache resolves series identities to dictionary IDs without a round trip per written batch.
+type MetricSeriesCache struct {
+	mu         sync.RWMutex
+	idByKey    map[string]uint32
+	recordByID map[uint32]MetricSeriesRecord
 }
 
-type metricRepository struct{ database *gorm.DB }
+// NewMetricSeriesCache creates the process-wide metric series dictionary cache.
+func NewMetricSeriesCache() *MetricSeriesCache {
+	return &MetricSeriesCache{idByKey: make(map[string]uint32), recordByID: make(map[uint32]MetricSeriesRecord)}
+}
+
+func (c *MetricSeriesCache) store(record MetricSeriesRecord) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.idByKey[metricSeriesKey(record.ServerID, record.SourceID, record.Metric, record.TagsKey)] = record.ID
+	c.recordByID[record.ID] = record
+}
+
+func (c *MetricSeriesCache) lookupID(key string) (uint32, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	id, found := c.idByKey[key]
+	return id, found
+}
+
+func (c *MetricSeriesCache) lookupRecord(id uint32) (MetricSeriesRecord, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	record, found := c.recordByID[id]
+	return record, found
+}
+
+func (c *MetricSeriesCache) evict(ids []uint32) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for _, id := range ids {
+		if record, found := c.recordByID[id]; found {
+			delete(c.idByKey, metricSeriesKey(record.ServerID, record.SourceID, record.Metric, record.TagsKey))
+			delete(c.recordByID, id)
+		}
+	}
+}
+
+type metricRepository struct {
+	database *gorm.DB
+	series   *MetricSeriesCache
+}
 
 func (r *metricRepository) InsertSamples(ctx context.Context, samples []model.MetricSample) error {
 	if len(samples) == 0 {
@@ -91,11 +131,11 @@ func (r *metricRepository) InsertSamples(ctx context.Context, samples []model.Me
 	}
 	records := make([]MetricSampleRecord, len(samples))
 	for index, sample := range samples {
-		records[index] = MetricSampleRecord{
-			ServerID: sample.ServerID.String(), SourceID: sample.SourceID.String(), Metric: sample.Metric.String(),
-			Timestamp: sample.Timestamp.UTC(), Value: sample.Value, TagsKey: metricTagsKey(sample.Tags),
-			Tags: cloneMetricTags(sample.Tags), SchemaVersion: sample.SchemaVersion,
+		seriesID, err := r.resolveSeries(ctx, sample.ServerID.String(), sample.SourceID.String(), sample.Metric.String(), sample.Tags, sample.SchemaVersion)
+		if err != nil {
+			return err
 		}
+		records[index] = MetricSampleRecord{SeriesID: seriesID, TimestampMS: sample.Timestamp.UTC().UnixMilli(), Value: sample.Value}
 	}
 	if err := r.database.WithContext(ctx).CreateInBatches(records, 500).Error; err != nil {
 		return apperror.Wrap(apperror.CodeMetricCollectionFailed, "批量写入 Metric Samples 失败", err)
@@ -103,21 +143,71 @@ func (r *metricRepository) InsertSamples(ctx context.Context, samples []model.Me
 	return nil
 }
 
-func (r *metricRepository) ListSamples(ctx context.Context, query model.MetricQuery) ([]model.MetricSample, error) {
-	database := r.database.WithContext(ctx).Where("server_id = ? AND metric = ? AND timestamp >= ? AND timestamp <= ?", query.ServerID.String(), query.Metric.String(), query.Start.UTC(), query.End.UTC()).Order("timestamp asc")
-	if query.SourceID.Valid() {
-		database = database.Where("source_id = ?", query.SourceID.String())
+// resolveSeries returns the dictionary ID for one identity, inserting it on first sight.
+func (r *metricRepository) resolveSeries(ctx context.Context, serverID, sourceID, metric string, tags map[string]string, schemaVersion int) (uint32, error) {
+	tagsKey := metricTagsKey(tags)
+	key := metricSeriesKey(serverID, sourceID, metric, tagsKey)
+	if id, found := r.series.lookupID(key); found {
+		return id, nil
 	}
+	record := MetricSeriesRecord{
+		ServerID: serverID, SourceID: sourceID, Metric: metric, TagsKey: tagsKey,
+		Tags: cloneMetricTags(tags), SchemaVersion: schemaVersion,
+	}
+	// DoNothing 冲突后 RowsAffected 为 0 且不回填主键,并发首见同一序列时必须再查一次拿 ID。
+	if err := r.database.WithContext(ctx).Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "server_id"}, {Name: "source_id"}, {Name: "metric"}, {Name: "tags_key"}},
+		DoNothing: true,
+	}).Create(&record).Error; err != nil {
+		return 0, apperror.Wrap(apperror.CodeMetricCollectionFailed, "写入 Metric 序列字典失败", err)
+	}
+	if record.ID == 0 {
+		if err := r.database.WithContext(ctx).
+			Where("server_id = ? AND source_id = ? AND metric = ? AND tags_key = ?", serverID, sourceID, metric, tagsKey).
+			First(&record).Error; err != nil {
+			return 0, apperror.Wrap(apperror.CodeMetricQueryFailed, "查询 Metric 序列字典失败", err)
+		}
+	}
+	r.series.store(record)
+	return record.ID, nil
+}
+
+// seriesForQuery returns the dictionary rows matching one Server/Metric/Source filter.
+func (r *metricRepository) seriesForQuery(ctx context.Context, serverID model.ID, metrics []string, sourceID model.ID) ([]MetricSeriesRecord, error) {
+	database := r.database.WithContext(ctx).Where("server_id = ?", serverID.String())
+	if len(metrics) > 0 {
+		database = database.Where("metric IN ?", metrics)
+	}
+	if sourceID.Valid() {
+		database = database.Where("source_id = ?", sourceID.String())
+	}
+	var records []MetricSeriesRecord
+	if err := database.Find(&records).Error; err != nil {
+		return nil, apperror.Wrap(apperror.CodeMetricQueryFailed, "查询 Metric 序列字典失败", err)
+	}
+	for _, record := range records {
+		r.series.store(record)
+	}
+	return records, nil
+}
+
+func (r *metricRepository) ListSamples(ctx context.Context, query model.MetricQuery) ([]model.MetricSample, error) {
+	series, err := r.seriesForQuery(ctx, query.ServerID, []string{query.Metric.String()}, query.SourceID)
+	if err != nil {
+		return nil, err
+	}
+	if len(series) == 0 {
+		return nil, nil
+	}
+	database := r.database.WithContext(ctx).
+		Where("series_id IN ? AND timestamp_ms >= ? AND timestamp_ms <= ?", metricSeriesIDs(series), query.Start.UTC().UnixMilli(), query.End.UTC().UnixMilli()).
+		Order("timestamp_ms asc")
 	database = applyMetricPagination(database, query.Limit, query.Offset)
 	var records []MetricSampleRecord
 	if err := database.Find(&records).Error; err != nil {
 		return nil, apperror.Wrap(apperror.CodeMetricQueryFailed, "查询 Metric Samples 失败", err)
 	}
-	result := make([]model.MetricSample, len(records))
-	for index, record := range records {
-		result[index] = recordToMetricSample(record)
-	}
-	return result, nil
+	return r.samplesFromRecords(records), nil
 }
 
 func (r *metricRepository) ListSamplesRange(ctx context.Context, start, end time.Time, cursor repository.MetricSampleCursor, limit int) ([]model.MetricSample, repository.MetricSampleCursor, error) {
@@ -126,17 +216,19 @@ func (r *metricRepository) ListSamplesRange(ctx context.Context, start, end time
 	}
 	var records []MetricSampleRecord
 	if err := r.database.WithContext(ctx).
-		Where("timestamp >= ? AND timestamp < ? AND (timestamp, id) > (?, ?)", start.UTC(), end.UTC(), cursor.Time.UTC(), cursor.ID).
-		Order("timestamp asc, id asc").Limit(limit).Find(&records).Error; err != nil {
+		Where("timestamp_ms >= ? AND timestamp_ms < ? AND (timestamp_ms, id) > (?, ?)", start.UTC().UnixMilli(), end.UTC().UnixMilli(), cursor.Time.UTC().UnixMilli(), cursor.ID).
+		Order("timestamp_ms asc, id asc").Limit(limit).Find(&records).Error; err != nil {
 		return nil, cursor, apperror.Wrap(apperror.CodeMetricQueryFailed, "查询降采样原始 Metric 失败", err)
 	}
-	next := cursor
-	result := make([]model.MetricSample, len(records))
-	for index, record := range records {
-		result[index] = recordToMetricSample(record)
-		next = repository.MetricSampleCursor{Time: record.Timestamp, ID: record.ID}
+	if err := r.warmSeries(ctx, records); err != nil {
+		return nil, cursor, err
 	}
-	return result, next, nil
+	next := cursor
+	if len(records) > 0 {
+		last := records[len(records)-1]
+		next = repository.MetricSampleCursor{Time: time.UnixMilli(last.TimestampMS).UTC(), ID: last.ID}
+	}
+	return r.samplesFromRecords(records), next, nil
 }
 
 func (r *metricRepository) UpsertAggregates(ctx context.Context, aggregates []model.MetricAggregate) error {
@@ -146,17 +238,27 @@ func (r *metricRepository) UpsertAggregates(ctx context.Context, aggregates []mo
 	minutes := make([]MetricMinuteRecord, 0, len(aggregates))
 	hours := make([]MetricHourRecord, 0, len(aggregates))
 	for _, aggregate := range aggregates {
-		record := aggregateToRecord(aggregate)
+		seriesID, err := r.resolveSeries(ctx, aggregate.ServerID.String(), aggregate.SourceID.String(), aggregate.Metric.String(), aggregate.Tags, aggregate.SchemaVersion)
+		if err != nil {
+			return err
+		}
+		bucket := aggregate.Bucket.UTC().UnixMilli()
 		switch aggregate.Granularity {
 		case enums.MetricGranularityMinute:
-			minutes = append(minutes, minuteRecordFromAggregate(record))
+			minutes = append(minutes, MetricMinuteRecord{
+				SeriesID: seriesID, BucketMS: bucket, Count: aggregate.Count, Average: aggregate.Average,
+				Minimum: aggregate.Minimum, Maximum: aggregate.Maximum, P95: aggregate.P95, Latest: aggregate.Latest,
+			})
 		case enums.MetricGranularityHour:
-			hours = append(hours, hourRecordFromAggregate(record))
+			hours = append(hours, MetricHourRecord{
+				SeriesID: seriesID, BucketMS: bucket, Count: aggregate.Count, Average: aggregate.Average,
+				Minimum: aggregate.Minimum, Maximum: aggregate.Maximum, P95: aggregate.P95, Latest: aggregate.Latest,
+			})
 		}
 	}
 	updates := clause.OnConflict{
-		Columns:   []clause.Column{{Name: "server_id"}, {Name: "source_id"}, {Name: "metric"}, {Name: "bucket"}, {Name: "tags_key"}},
-		DoUpdates: clause.AssignmentColumns([]string{"count", "average", "minimum", "maximum", "p95", "latest", "tags", "schema_version"}),
+		Columns:   []clause.Column{{Name: "series_id"}, {Name: "bucket_ms"}},
+		DoUpdates: clause.AssignmentColumns([]string{"count", "average", "minimum", "maximum", "p95", "latest"}),
 	}
 	if len(minutes) > 0 {
 		if err := r.database.WithContext(ctx).Clauses(updates).CreateInBatches(minutes, 500).Error; err != nil {
@@ -172,32 +274,34 @@ func (r *metricRepository) UpsertAggregates(ctx context.Context, aggregates []mo
 }
 
 func (r *metricRepository) ListAggregates(ctx context.Context, query model.MetricQuery) ([]model.MetricAggregate, error) {
-	database := r.database.WithContext(ctx).Where("server_id = ? AND metric = ? AND bucket >= ? AND bucket <= ?", query.ServerID.String(), query.Metric.String(), query.Start.UTC(), query.End.UTC()).Order("bucket asc")
-	if query.SourceID.Valid() {
-		database = database.Where("source_id = ?", query.SourceID.String())
+	series, err := r.seriesForQuery(ctx, query.ServerID, []string{query.Metric.String()}, query.SourceID)
+	if err != nil {
+		return nil, err
 	}
+	if len(series) == 0 {
+		return nil, nil
+	}
+	database := r.database.WithContext(ctx).
+		Where("series_id IN ? AND bucket_ms >= ? AND bucket_ms <= ?", metricSeriesIDs(series), query.Start.UTC().UnixMilli(), query.End.UTC().UnixMilli()).
+		Order("bucket_ms asc")
 	database = applyMetricPagination(database, query.Limit, query.Offset)
-	var records []metricAggregateRecord
+	result := make([]model.MetricAggregate, 0)
 	if query.Granularity == enums.MetricGranularityMinute {
 		var rows []MetricMinuteRecord
 		if err := database.Find(&rows).Error; err != nil {
 			return nil, apperror.Wrap(apperror.CodeMetricQueryFailed, "查询 Minute Metric Aggregates 失败", err)
 		}
 		for _, row := range rows {
-			records = append(records, aggregateFromMinuteRecord(row))
+			result = append(result, r.aggregateFromRow(row.SeriesID, row.BucketMS, row.Count, row.Average, row.Minimum, row.Maximum, row.P95, row.Latest, query.Granularity))
 		}
-	} else {
-		var rows []MetricHourRecord
-		if err := database.Find(&rows).Error; err != nil {
-			return nil, apperror.Wrap(apperror.CodeMetricQueryFailed, "查询 Hour Metric Aggregates 失败", err)
-		}
-		for _, row := range rows {
-			records = append(records, aggregateFromHourRecord(row))
-		}
+		return result, nil
 	}
-	result := make([]model.MetricAggregate, len(records))
-	for index, record := range records {
-		result[index] = recordToMetricAggregate(record, query.Granularity)
+	var rows []MetricHourRecord
+	if err := database.Find(&rows).Error; err != nil {
+		return nil, apperror.Wrap(apperror.CodeMetricQueryFailed, "查询 Hour Metric Aggregates 失败", err)
+	}
+	for _, row := range rows {
+		result = append(result, r.aggregateFromRow(row.SeriesID, row.BucketMS, row.Count, row.Average, row.Minimum, row.Maximum, row.P95, row.Latest, query.Granularity))
 	}
 	return result, nil
 }
@@ -210,19 +314,22 @@ func (r *metricRepository) Latest(ctx context.Context, serverID model.ID, metric
 	for index, metric := range metrics {
 		metricNames[index] = metric.String()
 	}
-	// 每个序列只取最新一行:先在 idx_metric_raw_series 覆盖索引上按序列分组求 max(timestamp) 拿到 rowid,
-	// 再按主键回表取整行。SQLite 保证聚合查询中的裸列(此处 id)取自命中 max() 的那一行,
-	// 因此 Select 里必须保留 max(timestamp)。旧写法用 NOT EXISTS 关联子查询,外层每一行都要再探一次索引并回表;
-	// 250 万行同构库实测 CPU 3.14s,改写后 0.45s(SQLCipher 逐页解密 + HMAC 下差距更大,且此处只扫覆盖索引不碰表页)。
-	// 唯一行为差异:同一序列存在时间戳完全相同的重复样本时,旧写法取 id 更大的一行,这里由 SQLite 任选其一。
-	// 等价保留 id 次序需要 row_number() 窗口函数,但要为分区排序建临时 B 树,同库实测 CPU 1.23s,不值得。
+	series, err := r.seriesForQuery(ctx, serverID, metricNames, model.ID(""))
+	if err != nil {
+		return nil, err
+	}
+	if len(series) == 0 {
+		return nil, nil
+	}
+	// 每个序列取最新一行:先在 (series_id, timestamp_ms) 索引上分组求 max 拿到 rowid,再按主键回表。
+	// SQLite 保证聚合查询中的裸列(此处 id)取自命中 max() 的那一行,因此 Select 必须保留 max(timestamp_ms)。
 	var heads []struct {
 		ID uint64 `gorm:"column:id"`
 	}
 	if err := r.database.WithContext(ctx).Model(&MetricSampleRecord{}).
-		Select("id, max(timestamp)").
-		Where("server_id = ? AND metric IN ?", serverID.String(), metricNames).
-		Group("source_id, metric, tags_key").
+		Select("id, max(timestamp_ms)").
+		Where("series_id IN ?", metricSeriesIDs(series)).
+		Group("series_id").
 		Scan(&heads).Error; err != nil {
 		return nil, apperror.Wrap(apperror.CodeMetricQueryFailed, "查询最新 Metric 序列失败", err)
 	}
@@ -234,31 +341,28 @@ func (r *metricRepository) Latest(ctx context.Context, serverID model.ID, metric
 		latestIDs[index] = head.ID
 	}
 	var records []MetricSampleRecord
-	if err := r.database.WithContext(ctx).Where("id IN ?", latestIDs).
-		Order("metric asc, source_id asc, tags_key asc").Find(&records).Error; err != nil {
+	if err := r.database.WithContext(ctx).Where("id IN ?", latestIDs).Find(&records).Error; err != nil {
 		return nil, apperror.Wrap(apperror.CodeMetricQueryFailed, "查询最新 Metric 失败", err)
 	}
-	result := make([]model.MetricSample, len(records))
-	for index, record := range records {
-		result[index] = recordToMetricSample(record)
-	}
-	return result, nil
+	samples := r.samplesFromRecords(records)
+	sortMetricSamples(samples)
+	return samples, nil
 }
 
 func (r *metricRepository) DeleteBefore(ctx context.Context, granularity enums.MetricGranularity, before time.Time, limit int) (int64, error) {
 	if limit <= 0 || limit > 50_000 {
 		limit = 10_000
 	}
-	var ids []uint64
 	modelValue := any(&MetricSampleRecord{})
-	timeColumn := "timestamp"
+	timeColumn := "timestamp_ms"
 	switch granularity {
 	case enums.MetricGranularityMinute:
-		modelValue, timeColumn = &MetricMinuteRecord{}, "bucket"
+		modelValue, timeColumn = &MetricMinuteRecord{}, "bucket_ms"
 	case enums.MetricGranularityHour:
-		modelValue, timeColumn = &MetricHourRecord{}, "bucket"
+		modelValue, timeColumn = &MetricHourRecord{}, "bucket_ms"
 	}
-	if err := r.database.WithContext(ctx).Model(modelValue).Where(timeColumn+" < ?", before.UTC()).Order(timeColumn+" asc").Limit(limit).Pluck("id", &ids).Error; err != nil {
+	var ids []uint64
+	if err := r.database.WithContext(ctx).Model(modelValue).Where(timeColumn+" < ?", before.UTC().UnixMilli()).Order(timeColumn+" asc").Limit(limit).Pluck("id", &ids).Error; err != nil {
 		return 0, apperror.Wrap(apperror.CodeMetricQueryFailed, "查询待清理 Metric 失败", err)
 	}
 	if len(ids) == 0 {
@@ -299,11 +403,19 @@ func (r *metricRepository) DeleteServer(ctx context.Context, serverID model.ID, 
 	if batchSize <= 0 || batchSize > 50_000 {
 		batchSize = 10_000
 	}
+	series, err := r.seriesForQuery(ctx, serverID, nil, model.ID(""))
+	if err != nil {
+		return 0, err
+	}
+	if len(series) == 0 {
+		return 0, nil
+	}
+	seriesIDs := metricSeriesIDs(series)
 	var total int64
 	for _, modelValue := range []any{&MetricSampleRecord{}, &MetricMinuteRecord{}, &MetricHourRecord{}} {
 		for {
 			var ids []uint64
-			if err := r.database.WithContext(ctx).Model(modelValue).Where("server_id = ?", serverID.String()).Limit(batchSize).Pluck("id", &ids).Error; err != nil {
+			if err := r.database.WithContext(ctx).Model(modelValue).Where("series_id IN ?", seriesIDs).Limit(batchSize).Pluck("id", &ids).Error; err != nil {
 				return total, apperror.Wrap(apperror.CodeMetricQueryFailed, "查询待删除 Server Metric 失败", err)
 			}
 			if len(ids) == 0 {
@@ -319,7 +431,85 @@ func (r *metricRepository) DeleteServer(ctx context.Context, serverID model.ID, 
 			}
 		}
 	}
+	if err := r.database.WithContext(ctx).Delete(&MetricSeriesRecord{}, "id IN ?", seriesIDs).Error; err != nil {
+		return total, apperror.Wrap(apperror.CodeIOWriteFailed, "删除 Server Metric 序列字典失败", err)
+	}
+	r.series.evict(seriesIDs)
 	return total, nil
+}
+
+// warmSeries loads any dictionary rows referenced by the records but missing from the cache.
+func (r *metricRepository) warmSeries(ctx context.Context, records []MetricSampleRecord) error {
+	missing := make([]uint32, 0)
+	seen := make(map[uint32]struct{})
+	for _, record := range records {
+		if _, found := seen[record.SeriesID]; found {
+			continue
+		}
+		seen[record.SeriesID] = struct{}{}
+		if _, cached := r.series.lookupRecord(record.SeriesID); !cached {
+			missing = append(missing, record.SeriesID)
+		}
+	}
+	if len(missing) == 0 {
+		return nil
+	}
+	var series []MetricSeriesRecord
+	if err := r.database.WithContext(ctx).Where("id IN ?", missing).Find(&series).Error; err != nil {
+		return apperror.Wrap(apperror.CodeMetricQueryFailed, "查询 Metric 序列字典失败", err)
+	}
+	for _, record := range series {
+		r.series.store(record)
+	}
+	return nil
+}
+
+func (r *metricRepository) samplesFromRecords(records []MetricSampleRecord) []model.MetricSample {
+	result := make([]model.MetricSample, 0, len(records))
+	for _, record := range records {
+		series, found := r.series.lookupRecord(record.SeriesID)
+		if !found {
+			continue
+		}
+		definition, _ := model.DefinitionForMetric(enums.MetricType(series.Metric))
+		result = append(result, model.MetricSample{
+			ServerID: model.ID(series.ServerID), SourceID: model.ID(series.SourceID), Metric: enums.MetricType(series.Metric),
+			Unit: definition.Unit, Timestamp: time.UnixMilli(record.TimestampMS).UTC(), Value: record.Value,
+			Tags: cloneMetricTags(series.Tags), SchemaVersion: series.SchemaVersion,
+		})
+	}
+	return result
+}
+
+func (r *metricRepository) aggregateFromRow(seriesID uint32, bucketMS int64, count int64, average, minimum, maximum, p95, latest float64, granularity enums.MetricGranularity) model.MetricAggregate {
+	series, _ := r.series.lookupRecord(seriesID)
+	return model.MetricAggregate{
+		ServerID: model.ID(series.ServerID), SourceID: model.ID(series.SourceID), Metric: enums.MetricType(series.Metric),
+		Bucket: time.UnixMilli(bucketMS).UTC(), Granularity: granularity, Count: count, Average: average,
+		Minimum: minimum, Maximum: maximum, P95: p95, Latest: latest,
+		Tags: cloneMetricTags(series.Tags), SchemaVersion: series.SchemaVersion,
+	}
+}
+
+func metricSeriesIDs(series []MetricSeriesRecord) []uint32 {
+	ids := make([]uint32, len(series))
+	for index, record := range series {
+		ids[index] = record.ID
+	}
+	return ids
+}
+
+func metricSeriesKey(serverID, sourceID, metric, tagsKey string) string {
+	return serverID + "\x00" + sourceID + "\x00" + metric + "\x00" + tagsKey
+}
+
+func sortMetricSamples(samples []model.MetricSample) {
+	sort.Slice(samples, func(left, right int) bool {
+		if samples[left].Metric != samples[right].Metric {
+			return samples[left].Metric < samples[right].Metric
+		}
+		return samples[left].SourceID < samples[right].SourceID
+	})
 }
 
 func applyMetricPagination(database *gorm.DB, limit, offset int) *gorm.DB {
@@ -330,64 +520,6 @@ func applyMetricPagination(database *gorm.DB, limit, offset int) *gorm.DB {
 		offset = 0
 	}
 	return database.Limit(limit).Offset(offset)
-}
-
-func aggregateToRecord(aggregate model.MetricAggregate) metricAggregateRecord {
-	return metricAggregateRecord{
-		ServerID: aggregate.ServerID.String(), SourceID: aggregate.SourceID.String(), Metric: aggregate.Metric.String(),
-		Bucket: aggregate.Bucket.UTC(), TagsKey: metricTagsKey(aggregate.Tags), Count: aggregate.Count,
-		Average: aggregate.Average, Minimum: aggregate.Minimum, Maximum: aggregate.Maximum,
-		P95: aggregate.P95, Latest: aggregate.Latest, Tags: cloneMetricTags(aggregate.Tags), SchemaVersion: aggregate.SchemaVersion,
-	}
-}
-
-func recordToMetricSample(record MetricSampleRecord) model.MetricSample {
-	definition, _ := model.DefinitionForMetric(enums.MetricType(record.Metric))
-	return model.MetricSample{
-		ServerID: model.ID(record.ServerID), SourceID: model.ID(record.SourceID), Metric: enums.MetricType(record.Metric),
-		Unit: definition.Unit, Timestamp: record.Timestamp, Value: record.Value, Tags: cloneMetricTags(record.Tags), SchemaVersion: record.SchemaVersion,
-	}
-}
-
-func recordToMetricAggregate(record metricAggregateRecord, granularity enums.MetricGranularity) model.MetricAggregate {
-	return model.MetricAggregate{
-		ServerID: model.ID(record.ServerID), SourceID: model.ID(record.SourceID), Metric: enums.MetricType(record.Metric),
-		Bucket: record.Bucket, Granularity: granularity, Count: record.Count, Average: record.Average,
-		Minimum: record.Minimum, Maximum: record.Maximum, P95: record.P95, Latest: record.Latest,
-		Tags: cloneMetricTags(record.Tags), SchemaVersion: record.SchemaVersion,
-	}
-}
-
-func minuteRecordFromAggregate(record metricAggregateRecord) MetricMinuteRecord {
-	return MetricMinuteRecord{
-		ServerID: record.ServerID, SourceID: record.SourceID, Metric: record.Metric, Bucket: record.Bucket,
-		TagsKey: record.TagsKey, Count: record.Count, Average: record.Average, Minimum: record.Minimum,
-		Maximum: record.Maximum, P95: record.P95, Latest: record.Latest, Tags: record.Tags, SchemaVersion: record.SchemaVersion,
-	}
-}
-
-func hourRecordFromAggregate(record metricAggregateRecord) MetricHourRecord {
-	return MetricHourRecord{
-		ServerID: record.ServerID, SourceID: record.SourceID, Metric: record.Metric, Bucket: record.Bucket,
-		TagsKey: record.TagsKey, Count: record.Count, Average: record.Average, Minimum: record.Minimum,
-		Maximum: record.Maximum, P95: record.P95, Latest: record.Latest, Tags: record.Tags, SchemaVersion: record.SchemaVersion,
-	}
-}
-
-func aggregateFromMinuteRecord(record MetricMinuteRecord) metricAggregateRecord {
-	return metricAggregateRecord{
-		ServerID: record.ServerID, SourceID: record.SourceID, Metric: record.Metric, Bucket: record.Bucket,
-		TagsKey: record.TagsKey, Count: record.Count, Average: record.Average, Minimum: record.Minimum,
-		Maximum: record.Maximum, P95: record.P95, Latest: record.Latest, Tags: record.Tags, SchemaVersion: record.SchemaVersion,
-	}
-}
-
-func aggregateFromHourRecord(record MetricHourRecord) metricAggregateRecord {
-	return metricAggregateRecord{
-		ServerID: record.ServerID, SourceID: record.SourceID, Metric: record.Metric, Bucket: record.Bucket,
-		TagsKey: record.TagsKey, Count: record.Count, Average: record.Average, Minimum: record.Minimum,
-		Maximum: record.Maximum, P95: record.P95, Latest: record.Latest, Tags: record.Tags, SchemaVersion: record.SchemaVersion,
-	}
 }
 
 func metricTagsKey(tags map[string]string) string {

@@ -85,15 +85,19 @@ func DefaultMigrations() []Migration {
 		{
 			Version: 11,
 			Name:    "create_metric_raw_minute_hour_tables",
+			// 监控时序已迁出到未加密的 metrics 库(见 MetricsMigrations);本步骤置空。
+			// 已应用库中的遗留表由 Version 24 删除,新库不再创建。
 			Apply: func(database *gorm.DB) error {
-				return database.AutoMigrate(&gormrepo.MetricSampleRecord{}, &gormrepo.MetricMinuteRecord{}, &gormrepo.MetricHourRecord{})
+				return nil
 			},
 		},
 		{
 			Version: 12,
 			Name:    "add_metric_raw_series_identity",
+			// 监控时序已迁出到未加密的 metrics 库(见 MetricsMigrations);本步骤置空。
+			// 已应用库中的遗留表由 Version 24 删除,新库不再创建。
 			Apply: func(database *gorm.DB) error {
-				return database.AutoMigrate(&gormrepo.MetricSampleRecord{})
+				return nil
 			},
 		},
 		{
@@ -126,7 +130,6 @@ func DefaultMigrations() []Migration {
 			Apply: func(database *gorm.DB) error {
 				return database.AutoMigrate(
 					&gormrepo.SparkCapabilityRecord{},
-					&gormrepo.SparkSnapshotRecord{},
 					&gormrepo.SparkReportRecord{},
 					&gormrepo.AlertRuleRecord{},
 					&gormrepo.AlertEventRecord{},
@@ -157,8 +160,10 @@ func DefaultMigrations() []Migration {
 		{
 			Version: 20,
 			Name:    "add_spark_snapshot_capped_tps_markers",
+			// 监控时序已迁出到未加密的 metrics 库(见 MetricsMigrations);本步骤置空。
+			// 已应用库中的遗留表由 Version 24 删除,新库不再创建。
 			Apply: func(database *gorm.DB) error {
-				return database.AutoMigrate(&gormrepo.SparkSnapshotRecord{})
+				return nil
 			},
 		},
 		{
@@ -187,10 +192,22 @@ func DefaultMigrations() []Migration {
 		{
 			Version: 23,
 			Name:    "add_metric_time_indexes",
-			// 维护降采样与保留清理均按时间范围扫描，为 Metric 三表补时间列索引，
-			// 否则每轮维护对原始样本表全表扫描（SQLCipher 逐页解密+HMAC）。
+			// 监控时序已迁出到未加密的 metrics 库(见 MetricsMigrations);本步骤置空。
+			// 已应用库中的遗留表由 Version 24 删除,新库不再创建。
 			Apply: func(database *gorm.DB) error {
-				return database.AutoMigrate(&gormrepo.MetricSampleRecord{}, &gormrepo.MetricMinuteRecord{}, &gormrepo.MetricHourRecord{})
+				return nil
+			},
+		},
+		{
+			Version: 24,
+			Name:    "drop_legacy_metric_and_spark_snapshot_tables",
+			// 监控时序改存未加密的 metrics 库,加密库里的遗留表直接删除。
+			// 历史数据按需求不迁移;DROP TABLE 只把页归还给 SQLite 空闲列表,
+			// 文件体积要靠「设置 - 存储与安全 - 存储整理」排队的 VACUUM 才会真正回落。
+			Apply: func(database *gorm.DB) error {
+				return database.Migrator().DropTable(
+					"metric_sample_records", "metric_minute_records", "metric_hour_records", "spark_snapshot_records",
+				)
 			},
 		},
 	}

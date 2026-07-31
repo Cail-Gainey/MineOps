@@ -7,6 +7,8 @@ const (
 	LogsDirectoryName          = "logs"
 	DataDirectoryName          = "data"
 	DatabaseFileName           = "mineops.db"
+	// MetricsDatabaseFileName 是未加密的监控时序库:只放数值指标与 Spark Snapshot,不含凭据或隐私。
+	MetricsDatabaseFileName    = "mineops-metrics.db"
 	BackupFileExtension        = ".mineops-backup"
 	CorrelationHeader          = "X-MineOps-Correlation-ID"
 	SecondInstanceEventName    = "mineops:lifecycle:second-instance"

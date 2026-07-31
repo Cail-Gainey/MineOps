@@ -72,7 +72,7 @@ func (m *MetricManager) Ingest(ctx context.Context, samples []model.MetricSample
 		return result, err
 	}
 	insert := func() error {
-		return m.store.Transaction(ctx, func(registry repository.Registry) error {
+		return m.store.MetricsTransaction(ctx, func(registry repository.Registry) error {
 			return registry.Metrics().InsertSamples(ctx, samples)
 		})
 	}

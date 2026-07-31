@@ -95,6 +95,21 @@ func (s *StorageService) ScheduleVacuum(ctx context.Context) (result StorageResu
 	return StorageResult{Status: &status}
 }
 
+// ScheduleDatabaseReset stages deleting both databases and the stored key for the next application start.
+func (s *StorageService) ScheduleDatabaseReset(ctx context.Context) (result StorageResult) {
+	defer s.recover(ctx, "StorageService.ScheduleDatabaseReset", &result)
+	if err := s.manager.ScheduleDatabaseReset(); err != nil {
+		dto := apperror.ToDTO(err)
+		return StorageResult{Error: &dto}
+	}
+	status, err := s.manager.Status()
+	if err != nil {
+		dto := apperror.ToDTO(err)
+		return StorageResult{Error: &dto}
+	}
+	return StorageResult{Status: &status}
+}
+
 // CancelPendingMaintenance clears staged restore, key-rotation, and vacuum work.
 func (s *StorageService) CancelPendingMaintenance(ctx context.Context) (result StorageResult) {
 	defer s.recover(ctx, "StorageService.CancelPendingMaintenance", &result)

@@ -49,6 +49,7 @@ import {
   getStorageStatus,
   openDataDirectory,
   scheduleDatabaseKeyRotation,
+  scheduleDatabaseReset,
   scheduleDatabaseVacuum,
   schedulePortableRestore,
 } from '../../services/storage-api'
@@ -213,7 +214,7 @@ const settingsSearchOptions = [
   { label: '布局 · TopBar、BottomBar、SideBar、宽度', value: 'layout' },
   { label: 'SSH · 超时、KeepAlive、重连、认证、Known Hosts、Jump Host', value: 'ssh' },
   { label: 'Terminal · 字体、字号、行高、滚动、光标、配色', value: 'terminal' },
-  { label: '存储与安全 · SQLCipher、备份、恢复、密钥轮换、存储整理', value: 'storage' },
+  { label: '存储与安全 · SQLCipher、备份、恢复、密钥轮换、存储整理、清空数据库', value: 'storage' },
 ]
 
 function selectThemePreset(value: string): void {
@@ -923,6 +924,47 @@ async function scheduleVacuum(): Promise<void> {
       title: '排队存储整理失败',
       content: error instanceof Error ? error.message : String(error),
       dedupeKey: 'settings:vacuum-error',
+    })
+  } finally {
+    runtimeActionLoading.value = false
+  }
+}
+
+async function resetDatabase(): Promise<void> {
+  // 恢复出厂不可撤销，用两道确认：第一道说明范围，第二道逐条列出会永久消失的内容。
+  const acknowledged = await interactions.confirm({
+    title: '重置',
+    content: '',
+    objectLabel: storageStatus.value?.dataDirectory ?? '',
+    impact: '此操作不可撤销。建议先创建加密备份',
+    positiveText: '我已了解，继续',
+    danger: true,
+  })
+  if (!acknowledged) return
+  const confirmed = await interactions.confirm({
+    title: '确认永久删除全部数据？',
+    content: '所有数据将清空。',
+    objectLabel: storageStatus.value?.databasePath ?? '',
+    impact: '排队后请正常退出并重新启动 MineOps；重启前可以随时取消排队任务。',
+    positiveText: '排队清空数据库',
+    danger: true,
+  })
+  if (!confirmed) return
+  runtimeActionLoading.value = true
+  try {
+    storageStatus.value = await scheduleDatabaseReset()
+    notifications.push({
+      kind: 'warning',
+      title: '清空数据库已排队',
+      content: '请正常退出并重新启动 MineOps，重启前可以取消排队任务。',
+      dedupeKey: 'settings:reset-scheduled',
+    })
+  } catch (error) {
+    notifications.push({
+      kind: 'error',
+      title: '排队清空数据库失败',
+      content: error instanceof Error ? error.message : String(error),
+      dedupeKey: 'settings:reset-error',
     })
   } finally {
     runtimeActionLoading.value = false
@@ -1885,20 +1927,30 @@ async function cancelPendingMaintenance(): Promise<void> {
                 </NText>
               </NFlex>
             </AppFormField>
+            <AppFormField label="清空数据库">
+              <NButton type="error" :loading="runtimeActionLoading" @click="resetDatabase"
+                >清空数据</NButton
+              >
+            </AppFormField>
             <NAlert
               v-if="
                 storageStatus?.pendingMaintenance.restorePending ||
                 storageStatus?.pendingMaintenance.keyRotationPending ||
-                storageStatus?.pendingMaintenance.vacuumPending
+                storageStatus?.pendingMaintenance.vacuumPending ||
+                storageStatus?.pendingMaintenance.resetPending
               "
-              type="warning"
+              :type="storageStatus.pendingMaintenance.resetPending ? 'error' : 'warning'"
               title="存在下次启动维护任务"
             >
               恢复：{{ storageStatus.pendingMaintenance.restorePending ? '已排队' : '无' }} ·
               密钥轮换：{{
                 storageStatus.pendingMaintenance.keyRotationPending ? '已排队' : '无'
               }}
-              · 存储整理：{{ storageStatus.pendingMaintenance.vacuumPending ? '已排队' : '无' }}
+              · 存储整理：{{ storageStatus.pendingMaintenance.vacuumPending ? '已排队' : '无' }} ·
+              清空数据库：{{ storageStatus.pendingMaintenance.resetPending ? '已排队' : '无' }}
+              <NText v-if="storageStatus.pendingMaintenance.resetPending" type="error">
+                清空数据库会取消同时排队的其他维护任务。
+              </NText>
               <NButton size="small" @click="cancelPendingMaintenance">取消排队任务</NButton>
             </NAlert>
           </NForm>

@@ -79,6 +79,11 @@ func (m *StorageManager) ScheduleVacuum() error {
 	return sqlcipher.StageVacuum(m.dataDirectory)
 }
 
+// ScheduleDatabaseReset requests deleting both databases and the stored key before the next database open.
+func (m *StorageManager) ScheduleDatabaseReset() error {
+	return sqlcipher.StageDatabaseReset(m.dataDirectory)
+}
+
 // CancelPendingMaintenance removes all staged offline database work.
 func (m *StorageManager) CancelPendingMaintenance() error {
 	return sqlcipher.CancelPendingMaintenance(m.dataDirectory)

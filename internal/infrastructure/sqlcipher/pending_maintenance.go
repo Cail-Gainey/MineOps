@@ -15,6 +15,7 @@ const (
 	pendingRestoreFilename     = ".pending-restore.mineops-backup"
 	pendingKeyRotationFilename = ".pending-key-rotation"
 	pendingVacuumFilename      = ".pending-vacuum"
+	pendingResetFilename       = ".pending-reset"
 )
 
 // PendingMaintenance describes offline database work staged for the next application start.
@@ -22,6 +23,7 @@ type PendingMaintenance struct {
 	RestorePending     bool        `json:"restorePending"`
 	KeyRotationPending bool        `json:"keyRotationPending"`
 	VacuumPending      bool        `json:"vacuumPending"`
+	ResetPending       bool        `json:"resetPending"`
 	RestoreBackup      *BackupInfo `json:"restoreBackup,omitempty"`
 }
 
@@ -95,6 +97,21 @@ func StageVacuum(dataDirectory string) error {
 	return file.Close()
 }
 
+// StageDatabaseReset requests deleting both databases and the stored key before the next database open.
+// 恢复出厂只能离线做:应用运行期间两个库都被连接池持有,而且服务还在往里写。
+// 排队到下次启动、在任何连接建立之前删文件并清掉系统密钥,Bootstrap 随后会重建空库并生成新密钥。
+func StageDatabaseReset(dataDirectory string) error {
+	if err := os.MkdirAll(dataDirectory, 0o700); err != nil {
+		return apperror.Wrap(apperror.CodeIOWriteFailed, "创建数据目录失败", err)
+	}
+	marker := filepath.Join(dataDirectory, pendingResetFilename)
+	file, err := os.OpenFile(marker, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o600)
+	if err != nil {
+		return apperror.Wrap(apperror.CodeIOWriteFailed, "创建清空数据库排队标记失败", err)
+	}
+	return file.Close()
+}
+
 // ReadPendingMaintenance returns staged offline work without changing it.
 func ReadPendingMaintenance(dataDirectory string) (PendingMaintenance, error) {
 	result := PendingMaintenance{}
@@ -119,13 +136,18 @@ func ReadPendingMaintenance(dataDirectory string) (PendingMaintenance, error) {
 	} else if !os.IsNotExist(err) {
 		return PendingMaintenance{}, apperror.Wrap(apperror.CodeIOReadFailed, "读取存储整理排队状态失败", err)
 	}
+	if _, err := os.Stat(filepath.Join(dataDirectory, pendingResetFilename)); err == nil {
+		result.ResetPending = true
+	} else if !os.IsNotExist(err) {
+		return PendingMaintenance{}, apperror.Wrap(apperror.CodeIOReadFailed, "读取清空数据库排队状态失败", err)
+	}
 	return result, nil
 }
 
-// CancelPendingMaintenance removes staged restore, key-rotation, and vacuum work.
+// CancelPendingMaintenance removes staged restore, key-rotation, vacuum, and reset work.
 func CancelPendingMaintenance(dataDirectory string) error {
 	var firstError error
-	for _, name := range []string{pendingRestoreFilename, pendingKeyRotationFilename, pendingVacuumFilename} {
+	for _, name := range []string{pendingRestoreFilename, pendingKeyRotationFilename, pendingVacuumFilename, pendingResetFilename} {
 		if err := os.Remove(filepath.Join(dataDirectory, name)); err != nil && !os.IsNotExist(err) && firstError == nil {
 			firstError = err
 		}
@@ -133,11 +155,19 @@ func CancelPendingMaintenance(dataDirectory string) error {
 	return firstError
 }
 
-// ApplyPendingMaintenance performs staged restore, key rotation, and vacuum before opening the active database.
+// ApplyPendingMaintenance performs staged reset, restore, key rotation, and vacuum before opening the active database.
 func ApplyPendingMaintenance(ctx context.Context, dataDirectory, databasePath string, keyStore KeyStore) error {
 	pending, err := ReadPendingMaintenance(dataDirectory)
 	if err != nil {
 		return err
+	}
+	if pending.ResetPending {
+		// 清空数据库会把库文件整个删掉,排在它后面的恢复、密钥轮换、整理都失去意义,一并取消。
+		// 标记先删再执行:重置失败时保留标记会让每次启动都重试同一个失败操作,把应用永久卡在启动阶段。
+		if err := CancelPendingMaintenance(dataDirectory); err != nil {
+			return apperror.Wrap(apperror.CodeIOWriteFailed, "清理清空数据库排队标记失败", err)
+		}
+		return resetDatabasesOffline(ctx, dataDirectory, databasePath, keyStore)
 	}
 	if pending.RestorePending {
 		if _, err := RestorePortableBackup(ctx, filepath.Join(dataDirectory, pendingRestoreFilename), databasePath, keyStore); err != nil {
@@ -168,6 +198,25 @@ func ApplyPendingMaintenance(ctx context.Context, dataDirectory, databasePath st
 		if err := vacuumMetricsDatabaseOffline(ctx, filepath.Join(dataDirectory, constants.MetricsDatabaseFileName)); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+// resetDatabasesOffline deletes both database files and the stored key so bootstrap rebuilds an empty database.
+func resetDatabasesOffline(ctx context.Context, dataDirectory, databasePath string, keyStore KeyStore) error {
+	paths := []string{databasePath, filepath.Join(dataDirectory, constants.MetricsDatabaseFileName)}
+	for _, path := range paths {
+		// WAL 与 SHM 必须一起删:只删主库文件会让残留 WAL 在重建后被当成同一个库的日志重放。
+		for _, suffix := range []string{"", "-wal", "-shm"} {
+			if err := os.Remove(path + suffix); err != nil && !os.IsNotExist(err) {
+				return apperror.Wrap(apperror.CodeIOWriteFailed, "删除数据库文件失败", err)
+			}
+		}
+	}
+	// 删掉系统密钥:Bootstrap 发现密钥缺失且库文件不存在时会重新生成密钥并建空库。
+	// 保留旧密钥会让 Bootstrap 走「密钥存在但数据库缺失」分支并要求从备份恢复,应用将无法启动。
+	if err := keyStore.Delete(ctx); err != nil {
+		return err
 	}
 	return nil
 }

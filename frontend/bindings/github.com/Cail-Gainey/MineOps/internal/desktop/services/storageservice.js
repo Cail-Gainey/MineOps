@@ -57,6 +57,16 @@ export function OpenDataDirectory() {
 }
 
 /**
+ * ScheduleDatabaseReset stages deleting both databases and the stored key for the next application start.
+ * @returns {$CancellablePromise<$models.StorageResult>}
+ */
+export function ScheduleDatabaseReset() {
+    return $Call.ByID(1926244300).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType0($result);
+    }));
+}
+
+/**
  * ScheduleKeyRotation stages a SQLCipher key rotation for the next application start.
  * @returns {$CancellablePromise<$models.StorageResult>}
  */

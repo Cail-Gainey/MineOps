@@ -51,6 +51,13 @@ export async function scheduleDatabaseVacuum(): Promise<StorageStatus> {
   return result.status
 }
 
+/** 排队一次下次启动执行的清空数据库：删除两个库文件与系统密钥，重建空库。 */
+export async function scheduleDatabaseReset(): Promise<StorageStatus> {
+  const result = unwrapStorage(await StorageService.ScheduleDatabaseReset())
+  if (!result.status) throw new Error('StorageService 未返回清空数据库状态')
+  return result.status
+}
+
 export async function openDataDirectory(): Promise<void> {
   throwIfError((await StorageService.OpenDataDirectory()).error)
 }

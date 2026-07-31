@@ -12,7 +12,7 @@ import (
 
 var unsafeServerDirectoryCharacter = regexp.MustCompile(`[^A-Za-z0-9._-]+`)
 
-// LaunchProfile contains structured Java process arguments without a concatenated shell command.
+// LaunchProfile 承载结构化的 Java 进程参数,不拼接 shell 命令。
 type LaunchProfile struct {
 	XmsMiB           int      `json:"xmsMiB"`
 	XmxMiB           int      `json:"xmxMiB"`
@@ -22,7 +22,7 @@ type LaunchProfile struct {
 	ServerArguments  []string `json:"serverArguments"`
 }
 
-// MinecraftServer is one remotely managed server bound to exactly one SSH Session.
+// MinecraftServer 是一台远程纳管、且只绑定一个 SSH Session 的服务器。
 type MinecraftServer struct {
 	ID             ID                        `json:"id"`
 	SSHSessionID   ID                        `json:"sshSessionID"`
@@ -44,7 +44,7 @@ type MinecraftServer struct {
 	DeletedAt      *time.Time                `json:"deletedAt,omitempty"`
 }
 
-// NewMinecraftServer creates a validated remote server draft or durable record.
+// NewMinecraftServer 创建一条已校验的远端服务器草稿或持久化记录。
 func NewMinecraftServer(clock Clock, server MinecraftServer) (*MinecraftServer, error) {
 	if clock == nil {
 		return nil, apperror.New(apperror.CodeValidationRequired, "Clock 不能为空")
@@ -72,7 +72,7 @@ func NewMinecraftServer(clock Clock, server MinecraftServer) (*MinecraftServer, 
 	return &server, nil
 }
 
-// Validate enforces SSH binding, path, distribution, launch, and lifecycle invariants.
+// Validate 校验 SSH 绑定、路径、发行版、启动参数与生命周期的不变式。
 func (s MinecraftServer) Validate() error {
 	if !s.SSHSessionID.Valid() || strings.TrimSpace(s.Name) == "" || strings.TrimSpace(s.Version) == "" {
 		return apperror.New(apperror.CodeValidationRequired, "Minecraft Server 必须绑定 SSH Session、名称和版本")
@@ -92,7 +92,7 @@ func (s MinecraftServer) Validate() error {
 	return s.LaunchProfile.Validate()
 }
 
-// Validate checks memory ordering, working directory, Jar, and structured argument safety.
+// Validate 校验内存上下界顺序、工作目录、Jar 与结构化参数的安全性。
 func (p LaunchProfile) Validate() error {
 	if p.XmsMiB < 64 || p.XmxMiB < p.XmsMiB || p.XmxMiB > 1024*1024 {
 		return apperror.New(apperror.CodeValidationInvalidArgument, "LaunchProfile 内存范围无效")
@@ -109,7 +109,7 @@ func (p LaunchProfile) Validate() error {
 	return nil
 }
 
-// SafeServerDirectoryName converts a user-facing server name into a conservative path segment.
+// SafeServerDirectoryName 把面向用户的服务器名转换成保守的路径片段。
 func SafeServerDirectoryName(name string) string {
 	value := unsafeServerDirectoryCharacter.ReplaceAllString(strings.TrimSpace(name), "-")
 	value = strings.Trim(value, ".-_")
@@ -122,12 +122,12 @@ func SafeServerDirectoryName(name string) string {
 	return value
 }
 
-// CanSoftDelete reports whether the lifecycle permits metadata-only deletion.
+// CanSoftDelete 返回当前生命周期是否允许仅删除元数据。
 func (s MinecraftServer) CanSoftDelete() bool {
 	return s.DeletedAt == nil && s.State != enums.LifecycleRunning && s.State != enums.LifecycleStarting && s.State != enums.LifecycleStopping
 }
 
-// CanTransition reports whether the Server lifecycle permits the requested state change.
+// CanTransition 返回 Server 生命周期是否允许该状态变更。
 func (s MinecraftServer) CanTransition(next enums.LifecycleState) bool {
 	if !next.Valid() || s.State == next {
 		return false
@@ -156,7 +156,7 @@ func (s MinecraftServer) CanTransition(next enums.LifecycleState) bool {
 	}
 }
 
-// Transition applies a validated lifecycle change with a UTC update timestamp.
+// Transition 应用一次已校验的生命周期变更并写入 UTC 更新时间。
 func (s *MinecraftServer) Transition(clock Clock, next enums.LifecycleState) error {
 	if s == nil || clock == nil || !s.CanTransition(next) {
 		return apperror.New(apperror.CodeValidationConflict, "Minecraft Server 生命周期转换无效").WithDetails(map[string]any{

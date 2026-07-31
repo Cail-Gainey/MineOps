@@ -70,6 +70,7 @@ type sshSessionRepository struct{ database *gorm.DB }
 type sshCredentialRepository struct{ database *gorm.DB }
 type knownHostRepository struct{ store *Store }
 
+// Create 新增一条记录。
 func (r *sshSessionRepository) Create(ctx context.Context, session *model.SSHSession) error {
 	if session == nil {
 		return apperror.New(apperror.CodeValidationRequired, "SSH Session 不能为空")
@@ -84,6 +85,7 @@ func (r *sshSessionRepository) Create(ctx context.Context, session *model.SSHSes
 	return nil
 }
 
+// Update 更新一条记录。
 func (r *sshSessionRepository) Update(ctx context.Context, session *model.SSHSession) error {
 	if session == nil {
 		return apperror.New(apperror.CodeValidationRequired, "SSH Session 不能为空")
@@ -102,6 +104,7 @@ func (r *sshSessionRepository) Update(ctx context.Context, session *model.SSHSes
 	return nil
 }
 
+// Get 按 ID 返回一条记录,未命中时返回 NotFound。
 func (r *sshSessionRepository) Get(ctx context.Context, id model.ID) (*model.SSHSession, error) {
 	var record SSHSessionRecord
 	if err := r.database.WithContext(ctx).First(&record, "id = ?", id.String()).Error; err != nil {
@@ -111,6 +114,7 @@ func (r *sshSessionRepository) Get(ctx context.Context, id model.ID) (*model.SSH
 	return &session, nil
 }
 
+// List 按查询条件分页列出记录。
 func (r *sshSessionRepository) List(ctx context.Context, query repository.SSHSessionQuery) ([]model.SSHSession, error) {
 	database := r.database.WithContext(ctx).Order("favourite desc, name asc")
 	if search := strings.TrimSpace(query.Search); search != "" {
@@ -141,6 +145,7 @@ func (r *sshSessionRepository) List(ctx context.Context, query repository.SSHSes
 	return result, nil
 }
 
+// Delete 删除一条记录。
 func (r *sshSessionRepository) Delete(ctx context.Context, id model.ID) error {
 	result := r.database.WithContext(ctx).Delete(&SSHSessionRecord{}, "id = ?", id.String())
 	if result.Error != nil {
@@ -152,6 +157,7 @@ func (r *sshSessionRepository) Delete(ctx context.Context, id model.ID) error {
 	return nil
 }
 
+// UpdateHostSpecs 写回某个 SSH Session 的主机规格与采集时间。
 func (r *sshSessionRepository) UpdateHostSpecs(ctx context.Context, id model.ID, specs model.SSHHostSpecs) error {
 	if err := specs.Validate(); err != nil {
 		return err
@@ -171,6 +177,7 @@ func (r *sshSessionRepository) UpdateHostSpecs(ctx context.Context, id model.ID,
 	return nil
 }
 
+// CountServerReferences 统计引用该 SSH Session 的 Server 数量,用于阻止误删。
 func (r *sshSessionRepository) CountServerReferences(ctx context.Context, id model.ID) (int64, error) {
 	if !r.database.Migrator().HasTable("server_records") {
 		return 0, nil
@@ -182,6 +189,7 @@ func (r *sshSessionRepository) CountServerReferences(ctx context.Context, id mod
 	return count, nil
 }
 
+// Create 新增一条记录。
 func (r *sshCredentialRepository) Create(ctx context.Context, credential *model.SSHCredential) error {
 	if credential == nil || len(credential.Secret) == 0 {
 		return apperror.New(apperror.CodeValidationRequired, "SSH Credential 不能为空")
@@ -193,6 +201,7 @@ func (r *sshCredentialRepository) Create(ctx context.Context, credential *model.
 	return nil
 }
 
+// Update 更新一条记录。
 func (r *sshCredentialRepository) Update(ctx context.Context, credential *model.SSHCredential) error {
 	if credential == nil || len(credential.Secret) == 0 {
 		return apperror.New(apperror.CodeValidationRequired, "SSH Credential 不能为空")
@@ -208,6 +217,7 @@ func (r *sshCredentialRepository) Update(ctx context.Context, credential *model.
 	return nil
 }
 
+// Get 按 ID 返回一条记录,未命中时返回 NotFound。
 func (r *sshCredentialRepository) Get(ctx context.Context, id model.ID) (*model.SSHCredential, error) {
 	var record SSHCredentialRecord
 	if err := r.database.WithContext(ctx).First(&record, "id = ?", id.String()).Error; err != nil {
@@ -217,6 +227,7 @@ func (r *sshCredentialRepository) Get(ctx context.Context, id model.ID) (*model.
 	return &credential, nil
 }
 
+// Delete 删除一条记录。
 func (r *sshCredentialRepository) Delete(ctx context.Context, id model.ID) error {
 	result := r.database.WithContext(ctx).Delete(&SSHCredentialRecord{}, "id = ?", id.String())
 	if result.Error != nil {
@@ -228,6 +239,7 @@ func (r *sshCredentialRepository) Delete(ctx context.Context, id model.ID) error
 	return nil
 }
 
+// Create 新增一条记录。
 func (r *knownHostRepository) Create(ctx context.Context, knownHost *model.KnownHost) error {
 	if knownHost == nil {
 		return apperror.New(apperror.CodeValidationRequired, "Known Host 不能为空")
@@ -239,6 +251,7 @@ func (r *knownHostRepository) Create(ctx context.Context, knownHost *model.Known
 	return nil
 }
 
+// Update 更新一条记录。
 func (r *knownHostRepository) Update(ctx context.Context, knownHost *model.KnownHost) error {
 	if knownHost == nil {
 		return apperror.New(apperror.CodeValidationRequired, "Known Host 不能为空")
@@ -254,6 +267,7 @@ func (r *knownHostRepository) Update(ctx context.Context, knownHost *model.Known
 	return nil
 }
 
+// GetActive 返回某个主机标识当前生效的 Known Host,未命中时返回 NotFound。
 func (r *knownHostRepository) GetActive(ctx context.Context, hostIdentifier string) (*model.KnownHost, error) {
 	var record KnownHostRecord
 	if err := r.store.database.WithContext(ctx).Where("host_identifier = ? AND replaced_at IS NULL", hostIdentifier).Order("last_seen_at desc").First(&record).Error; err != nil {
@@ -263,6 +277,7 @@ func (r *knownHostRepository) GetActive(ctx context.Context, hostIdentifier stri
 	return &knownHost, nil
 }
 
+// FindActive 查找某个主机标识当前生效的 Known Host,未命中时返回空值而非错误。
 func (r *knownHostRepository) FindActive(ctx context.Context, hostIdentifier string) (*model.KnownHost, error) {
 	var records []KnownHostRecord
 	if err := r.store.database.WithContext(ctx).Where("replaced_at IS NULL").Order("last_seen_at desc").Find(&records).Error; err != nil {
@@ -277,6 +292,7 @@ func (r *knownHostRepository) FindActive(ctx context.Context, hostIdentifier str
 	return nil, apperror.New(apperror.CodeIONotFound, "Known Host 不存在")
 }
 
+// List 按查询条件分页列出记录。
 func (r *knownHostRepository) List(ctx context.Context, search string, limit, offset int) ([]model.KnownHost, error) {
 	database := r.store.database.WithContext(ctx).Order("last_seen_at desc")
 	if search = strings.TrimSpace(search); search != "" {
@@ -300,6 +316,7 @@ func (r *knownHostRepository) List(ctx context.Context, search string, limit, of
 	return result, nil
 }
 
+// Replace 把旧指纹置为历史并写入新的生效指纹。
 func (r *knownHostRepository) Replace(ctx context.Context, previous, replacement *model.KnownHost) error {
 	if previous == nil || replacement == nil || previous.HostIdentifier != replacement.HostIdentifier {
 		return apperror.New(apperror.CodeValidationInvalidArgument, "Known Host 替换记录无效")
@@ -315,6 +332,7 @@ func (r *knownHostRepository) Replace(ctx context.Context, previous, replacement
 	})
 }
 
+// Delete 删除一条记录。
 func (r *knownHostRepository) Delete(ctx context.Context, id model.ID) error {
 	result := r.store.database.WithContext(ctx).Delete(&KnownHostRecord{}, "id = ?", id.String())
 	if result.Error != nil {

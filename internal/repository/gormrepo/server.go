@@ -45,6 +45,7 @@ func (ServerRecord) TableName() string { return "server_records" }
 
 type minecraftServerRepository struct{ database *gorm.DB }
 
+// Create 新增一台 Minecraft Server 登记。
 func (r *minecraftServerRepository) Create(ctx context.Context, server *model.MinecraftServer) error {
 	if server == nil {
 		return apperror.New(apperror.CodeValidationRequired, "Minecraft Server 不能为空")
@@ -59,6 +60,7 @@ func (r *minecraftServerRepository) Create(ctx context.Context, server *model.Mi
 	return nil
 }
 
+// Update 更新一台 Minecraft Server 登记。
 func (r *minecraftServerRepository) Update(ctx context.Context, server *model.MinecraftServer) error {
 	if server == nil {
 		return apperror.New(apperror.CodeValidationRequired, "Minecraft Server 不能为空")
@@ -77,6 +79,7 @@ func (r *minecraftServerRepository) Update(ctx context.Context, server *model.Mi
 	return nil
 }
 
+// Get 按 ID 返回一台 Server,可选择是否允许读取已软删除项。
 func (r *minecraftServerRepository) Get(ctx context.Context, id model.ID, includeDeleted bool) (*model.MinecraftServer, error) {
 	var record ServerRecord
 	query := r.database.WithContext(ctx).Where("id = ?", id.String())
@@ -93,6 +96,7 @@ func (r *minecraftServerRepository) Get(ctx context.Context, id model.ID, includ
 	return &server, nil
 }
 
+// List 按查询条件分页列出 Minecraft Server。
 func (r *minecraftServerRepository) List(ctx context.Context, query repository.MinecraftServerQuery) ([]model.MinecraftServer, error) {
 	database := r.database.WithContext(ctx).Order("favourite desc, name asc")
 	if !query.IncludeDeleted {
@@ -132,6 +136,7 @@ func (r *minecraftServerRepository) List(ctx context.Context, query repository.M
 	return result, nil
 }
 
+// SoftDelete 软删除一台 Server 并记录删除时间,保留远端文件。
 func (r *minecraftServerRepository) SoftDelete(ctx context.Context, id model.ID, clock model.Clock) error {
 	if clock == nil {
 		return apperror.New(apperror.CodeValidationRequired, "Clock 不能为空")
@@ -149,6 +154,7 @@ func (r *minecraftServerRepository) SoftDelete(ctx context.Context, id model.ID,
 	return nil
 }
 
+// Restore 恢复一台已软删除的 Server。
 func (r *minecraftServerRepository) Restore(ctx context.Context, id model.ID, clock model.Clock) error {
 	if clock == nil {
 		return apperror.New(apperror.CodeValidationRequired, "Clock 不能为空")
@@ -165,6 +171,7 @@ func (r *minecraftServerRepository) Restore(ctx context.Context, id model.ID, cl
 	return nil
 }
 
+// HardDelete 永久删除一台 Server 的登记行。
 func (r *minecraftServerRepository) HardDelete(ctx context.Context, id model.ID) error {
 	result := r.database.WithContext(ctx).Delete(&ServerRecord{}, "id = ?", id.String())
 	if result.Error != nil {

@@ -11,7 +11,7 @@ import (
 
 const MetricSchemaVersion = 1
 
-// MetricDefinition describes unit, value type, and preferred aggregation for one registered metric.
+// MetricDefinition 描述一个已注册指标的单位、值类型与首选聚合方式。
 type MetricDefinition struct {
 	Metric      enums.MetricType        `json:"metric"`
 	Unit        enums.MetricUnit        `json:"unit"`
@@ -19,7 +19,7 @@ type MetricDefinition struct {
 	Aggregation enums.MetricAggregation `json:"aggregation"`
 }
 
-// MetricSample is one validated UTC observation from a Server-related source.
+// MetricSample 是来自某个 Server 相关来源、已校验的一条 UTC 观测。
 type MetricSample struct {
 	ServerID      ID                `json:"serverID"`
 	SourceID      ID                `json:"sourceID"`
@@ -31,7 +31,7 @@ type MetricSample struct {
 	SchemaVersion int               `json:"schemaVersion"`
 }
 
-// MetricAggregate stores one minute/hour rollup with distribution evidence.
+// MetricAggregate 存放一条分钟或小时聚合及其分布证据。
 type MetricAggregate struct {
 	ServerID      ID                      `json:"serverID"`
 	SourceID      ID                      `json:"sourceID"`
@@ -48,7 +48,7 @@ type MetricAggregate struct {
 	SchemaVersion int                     `json:"schemaVersion"`
 }
 
-// MetricQuery contains indexed Server/Metric/time/granularity pagination.
+// MetricQuery 承载走索引的 Server、指标、时间、粒度与分页条件。
 type MetricQuery struct {
 	ServerID    ID                      `json:"serverID"`
 	SourceID    ID                      `json:"sourceID,omitempty"`
@@ -61,7 +61,7 @@ type MetricQuery struct {
 	Offset      int                     `json:"offset"`
 }
 
-// MetricPoint is a query-ready value with an explicit missing-data marker.
+// MetricPoint 是可直接展示的值,并带显式的缺失数据标记。
 type MetricPoint struct {
 	Timestamp time.Time `json:"timestamp"`
 	Value     float64   `json:"value"`
@@ -72,7 +72,7 @@ type MetricPoint struct {
 	Missing   bool      `json:"missing"`
 }
 
-// MetricSeries is one source/tag-specific query series with explicit gaps.
+// MetricSeries 是按来源与标签区分的一条查询序列,空洞显式标注。
 type MetricSeries struct {
 	SourceID    ID                      `json:"sourceID"`
 	Metric      enums.MetricType        `json:"metric"`
@@ -82,7 +82,7 @@ type MetricSeries struct {
 	Points      []MetricPoint           `json:"points"`
 }
 
-// MetricQueryResult contains normalized query bounds and grouped series.
+// MetricQueryResult 承载归一化后的查询边界与分组序列。
 type MetricQueryResult struct {
 	ServerID    ID                      `json:"serverID"`
 	Metric      enums.MetricType        `json:"metric"`
@@ -93,7 +93,7 @@ type MetricQueryResult struct {
 	Series      []MetricSeries          `json:"series"`
 }
 
-// MetricIngestResult reports one atomic batch acceptance decision.
+// MetricIngestResult 汇报一次原子批次的接收判定。
 type MetricIngestResult struct {
 	Received   int            `json:"received"`
 	Accepted   int            `json:"accepted"`
@@ -102,14 +102,14 @@ type MetricIngestResult struct {
 	Latest     []MetricSample `json:"latest"`
 }
 
-// MetricRealtimeEvent is the throttled latest-value snapshot for one Server.
+// MetricRealtimeEvent 是某台 Server 经节流的最新值快照。
 type MetricRealtimeEvent struct {
 	ServerID  ID             `json:"serverID"`
 	Samples   []MetricSample `json:"samples"`
 	EmittedAt time.Time      `json:"emittedAt"`
 }
 
-// MetricMaintenanceResult summarizes one bounded background maintenance pass.
+// MetricMaintenanceResult 汇总一轮有界的后台维护结果。
 type MetricMaintenanceResult struct {
 	MinuteAggregates int   `json:"minuteAggregates"`
 	HourAggregates   int   `json:"hourAggregates"`
@@ -118,7 +118,7 @@ type MetricMaintenanceResult struct {
 	HourDeleted      int64 `json:"hourDeleted"`
 }
 
-// MetricStorageStatus describes database capacity protection state.
+// MetricStorageStatus 描述数据库容量保护状态。
 type MetricStorageStatus struct {
 	DatabaseBytes          int64 `json:"databaseBytes"`
 	AllocatedDatabaseBytes int64 `json:"allocatedDatabaseBytes"`
@@ -128,7 +128,7 @@ type MetricStorageStatus struct {
 	Pressure               bool  `json:"pressure"`
 }
 
-// DefinitionForMetric returns the stable registered semantics for one metric.
+// DefinitionForMetric 返回某个指标已注册的稳定语义。
 func DefinitionForMetric(metric enums.MetricType) (MetricDefinition, error) {
 	definitions := map[enums.MetricType]MetricDefinition{
 		enums.MetricHostCPU:             {Metric: metric, Unit: enums.MetricUnitPercent, ValueType: enums.MetricValueGauge, Aggregation: enums.MetricAggregationAverage},
@@ -160,7 +160,7 @@ func DefinitionForMetric(metric enums.MetricType) (MetricDefinition, error) {
 	return definition, nil
 }
 
-// Validate checks identity, UTC timestamp, finite value, tags, and schema version.
+// Validate 校验身份、UTC 时间戳、有限数值、标签与 schema 版本。
 func (s MetricSample) Validate(now time.Time) error {
 	if !s.ServerID.Valid() || !s.SourceID.Valid() || !s.Metric.Valid() || s.SchemaVersion != MetricSchemaVersion {
 		return apperror.New(apperror.CodeValidationInvalidArgument, "Metric Sample 身份、类型或 Schema 无效")
@@ -186,7 +186,7 @@ func (s MetricSample) Validate(now time.Time) error {
 	return nil
 }
 
-// Validate checks the indexed query bounds, granularity, timezone, and pagination.
+// Validate 校验索引查询的边界、粒度、时区与分页。
 func (q MetricQuery) Validate() error {
 	if !q.ServerID.Valid() || !q.Metric.Valid() || !q.Granularity.Valid() || q.Start.IsZero() || q.End.IsZero() || !q.Start.Before(q.End) {
 		return apperror.New(apperror.CodeValidationInvalidArgument, "Metric Query 身份、类型、粒度或时间范围无效")

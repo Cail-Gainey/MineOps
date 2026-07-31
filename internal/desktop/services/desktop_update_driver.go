@@ -33,8 +33,10 @@ type mineOpsUpdateProvider struct {
 	progress   func(service.DesktopUpdateProgress)
 }
 
+// Name 返回更新源提供方名称。
 func (p *mineOpsUpdateProvider) Name() string { return "mineops-github" }
 
+// Check 检查配置通道上是否存在可用的新版本。
 func (p *mineOpsUpdateProvider) Check(ctx context.Context, request updater.CheckRequest) (*updater.Release, error) {
 	snapshot := p.settings.Snapshot()
 	source := p.downloads.ResolveSource("desktop", desktopGitHubReleasesURL)
@@ -75,6 +77,7 @@ func (p *mineOpsUpdateProvider) Check(ctx context.Context, request updater.Check
 	}, nil
 }
 
+// Download 下载并回报进度,把发行包写入目标 writer。
 func (p *mineOpsUpdateProvider) Download(ctx context.Context, release *updater.Release, dst io.Writer, onProgress func(int64, int64)) error {
 	if release == nil || release.Metadata == nil {
 		return apperror.New(apperror.CodeValidationRequired, "Desktop Update Release Metadata 不能为空")
@@ -104,7 +107,7 @@ func (p *mineOpsUpdateProvider) setProgress(callback func(service.DesktopUpdateP
 	p.progressMu.Unlock()
 }
 
-// WailsDesktopUpdateDriver adapts the pinned Wails updater to the MineOps update coordinator.
+// WailsDesktopUpdateDriver 把锁定版本的 Wails updater 适配到 MineOps 更新协调器。
 type WailsDesktopUpdateDriver struct {
 	app       *application.App
 	updater   *updater.Updater
@@ -117,7 +120,7 @@ type WailsDesktopUpdateDriver struct {
 	cancel   context.CancelFunc
 }
 
-// NewWailsDesktopUpdateDriver configures the Wails updater with the authenticated MineOps provider.
+// NewWailsDesktopUpdateDriver 用经过认证的 MineOps 提供方配置 Wails updater。
 func NewWailsDesktopUpdateDriver(app *application.App, catalog *desktoprelease.Catalog, settings *appsettings.Manager, downloads *service.DownloadManager, guard *service.ExitGuard, publicKey []byte) (*WailsDesktopUpdateDriver, error) {
 	if app == nil || app.Updater == nil || catalog == nil || settings == nil || downloads == nil || guard == nil {
 		return nil, apperror.New(apperror.CodeValidationRequired, "Wails Desktop Update Driver 依赖不能为空")
@@ -136,7 +139,7 @@ func NewWailsDesktopUpdateDriver(app *application.App, catalog *desktoprelease.C
 	}, nil
 }
 
-// Check resolves the current channel and maps the Wails release into the MineOps status model.
+// Check 解析当前通道并把 Wails 发行信息映射成 MineOps 状态模型。
 func (d *WailsDesktopUpdateDriver) Check(ctx context.Context) (service.DesktopUpdateStatus, error) {
 	snapshot := d.settings.Snapshot()
 	installSupported, installMessage := desktopInstallSupport()
@@ -171,7 +174,7 @@ func (d *WailsDesktopUpdateDriver) Check(ctx context.Context) (service.DesktopUp
 	return status, nil
 }
 
-// DownloadAndInstall downloads, verifies and stages the pending Wails update.
+// DownloadAndInstall 下载、校验并暂存待安装的 Wails 更新。
 func (d *WailsDesktopUpdateDriver) DownloadAndInstall(ctx context.Context, onProgress func(service.DesktopUpdateProgress)) error {
 	if supported, message := desktopInstallSupport(); !supported {
 		return apperror.New(apperror.CodeDesktopUpdateUnsupported, message)
@@ -200,7 +203,7 @@ func (d *WailsDesktopUpdateDriver) DownloadAndInstall(ctx context.Context, onPro
 	return nil
 }
 
-// Cancel cancels the active update download without discarding a completed staged update.
+// Cancel 取消进行中的更新下载,不丢弃已暂存完成的更新。
 func (d *WailsDesktopUpdateDriver) Cancel() {
 	d.cancelMu.Lock()
 	cancel := d.cancel
@@ -210,7 +213,7 @@ func (d *WailsDesktopUpdateDriver) Cancel() {
 	}
 }
 
-// Restart asks Wails to replace the current target after ExitGuard approval.
+// Restart 在 ExitGuard 放行后请求 Wails 替换当前程序。
 func (d *WailsDesktopUpdateDriver) Restart(ctx context.Context, discardUnsaved bool) error {
 	if supported, message := desktopInstallSupport(); !supported {
 		return apperror.New(apperror.CodeDesktopUpdateUnsupported, message)

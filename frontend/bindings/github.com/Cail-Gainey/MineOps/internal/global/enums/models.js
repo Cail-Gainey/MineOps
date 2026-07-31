@@ -7,7 +7,7 @@
 import { Create as $Create } from "@wailsio/runtime";
 
 /**
- * AlertComparison identifies the bounded numeric comparison used by an alert rule.
+ * AlertComparison 标识告警规则使用的有界数值比较方式。
  * @readonly
  * @enum {string}
  */
@@ -24,7 +24,7 @@ export const AlertComparison = {
 };
 
 /**
- * AlertEventState identifies whether a threshold incident is active or recovered.
+ * AlertEventState 标识一次阈值告警处于活跃还是已恢复。
  * @readonly
  * @enum {string}
  */
@@ -39,7 +39,7 @@ export const AlertEventState = {
 };
 
 /**
- * FirewallPolicy identifies how MineOps handles the configured Minecraft TCP port.
+ * FirewallPolicy 标识 MineOps 如何处理已配置的 Minecraft TCP 端口。
  * @readonly
  * @enum {string}
  */
@@ -55,7 +55,7 @@ export const FirewallPolicy = {
 };
 
 /**
- * InstallationState identifies the durable lifecycle of one installation task.
+ * InstallationState 标识一个安装任务的持久化生命周期。
  * @readonly
  * @enum {string}
  */
@@ -73,7 +73,7 @@ export const InstallationState = {
 };
 
 /**
- * InstallationStepState identifies one checkpointed installation step lifecycle.
+ * InstallationStepState 标识一个带检查点的安装步骤的生命周期。
  * @readonly
  * @enum {string}
  */
@@ -92,7 +92,7 @@ export const InstallationStepState = {
 };
 
 /**
- * LifecycleState identifies the verified Minecraft server lifecycle.
+ * LifecycleState 标识经过校验的 Minecraft 服务端生命周期。
  * @readonly
  * @enum {string}
  */
@@ -116,7 +116,7 @@ export const LifecycleState = {
 };
 
 /**
- * MetricAggregation identifies the preferred rollup calculation.
+ * MetricAggregation 标识降采样时首选的聚合算法。
  * @readonly
  * @enum {string}
  */
@@ -133,7 +133,7 @@ export const MetricAggregation = {
 };
 
 /**
- * MetricGranularity identifies raw, minute, or hour storage/query resolution.
+ * MetricGranularity 标识原始、分钟或小时级的存储与查询粒度。
  * @readonly
  * @enum {string}
  */
@@ -149,7 +149,7 @@ export const MetricGranularity = {
 };
 
 /**
- * MetricType identifies the namespace of a persisted metric sample.
+ * MetricType 标识一条持久化指标样本的命名空间。
  * @readonly
  * @enum {string}
  */
@@ -183,7 +183,7 @@ export const MetricType = {
 };
 
 /**
- * MetricUnit identifies the physical or semantic unit of a metric.
+ * MetricUnit 标识一个指标的物理单位或语义单位。
  * @readonly
  * @enum {string}
  */
@@ -204,7 +204,7 @@ export const MetricUnit = {
 };
 
 /**
- * MetricValueType identifies how a metric value should be rendered and validated.
+ * MetricValueType 标识一个指标值应如何渲染与校验。
  * @readonly
  * @enum {string}
  */
@@ -219,7 +219,7 @@ export const MetricValueType = {
 };
 
 /**
- * MinecraftServerType identifies one supported server distribution or proxy family.
+ * MinecraftServerType 标识一个受支持的服务端发行版或代理端家族。
  * @readonly
  * @enum {string}
  */
@@ -244,7 +244,7 @@ export const MinecraftServerType = {
 };
 
 /**
- * OperationState identifies the durable lifecycle of a long-running operation.
+ * OperationState 标识一个长任务的持久化生命周期。
  * @readonly
  * @enum {string}
  */
@@ -262,7 +262,7 @@ export const OperationState = {
 };
 
 /**
- * OperationTargetType identifies the resource class locked by an operation.
+ * OperationTargetType 标识任务所锁定的资源类别。
  * @readonly
  * @enum {string}
  */
@@ -282,7 +282,7 @@ export const OperationTargetType = {
 };
 
 /**
- * OperationType identifies the user intent executed by a durable operation.
+ * OperationType 标识一个持久化任务所执行的用户意图。
  * @readonly
  * @enum {string}
  */
@@ -307,7 +307,7 @@ export const OperationType = {
 };
 
 /**
- * PlayerActivityAccuracy identifies the confidence of persisted player activity data.
+ * PlayerActivityAccuracy 标识已持久化玩家活动数据的可信程度。
  * @readonly
  * @enum {string}
  */
@@ -325,7 +325,7 @@ export const PlayerActivityAccuracy = {
 };
 
 /**
- * PlayerIdentityKind identifies the evidence backing a Server-scoped player identity.
+ * PlayerIdentityKind 标识支撑某台 Server 内玩家身份的证据来源。
  * @readonly
  * @enum {string}
  */
@@ -340,7 +340,7 @@ export const PlayerIdentityKind = {
 };
 
 /**
- * PlayerSessionCloseReason identifies why a player session was settled.
+ * PlayerSessionCloseReason 标识玩家会话结算的原因。
  * @readonly
  * @enum {string}
  */
@@ -359,7 +359,7 @@ export const PlayerSessionCloseReason = {
 };
 
 /**
- * PlayerSessionState identifies whether a player connection is still open or settled.
+ * PlayerSessionState 标识玩家连接仍在进行还是已结算。
  * @readonly
  * @enum {string}
  */
@@ -375,7 +375,7 @@ export const PlayerSessionState = {
 };
 
 /**
- * ProxyMode identifies how outbound catalog and artifact HTTP traffic is routed.
+ * ProxyMode 标识出站目录与构件 HTTP 流量的路由方式。
  * @readonly
  * @enum {string}
  */
@@ -393,7 +393,7 @@ export const ProxyMode = {
 };
 
 /**
- * RemoteProcessState identifies probe evidence independently from persisted Server lifecycle state.
+ * RemoteProcessState 标识探测得到的进程证据,与持久化的 Server 生命周期状态相互独立。
  * @readonly
  * @enum {string}
  */
@@ -410,7 +410,7 @@ export const RemoteProcessState = {
 };
 
 /**
- * SparkReportKind identifies one controlled Minecraft spark report workflow.
+ * SparkReportKind 标识一种受控的 Minecraft spark 报告流程。
  * @readonly
  * @enum {string}
  */
@@ -425,7 +425,7 @@ export const SparkReportKind = {
 };
 
 /**
- * SparkReportState identifies the durable lifecycle of one Minecraft spark report.
+ * SparkReportState 标识一份 Minecraft spark 报告的持久化生命周期。
  * @readonly
  * @enum {string}
  */
@@ -443,7 +443,7 @@ export const SparkReportState = {
 };
 
 /**
- * SparkStatus identifies Minecraft spark availability independently from Agent state.
+ * SparkStatus 标识 Minecraft spark 的可用性,与 Agent 状态相互独立。
  * @readonly
  * @enum {string}
  */

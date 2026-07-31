@@ -36,6 +36,7 @@ type ProcessIdentityRecord struct {
 
 type processIdentityRepository struct{ database *gorm.DB }
 
+// Save 写入或覆盖一条远端进程身份。
 func (r *processIdentityRepository) Save(ctx context.Context, identity *model.RemoteProcessIdentity) error {
 	if identity == nil {
 		return apperror.New(apperror.CodeValidationRequired, "Remote Process Identity 不能为空")
@@ -57,6 +58,7 @@ func (r *processIdentityRepository) Save(ctx context.Context, identity *model.Re
 	return nil
 }
 
+// GetByServer 返回某台 Server 的远端进程身份。
 func (r *processIdentityRepository) GetByServer(ctx context.Context, serverID model.ID) (*model.RemoteProcessIdentity, error) {
 	var record ProcessIdentityRecord
 	if err := r.database.WithContext(ctx).First(&record, "server_id = ?", serverID.String()).Error; err != nil {
@@ -69,6 +71,7 @@ func (r *processIdentityRepository) GetByServer(ctx context.Context, serverID mo
 	return &identity, nil
 }
 
+// ListActive 列出全部仍标记为活动的远端进程身份。
 func (r *processIdentityRepository) ListActive(ctx context.Context) ([]model.RemoteProcessIdentity, error) {
 	var records []ProcessIdentityRecord
 	if err := r.database.WithContext(ctx).Where("state = ?", enums.RemoteProcessRunning.String()).Order("updated_at asc").Find(&records).Error; err != nil {
@@ -81,6 +84,7 @@ func (r *processIdentityRepository) ListActive(ctx context.Context) ([]model.Rem
 	return result, nil
 }
 
+// DeleteByServer 删除某台 Server 的远端进程身份。
 func (r *processIdentityRepository) DeleteByServer(ctx context.Context, serverID model.ID) error {
 	result := r.database.WithContext(ctx).Delete(&ProcessIdentityRecord{}, "server_id = ?", serverID.String())
 	if result.Error != nil {

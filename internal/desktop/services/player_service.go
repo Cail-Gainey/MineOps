@@ -9,42 +9,42 @@ import (
 	"github.com/Cail-Gainey/MineOps/internal/service"
 )
 
-// PlayerListServiceResult contains one unified player page or stable error.
+// PlayerListServiceResult 承载一页统一玩家数据或稳定错误。
 type PlayerListServiceResult struct {
 	Result *model.PlayerListResult `json:"result,omitempty"`
 	Error  *apperror.DTO           `json:"error,omitempty"`
 }
 
-// PlayerDetailServiceResult contains one player overview or stable error.
+// PlayerDetailServiceResult 承载一份玩家总览或稳定错误。
 type PlayerDetailServiceResult struct {
 	Player *model.PlayerOverview `json:"player,omitempty"`
 	Error  *apperror.DTO         `json:"error,omitempty"`
 }
 
-// PlayerSessionsServiceResult contains bounded recent player sessions.
+// PlayerSessionsServiceResult 承载有界的近期玩家会话。
 type PlayerSessionsServiceResult struct {
 	Sessions []model.PlayerSession `json:"sessions"`
 	Error    *apperror.DTO         `json:"error,omitempty"`
 }
 
-// PlayerActionServiceResult contains the refreshed player after a command.
+// PlayerActionServiceResult 承载命令执行后刷新的玩家数据。
 type PlayerActionServiceResult struct {
 	Player *model.PlayerOverview `json:"player,omitempty"`
 	Error  *apperror.DTO         `json:"error,omitempty"`
 }
 
-// PlayerService exposes unified player queries, synchronization, and management actions.
+// PlayerService 对外暴露统一的玩家查询、同步与管理操作。
 type PlayerService struct {
 	manager *service.PlayerActivityManager
 	logger  *applog.Logger
 }
 
-// NewPlayerService creates the desktop player facade.
+// NewPlayerService 创建桌面侧的玩家门面。
 func NewPlayerService(manager *service.PlayerActivityManager, logger *applog.Logger) *PlayerService {
 	return &PlayerService{manager: manager, logger: logger}
 }
 
-// List returns one bounded unified player page.
+// List 返回一页有界的统一玩家数据。
 func (s *PlayerService) List(ctx context.Context, query model.PlayerQuery) PlayerListServiceResult {
 	result, err := s.manager.ListPlayers(ctx, query)
 	if err != nil {
@@ -53,7 +53,7 @@ func (s *PlayerService) List(ctx context.Context, query model.PlayerQuery) Playe
 	return PlayerListServiceResult{Result: &result}
 }
 
-// Detail returns one unified player overview.
+// Detail 返回一份统一的玩家总览。
 func (s *PlayerService) Detail(ctx context.Context, serverID, playerID string) PlayerDetailServiceResult {
 	player, err := s.manager.PlayerDetail(ctx, model.ID(serverID), model.ID(playerID))
 	if err != nil {
@@ -62,7 +62,7 @@ func (s *PlayerService) Detail(ctx context.Context, serverID, playerID string) P
 	return PlayerDetailServiceResult{Player: &player}
 }
 
-// RecentSessions returns bounded recent sessions in newest-first order.
+// RecentSessions 按时间倒序返回有界的近期会话。
 func (s *PlayerService) RecentSessions(ctx context.Context, query model.PlayerSessionQuery) PlayerSessionsServiceResult {
 	sessions, err := s.manager.RecentPlayerSessions(ctx, query)
 	if err != nil {
@@ -71,7 +71,7 @@ func (s *PlayerService) RecentSessions(ctx context.Context, query model.PlayerSe
 	return PlayerSessionsServiceResult{Sessions: sessions}
 }
 
-// RefreshDirectory synchronizes authoritative Minecraft player files.
+// RefreshDirectory 同步 Minecraft 权威玩家名录文件。
 func (s *PlayerService) RefreshDirectory(ctx context.Context, serverID string) PlayerListServiceResult {
 	if err := s.manager.SynchronizeDirectory(ctx, model.ID(serverID)); err != nil {
 		return PlayerListServiceResult{Error: playerServiceError(err)}
@@ -79,7 +79,7 @@ func (s *PlayerService) RefreshDirectory(ctx context.Context, serverID string) P
 	return s.List(ctx, model.PlayerQuery{ServerID: model.ID(serverID), Limit: 50})
 }
 
-// SynchronizeActivity claims and applies pending remote player evidence.
+// SynchronizeActivity 认领并应用远端待处理的玩家活动证据。
 func (s *PlayerService) SynchronizeActivity(ctx context.Context, serverID string) PlayerListServiceResult {
 	if err := s.manager.SynchronizeServer(ctx, model.ID(serverID)); err != nil {
 		return PlayerListServiceResult{Error: playerServiceError(err)}
@@ -87,37 +87,37 @@ func (s *PlayerService) SynchronizeActivity(ctx context.Context, serverID string
 	return s.List(ctx, model.PlayerQuery{ServerID: model.ID(serverID), Limit: 50})
 }
 
-// AddWhitelist adds a player to the Minecraft whitelist.
+// AddWhitelist 把玩家加入 Minecraft 白名单。
 func (s *PlayerService) AddWhitelist(ctx context.Context, input model.PlayerActionInput) PlayerActionServiceResult {
 	return s.action(ctx, "add_whitelist", input)
 }
 
-// RemoveWhitelist removes a player from the Minecraft whitelist.
+// RemoveWhitelist 把玩家移出 Minecraft 白名单。
 func (s *PlayerService) RemoveWhitelist(ctx context.Context, input model.PlayerActionInput) PlayerActionServiceResult {
 	return s.action(ctx, "remove_whitelist", input)
 }
 
-// GrantOperator grants Minecraft operator permissions.
+// GrantOperator 授予 Minecraft 管理员权限。
 func (s *PlayerService) GrantOperator(ctx context.Context, input model.PlayerActionInput) PlayerActionServiceResult {
 	return s.action(ctx, "grant_operator", input)
 }
 
-// RevokeOperator revokes Minecraft operator permissions.
+// RevokeOperator 撤销 Minecraft 管理员权限。
 func (s *PlayerService) RevokeOperator(ctx context.Context, input model.PlayerActionInput) PlayerActionServiceResult {
 	return s.action(ctx, "revoke_operator", input)
 }
 
-// Ban bans one player with an optional reason.
+// Ban 封禁一名玩家,原因可选。
 func (s *PlayerService) Ban(ctx context.Context, input model.PlayerActionInput) PlayerActionServiceResult {
 	return s.action(ctx, "ban", input)
 }
 
-// Pardon removes one player Ban.
+// Pardon 解除一名玩家的封禁。
 func (s *PlayerService) Pardon(ctx context.Context, input model.PlayerActionInput) PlayerActionServiceResult {
 	return s.action(ctx, "pardon", input)
 }
 
-// Kick disconnects one currently online player.
+// Kick 断开一名当前在线玩家的连接。
 func (s *PlayerService) Kick(ctx context.Context, input model.PlayerActionInput) PlayerActionServiceResult {
 	return s.action(ctx, "kick", input)
 }

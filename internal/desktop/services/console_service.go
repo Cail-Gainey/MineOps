@@ -25,7 +25,7 @@ func init() {
 	application.RegisterEvent[ConsoleEvent](constants.ConsoleEventName)
 }
 
-// ConsoleEvent is the versioned Opened/Data/Dropped/Closed/Error contract for Server Console.
+// ConsoleEvent 是 Server 控制台的带版本事件契约:Opened/Data/Dropped/Closed/Error。
 type ConsoleEvent struct {
 	Version   int                   `json:"version"`
 	Type      string                `json:"type"`
@@ -37,7 +37,7 @@ type ConsoleEvent struct {
 	Session   *model.ConsoleSession `json:"session,omitempty"`
 }
 
-// ConsoleSessionResult contains one Console attachment or a stable error.
+// ConsoleSessionResult 承载一次控制台附着或稳定错误。
 type ConsoleSessionResult struct {
 	Session *model.ConsoleSession `json:"session,omitempty"`
 	Error   *apperror.DTO         `json:"error,omitempty"`
@@ -55,7 +55,7 @@ type activeConsole struct {
 	lastOffset atomic.Int64
 }
 
-// ConsoleService owns independent Server Console attachments without owning the remote process lifetime.
+// ConsoleService 独立持有 Server 控制台附着,但不持有远端进程的生命周期。
 type ConsoleService struct {
 	processes *service.RemoteProcessController
 	store     repository.Store
@@ -67,12 +67,12 @@ type ConsoleService struct {
 	sessions map[model.ID]*activeConsole
 }
 
-// NewConsoleService creates the read-only tmux Console facade.
+// NewConsoleService 创建只读的 tmux 控制台门面。
 func NewConsoleService(processes *service.RemoteProcessController, store repository.Store, logger *applog.Logger) *ConsoleService {
 	return &ConsoleService{processes: processes, store: store, logger: logger, sessions: make(map[model.ID]*activeConsole)}
 }
 
-// ServiceStartup captures the application context and Wails event emitter.
+// ServiceStartup 捕获应用上下文与 Wails 事件发射器。
 func (s *ConsoleService) ServiceStartup(ctx context.Context, _ application.ServiceOptions) error {
 	s.mu.Lock()
 	s.rootCtx, s.app = ctx, application.Get()
@@ -80,7 +80,7 @@ func (s *ConsoleService) ServiceStartup(ctx context.Context, _ application.Servi
 	return nil
 }
 
-// ServiceShutdown detaches all Console views without stopping remote Servers.
+// ServiceShutdown 断开全部控制台视图,不停止远端 Server。
 func (s *ConsoleService) ServiceShutdown() error {
 	s.mu.Lock()
 	active := make([]*activeConsole, 0, len(s.sessions))
@@ -97,7 +97,7 @@ func (s *ConsoleService) ServiceShutdown() error {
 	return nil
 }
 
-// Open attaches a desktop view to one running MineOps-managed tmux session.
+// Open 把桌面视图附着到一个由 MineOps 管理的运行中 tmux 会话。
 func (s *ConsoleService) Open(ctx context.Context, serverID string, offset int64) (result ConsoleSessionResult) {
 	defer s.recoverSession(ctx, &result)
 	if offset < 0 {
@@ -156,7 +156,7 @@ func (s *ConsoleService) Open(ctx context.Context, serverID string, offset int64
 	return ConsoleSessionResult{Session: &copy}
 }
 
-// Input sends a command to the attached Java process through its managed tmux session.
+// Input 通过受管 tmux 会话向已附着的 Java 进程发送命令。
 func (s *ConsoleService) Input(ctx context.Context, sessionID, data string) (result ActionResult) {
 	active, err := s.get(sessionID)
 	if err != nil {
@@ -174,7 +174,7 @@ func (s *ConsoleService) Input(ctx context.Context, sessionID, data string) (res
 	return ActionResult{}
 }
 
-// Detach closes one desktop attachment without stopping the Server process.
+// Detach 关闭一次桌面附着,不停止 Server 进程。
 func (s *ConsoleService) Detach(ctx context.Context, sessionID string) (result ActionResult) {
 	active, err := s.get(sessionID)
 	if err != nil {
@@ -188,7 +188,7 @@ func (s *ConsoleService) Detach(ctx context.Context, sessionID string) (result A
 	return ActionResult{}
 }
 
-// Close is an idempotent alias for Detach and never stops the remote Server.
+// Close 是 Detach 的幂等别名,永不停止远端 Server。
 func (s *ConsoleService) Close(ctx context.Context, sessionID string) ActionResult {
 	return s.Detach(ctx, sessionID)
 }
@@ -293,6 +293,7 @@ func (s *ConsoleService) recoverSession(ctx context.Context, result *ConsoleSess
 
 type consoleOutputWriter struct{ active *activeConsole }
 
+// Write 把控制台输出编码后作为事件推送给前端。
 func (w *consoleOutputWriter) Write(value []byte) (int, error) {
 	chunk := append([]byte(nil), value...)
 	w.active.lastOffset.Add(int64(len(chunk)))

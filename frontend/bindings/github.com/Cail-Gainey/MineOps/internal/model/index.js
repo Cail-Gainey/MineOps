@@ -60,6 +60,6 @@ export {
 import * as $models from "./models.js";
 
 /**
- * ID is a time-ordered UUIDv7-compatible MineOps identifier.
+ * ID 是按时间有序、兼容 UUIDv7 的 MineOps 标识符。
  * @typedef {$models.ID} ID
  */

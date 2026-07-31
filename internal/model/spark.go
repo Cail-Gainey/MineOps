@@ -12,7 +12,7 @@ import (
 
 const SparkSchemaVersion = 1
 
-// SparkCapability records independently detected installation, compatibility, permission, and collection evidence.
+// SparkCapability 记录独立探测得到的安装、兼容性、权限与采集方式证据。
 type SparkCapability struct {
 	ServerID          ID                        `json:"serverID"`
 	Status            enums.SparkStatus         `json:"status"`
@@ -38,7 +38,7 @@ type SparkCapability struct {
 	SchemaVersion     int                       `json:"schemaVersion"`
 }
 
-// SparkSnapshot stores one versioned TPS/MSPT health observation without inventing unavailable fields.
+// SparkSnapshot 存放一条带版本的 TPS/MSPT 健康观测,不臆造缺失字段。
 type SparkSnapshot struct {
 	ID                 ID                        `json:"id"`
 	ServerID           ID                        `json:"serverID"`
@@ -68,7 +68,7 @@ type SparkSnapshot struct {
 	SchemaVersion      int                       `json:"schemaVersion"`
 }
 
-// SparkReport stores durable health/profiler workflow state and a privacy-sensitive viewer reference.
+// SparkReport 存放持久化的健康或性能分析流程状态,以及涉及隐私的查看器引用。
 type SparkReport struct {
 	ID                  ID                     `json:"id"`
 	ServerID            ID                     `json:"serverID"`
@@ -89,7 +89,7 @@ type SparkReport struct {
 	SchemaVersion       int                    `json:"schemaVersion"`
 }
 
-// AlertRule defines one bounded metric threshold with duration, cooldown, and enablement controls.
+// AlertRule 定义一条有界的指标阈值,含持续时长、冷却与启停控制。
 type AlertRule struct {
 	ID              ID                    `json:"id"`
 	ServerID        ID                    `json:"serverID"`
@@ -105,7 +105,7 @@ type AlertRule struct {
 	SchemaVersion   int                   `json:"schemaVersion"`
 }
 
-// AlertEvent is one durable threshold incident with active, recovered, and acknowledged timestamps.
+// AlertEvent 是一次持久化的阈值告警,含活跃、恢复与确认时间。
 type AlertEvent struct {
 	ID             ID                    `json:"id"`
 	RuleID         ID                    `json:"ruleID"`
@@ -125,7 +125,7 @@ type AlertEvent struct {
 	SchemaVersion  int                   `json:"schemaVersion"`
 }
 
-// Validate checks the durable Spark capability identity and versioned evidence.
+// Validate 校验持久化的 Spark 能力身份与带版本的证据。
 func (c SparkCapability) Validate() error {
 	if !c.ServerID.Valid() || !c.Status.Valid() || !c.ServerType.Valid() || c.SchemaVersion != SparkSchemaVersion || c.DetectedAt.IsZero() {
 		return apperror.New(apperror.CodeValidationInvalidArgument, "Spark Capability 身份、状态或 Schema 无效")
@@ -139,7 +139,7 @@ func (c SparkCapability) Validate() error {
 	return nil
 }
 
-// Validate checks the versioned Spark snapshot identity, time, and finite TPS/MSPT distribution.
+// Validate 校验带版本的 Spark Snapshot 身份、时间与有限的 TPS/MSPT 分布。
 func (s SparkSnapshot) Validate() error {
 	if !s.ID.Valid() || !s.ServerID.Valid() || !s.SourceID.Valid() || !s.ServerType.Valid() || s.CollectedAt.IsZero() || s.SchemaVersion != SparkSchemaVersion {
 		return apperror.New(apperror.CodeValidationInvalidArgument, "Spark Snapshot 身份、时间或 Schema 无效")
@@ -159,7 +159,7 @@ func (s SparkSnapshot) Validate() error {
 	return nil
 }
 
-// Validate checks the durable report lifecycle and approved viewer URL shape.
+// Validate 校验持久化报告的生命周期与已核准的查看器 URL 形态。
 func (r SparkReport) Validate() error {
 	if !r.ID.Valid() || !r.ServerID.Valid() || !r.Kind.Valid() || !r.State.Valid() || r.SchemaVersion != SparkSchemaVersion || r.CreatedAt.IsZero() || r.UpdatedAt.IsZero() {
 		return apperror.New(apperror.CodeValidationInvalidArgument, "Spark Report 身份、状态或 Schema 无效")
@@ -176,7 +176,7 @@ func (r SparkReport) Validate() error {
 	return nil
 }
 
-// Validate checks one alert rule identity, metric definition, finite threshold, duration, and cooldown.
+// Validate 校验一条告警规则的身份、指标定义、有限阈值、持续时长与冷却。
 func (r AlertRule) Validate() error {
 	if !r.ID.Valid() || !r.ServerID.Valid() || strings.TrimSpace(r.Name) == "" || len(r.Name) > 160 || !r.Metric.Valid() || !r.Comparison.Valid() || r.SchemaVersion != SparkSchemaVersion {
 		return apperror.New(apperror.CodeValidationInvalidArgument, "Alert Rule 身份、名称、Metric、比较符或 Schema 无效")
@@ -187,7 +187,7 @@ func (r AlertRule) Validate() error {
 	return nil
 }
 
-// Validate checks one alert event identity, state, timestamps, and finite values.
+// Validate 校验一条告警事件的身份、状态、时间戳与有限数值。
 func (e AlertEvent) Validate() error {
 	if !e.ID.Valid() || !e.RuleID.Valid() || !e.ServerID.Valid() || !e.Metric.Valid() || !e.State.Valid() || e.SchemaVersion != SparkSchemaVersion || e.FirstMatchedAt.IsZero() || e.TriggeredAt.IsZero() || e.LastSeenAt.IsZero() {
 		return apperror.New(apperror.CodeValidationInvalidArgument, "Alert Event 身份、状态、时间或 Schema 无效")

@@ -9,24 +9,24 @@ import (
 	"github.com/Cail-Gainey/MineOps/internal/service"
 )
 
-// MonitoringOverviewResult contains unified Collector, Metric, Spark, Alert, and issue state.
+// MonitoringOverviewResult 承载采集器、Metric、Spark、告警与问题的统一状态。
 type MonitoringOverviewResult struct {
 	Overview *service.MonitoringOverview `json:"overview,omitempty"`
 	Error    *apperror.DTO               `json:"error,omitempty"`
 }
 
-// MonitoringService exposes the unified stage 12 monitoring query boundary.
+// MonitoringService 对外暴露统一的监控查询边界。
 type MonitoringService struct {
 	manager *service.MonitoringManager
 	logger  *applog.Logger
 }
 
-// NewMonitoringService creates the Wails Monitoring facade.
+// NewMonitoringService 创建 Wails 侧的监控门面。
 func NewMonitoringService(manager *service.MonitoringManager, logger *applog.Logger) *MonitoringService {
 	return &MonitoringService{manager: manager, logger: logger}
 }
 
-// Overview returns Agent state, latest metrics, Spark state, active alerts, and collection issues.
+// Overview 返回采集状态、最新指标、Spark 状态、活跃告警与采集异常。
 func (s *MonitoringService) Overview(ctx context.Context, serverID string) (result MonitoringOverviewResult) {
 	defer func() {
 		var err error
@@ -44,7 +44,7 @@ func (s *MonitoringService) Overview(ctx context.Context, serverID string) (resu
 	return MonitoringOverviewResult{Overview: &overview}
 }
 
-// CollectNow triggers one immediate SSH pull collection pass for the selected Server.
+// CollectNow 为所选 Server 立即触发一次 SSH 拉取采集。
 func (s *MonitoringService) CollectNow(ctx context.Context, serverID string) (result ActionResult) {
 	defer func() {
 		var err error
@@ -61,7 +61,7 @@ func (s *MonitoringService) CollectNow(ctx context.Context, serverID string) (re
 	return ActionResult{}
 }
 
-// Pause stops future automatic Metric collection passes for the selected Server.
+// Pause 停止所选 Server 后续的自动 Metric 采集。
 func (s *MonitoringService) Pause(ctx context.Context, serverID string) (result ActionResult) {
 	defer func() {
 		var err error
@@ -78,7 +78,7 @@ func (s *MonitoringService) Pause(ctx context.Context, serverID string) (result 
 	return ActionResult{}
 }
 
-// Resume restores automatic Metric collection for the selected Server.
+// Resume 恢复所选 Server 的自动 Metric 采集。
 func (s *MonitoringService) Resume(ctx context.Context, serverID string) (result ActionResult) {
 	defer func() {
 		var err error
@@ -95,7 +95,7 @@ func (s *MonitoringService) Resume(ctx context.Context, serverID string) (result
 	return ActionResult{}
 }
 
-// ClearHistory deletes every persisted Metric row for the selected Server.
+// ClearHistory 删除所选 Server 的全部持久化 Metric 数据。
 func (s *MonitoringService) ClearHistory(ctx context.Context, serverID string) (result ActionResult) {
 	defer func() {
 		var err error
@@ -112,7 +112,7 @@ func (s *MonitoringService) ClearHistory(ctx context.Context, serverID string) (
 	return ActionResult{}
 }
 
-// Query returns indexed metric history with explicit gaps through the unified facade.
+// Query 通过统一门面返回走索引的指标历史,并显式标注空洞。
 func (s *MonitoringService) Query(ctx context.Context, query model.MetricQuery) (result MetricQueryServiceResult) {
 	defer func() {
 		var err error

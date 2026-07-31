@@ -91,6 +91,7 @@ type PlayerCollectorStatusRecord struct {
 
 type playerRepository struct{ database *gorm.DB }
 
+// CreateIdentity 新增一条玩家身份记录。
 func (r *playerRepository) CreateIdentity(ctx context.Context, value *model.PlayerIdentity) error {
 	if value == nil {
 		return apperror.New(apperror.CodeValidationRequired, "玩家身份不能为空")
@@ -100,6 +101,8 @@ func (r *playerRepository) CreateIdentity(ctx context.Context, value *model.Play
 	}
 	return playerWrite(r.database.WithContext(ctx).Create(identityToRecord(*value)).Error, "创建玩家身份失败")
 }
+
+// UpdateIdentity 更新一条玩家身份记录。
 func (r *playerRepository) UpdateIdentity(ctx context.Context, value *model.PlayerIdentity) error {
 	if value == nil {
 		return apperror.New(apperror.CodeValidationRequired, "玩家身份不能为空")
@@ -109,6 +112,8 @@ func (r *playerRepository) UpdateIdentity(ctx context.Context, value *model.Play
 	}
 	return playerWrite(r.database.WithContext(ctx).Save(identityToRecord(*value)).Error, "更新玩家身份失败")
 }
+
+// FindIdentity 按查询条件查找单条玩家身份,未命中时返回 NotFound。
 func (r *playerRepository) FindIdentity(ctx context.Context, q repository.PlayerIdentityQuery) (*model.PlayerIdentity, error) {
 	var row PlayerIdentityRecord
 	db := r.database.WithContext(ctx).Where("server_id = ?", q.ServerID.String())
@@ -123,6 +128,8 @@ func (r *playerRepository) FindIdentity(ctx context.Context, q repository.Player
 	value := recordToIdentity(row)
 	return &value, nil
 }
+
+// ListIdentities 分页列出某台 Server 的玩家身份。
 func (r *playerRepository) ListIdentities(ctx context.Context, serverID model.ID, limit, offset int) ([]model.PlayerIdentity, error) {
 	var rows []PlayerIdentityRecord
 	if err := playerPage(r.database.WithContext(ctx).Where("server_id = ?", serverID.String()).Order("normalized_name asc, id asc"), limit, offset).Find(&rows).Error; err != nil {
@@ -134,9 +141,13 @@ func (r *playerRepository) ListIdentities(ctx context.Context, serverID model.ID
 	}
 	return result, nil
 }
+
+// DeleteIdentity 删除一条玩家身份记录。
 func (r *playerRepository) DeleteIdentity(ctx context.Context, id model.ID) error {
 	return playerWrite(r.database.WithContext(ctx).Delete(&PlayerIdentityRecord{}, "id = ?", id.String()).Error, "删除玩家身份失败")
 }
+
+// ReassignIdentity 把一条身份下的活动与会话改挂到另一条身份。
 func (r *playerRepository) ReassignIdentity(ctx context.Context, from, to model.ID) error {
 	for _, record := range []any{&PlayerActivityEventRecord{}, &PlayerSessionRecord{}} {
 		if err := r.database.WithContext(ctx).Model(record).Where("player_identity_id = ?", from.String()).Update("player_identity_id", to.String()).Error; err != nil {
@@ -151,6 +162,8 @@ func (r *playerRepository) ReassignIdentity(ctx context.Context, from, to model.
 	}
 	return nil
 }
+
+// InsertEvent 写入一条玩家进出事件,返回该事件是否为新增。
 func (r *playerRepository) InsertEvent(ctx context.Context, value *model.PlayerActivityEvent) (bool, error) {
 	if value == nil {
 		return false, apperror.New(apperror.CodeValidationRequired, "玩家事件不能为空")
@@ -164,6 +177,8 @@ func (r *playerRepository) InsertEvent(ctx context.Context, value *model.PlayerA
 	}
 	return result.RowsAffected == 1, nil
 }
+
+// CreateSession 新增一条玩家在线会话。
 func (r *playerRepository) CreateSession(ctx context.Context, value *model.PlayerSession) error {
 	if value == nil {
 		return apperror.New(apperror.CodeValidationRequired, "玩家会话不能为空")
@@ -173,6 +188,8 @@ func (r *playerRepository) CreateSession(ctx context.Context, value *model.Playe
 	}
 	return playerWrite(r.database.WithContext(ctx).Create(sessionToRecord(*value)).Error, "创建玩家会话失败")
 }
+
+// UpdateSession 更新一条玩家在线会话。
 func (r *playerRepository) UpdateSession(ctx context.Context, value *model.PlayerSession) error {
 	if value == nil {
 		return apperror.New(apperror.CodeValidationRequired, "玩家会话不能为空")
@@ -182,6 +199,8 @@ func (r *playerRepository) UpdateSession(ctx context.Context, value *model.Playe
 	}
 	return playerWrite(r.database.WithContext(ctx).Save(sessionToRecord(*value)).Error, "更新玩家会话失败")
 }
+
+// GetOpenSession 返回某位玩家当前未结束的会话。
 func (r *playerRepository) GetOpenSession(ctx context.Context, serverID, playerID model.ID) (*model.PlayerSession, error) {
 	var row PlayerSessionRecord
 	if err := r.database.WithContext(ctx).Where("server_id = ? AND player_identity_id = ? AND state = ?", serverID.String(), playerID.String(), enums.PlayerSessionOpen.String()).Order("joined_at desc, id desc").First(&row).Error; err != nil {
@@ -190,6 +209,8 @@ func (r *playerRepository) GetOpenSession(ctx context.Context, serverID, playerI
 	value := recordToSession(row)
 	return &value, nil
 }
+
+// ListSessions 按查询条件分页列出玩家会话。
 func (r *playerRepository) ListSessions(ctx context.Context, q repository.PlayerSessionQuery) ([]model.PlayerSession, error) {
 	db := r.database.WithContext(ctx).Where("server_id = ?", q.ServerID.String())
 	if q.PlayerIdentityID.Valid() {
@@ -204,6 +225,8 @@ func (r *playerRepository) ListSessions(ctx context.Context, q repository.Player
 	}
 	return sessionsFromRecords(rows), nil
 }
+
+// SaveStatistics 写入或覆盖一条玩家统计。
 func (r *playerRepository) SaveStatistics(ctx context.Context, value *model.PlayerStatistics) error {
 	if value == nil {
 		return apperror.New(apperror.CodeValidationRequired, "玩家统计不能为空")
@@ -213,6 +236,8 @@ func (r *playerRepository) SaveStatistics(ctx context.Context, value *model.Play
 	}
 	return playerWrite(r.database.WithContext(ctx).Save(statisticsToRecord(*value)).Error, "保存玩家统计失败")
 }
+
+// GetStatistics 返回一条玩家统计。
 func (r *playerRepository) GetStatistics(ctx context.Context, id model.ID) (*model.PlayerStatistics, error) {
 	var row PlayerStatisticsRecord
 	if err := r.database.WithContext(ctx).First(&row, "player_identity_id = ?", id.String()).Error; err != nil {
@@ -221,6 +246,8 @@ func (r *playerRepository) GetStatistics(ctx context.Context, id model.ID) (*mod
 	value := recordToStatistics(row)
 	return &value, nil
 }
+
+// ListClosedSessionsForRebuild 分页列出已结束的会话,供统计重算使用。
 func (r *playerRepository) ListClosedSessionsForRebuild(ctx context.Context, serverID model.ID, limit, offset int) ([]model.PlayerSession, error) {
 	var rows []PlayerSessionRecord
 	if err := playerPage(r.database.WithContext(ctx).Where("server_id = ? AND state <> ? AND left_at IS NOT NULL", serverID.String(), enums.PlayerSessionOpen.String()).Order("joined_at asc, id asc"), limit, offset).Find(&rows).Error; err != nil {
@@ -228,6 +255,8 @@ func (r *playerRepository) ListClosedSessionsForRebuild(ctx context.Context, ser
 	}
 	return sessionsFromRecords(rows), nil
 }
+
+// SaveDirectorySnapshot 写入或覆盖一份玩家名录快照。
 func (r *playerRepository) SaveDirectorySnapshot(ctx context.Context, value *model.PlayerDirectorySnapshot) error {
 	if value == nil {
 		return apperror.New(apperror.CodeValidationRequired, "玩家目录快照不能为空")
@@ -238,6 +267,8 @@ func (r *playerRepository) SaveDirectorySnapshot(ctx context.Context, value *mod
 	record := directoryToRecord(*value)
 	return playerWrite(r.database.WithContext(ctx).Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "player_identity_id"}}, DoUpdates: clause.AssignmentColumns([]string{"id", "server_id", "known", "whitelisted", "operator", "banned", "ban_reason", "ban_source", "ban_expires_at", "source_version", "observed_at", "schema_version"})}).Create(&record).Error, "保存玩家目录快照失败")
 }
+
+// GetDirectorySnapshot 返回某台 Server 的玩家名录快照。
 func (r *playerRepository) GetDirectorySnapshot(ctx context.Context, id model.ID) (*model.PlayerDirectorySnapshot, error) {
 	var row PlayerDirectorySnapshotRecord
 	if err := r.database.WithContext(ctx).First(&row, "player_identity_id = ?", id.String()).Error; err != nil {
@@ -246,6 +277,8 @@ func (r *playerRepository) GetDirectorySnapshot(ctx context.Context, id model.ID
 	value := recordToDirectory(row)
 	return &value, nil
 }
+
+// SaveCollectorStatus 写入或覆盖玩家活动采集器状态。
 func (r *playerRepository) SaveCollectorStatus(ctx context.Context, value *model.PlayerCollectorStatus) error {
 	if value == nil {
 		return apperror.New(apperror.CodeValidationRequired, "玩家采集状态不能为空")
@@ -255,6 +288,8 @@ func (r *playerRepository) SaveCollectorStatus(ctx context.Context, value *model
 	}
 	return playerWrite(r.database.WithContext(ctx).Save(collectorToRecord(*value)).Error, "保存玩家采集状态失败")
 }
+
+// GetCollectorStatus 返回玩家活动采集器状态。
 func (r *playerRepository) GetCollectorStatus(ctx context.Context, id model.ID) (*model.PlayerCollectorStatus, error) {
 	var row PlayerCollectorStatusRecord
 	if err := r.database.WithContext(ctx).First(&row, "server_id = ?", id.String()).Error; err != nil {
@@ -263,6 +298,8 @@ func (r *playerRepository) GetCollectorStatus(ctx context.Context, id model.ID) 
 	value := recordToCollector(row)
 	return &value, nil
 }
+
+// DeleteEventsBefore 删除某台 Server 指定时间之前的一批玩家事件。
 func (r *playerRepository) DeleteEventsBefore(ctx context.Context, serverID model.ID, before time.Time, limit int) (int64, error) {
 	var ids []string
 	if err := playerPage(r.database.WithContext(ctx).Model(&PlayerActivityEventRecord{}).Where("server_id = ? AND observed_at < ?", serverID.String(), before.UTC()).Order("observed_at asc"), limit, 0).Pluck("id", &ids).Error; err != nil {

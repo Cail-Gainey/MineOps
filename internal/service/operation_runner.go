@@ -291,6 +291,7 @@ type jobReporter struct {
 	ctx    context.Context
 }
 
+// SetProgress 回报当前阶段、进度与说明,并持久化到 Operation。
 func (r *jobReporter) SetProgress(stage string, progress float64, message string) error {
 	r.job.mu.Lock()
 	defer r.job.mu.Unlock()

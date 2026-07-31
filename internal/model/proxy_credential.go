@@ -7,7 +7,7 @@ import (
 	"github.com/Cail-Gainey/MineOps/internal/global/apperror"
 )
 
-// ProxyCredential stores outbound proxy authentication only inside SQLCipher-encrypted SQLite.
+// ProxyCredential 只把出站代理认证信息存放在 SQLCipher 加密的 SQLite 中。
 type ProxyCredential struct {
 	ID        ID        `json:"id"`
 	Username  string    `json:"username"`
@@ -16,7 +16,7 @@ type ProxyCredential struct {
 	UpdatedAt time.Time `json:"updatedAt"`
 }
 
-// NewProxyCredential creates a validated encrypted-database credential record.
+// NewProxyCredential 创建一条已校验的加密库凭据记录。
 func NewProxyCredential(clock Clock, username string, password []byte) (*ProxyCredential, error) {
 	if clock == nil || strings.TrimSpace(username) == "" || len(password) == 0 {
 		return nil, apperror.New(apperror.CodeValidationRequired, "代理用户名和密码不能为空")
@@ -29,7 +29,7 @@ func NewProxyCredential(clock Clock, username string, password []byte) (*ProxyCr
 	return &ProxyCredential{ID: id, Username: strings.TrimSpace(username), Password: append([]byte(nil), password...), CreatedAt: now, UpdatedAt: now}, nil
 }
 
-// Clear overwrites in-memory secret bytes after use.
+// Clear 在使用后覆写内存中的密文字节。
 func (c *ProxyCredential) Clear() {
 	if c == nil {
 		return

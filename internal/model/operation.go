@@ -7,7 +7,7 @@ import (
 	"github.com/Cail-Gainey/MineOps/internal/global/enums"
 )
 
-// Operation is the durable record for a cancellable long-running MineOps action.
+// Operation 是可取消长任务的持久化记录。
 type Operation struct {
 	ID           ID                        `json:"id"`
 	Type         enums.OperationType       `json:"type"`
@@ -25,7 +25,7 @@ type Operation struct {
 	RetryOf      *ID                       `json:"retryOf,omitempty"`
 }
 
-// NewOperation creates a validated pending operation with an ordered ID and UTC timestamp.
+// NewOperation 创建一条带有序 ID 与 UTC 时间戳、已校验的待执行任务。
 func NewOperation(clock Clock, operationType enums.OperationType, targetType enums.OperationTargetType, targetID ID) (*Operation, error) {
 	if clock == nil {
 		return nil, apperror.New(apperror.CodeValidationRequired, "Clock 不能为空")
@@ -48,7 +48,7 @@ func NewOperation(clock Clock, operationType enums.OperationType, targetType enu
 	}, nil
 }
 
-// CanTransition reports whether the durable state machine permits the requested transition.
+// CanTransition 返回持久化状态机是否允许该次状态迁移。
 func (o Operation) CanTransition(next enums.OperationState) bool {
 	if !next.Valid() || o.State == next {
 		return false
@@ -65,7 +65,7 @@ func (o Operation) CanTransition(next enums.OperationState) bool {
 	}
 }
 
-// Transition applies a legal state change and maintains start/finish timestamps.
+// Transition 应用一次合法的状态变更并维护开始与结束时间。
 func (o *Operation) Transition(clock Clock, next enums.OperationState, failure error) error {
 	if o == nil || clock == nil {
 		return apperror.New(apperror.CodeValidationRequired, "Operation 和 Clock 不能为空")
@@ -99,7 +99,7 @@ func (o *Operation) Transition(clock Clock, next enums.OperationState, failure e
 	return nil
 }
 
-// SetProgress updates the current stage and normalized progress for a running operation.
+// SetProgress 更新运行中任务的当前阶段与归一化进度。
 func (o *Operation) SetProgress(stage string, progress float64, message string) error {
 	if o == nil || o.State != enums.OperationRunning {
 		return apperror.New(apperror.CodeValidationConflict, "只有 Running Operation 可以更新进度")

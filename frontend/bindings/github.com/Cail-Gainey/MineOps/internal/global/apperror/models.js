@@ -7,7 +7,7 @@
 import { Create as $Create } from "@wailsio/runtime";
 
 /**
- * DTO is the desktop-safe representation of an application error.
+ * DTO 是应用错误在桌面侧的安全表示。
  */
 export class DTO {
     /**

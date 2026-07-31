@@ -8,10 +8,10 @@ import (
 	"github.com/Cail-Gainey/MineOps/internal/global/enums"
 )
 
-// PlayerActivitySchemaVersion is the current durable player activity schema.
+// PlayerActivitySchemaVersion 是当前持久化玩家活动数据的 schema 版本。
 const PlayerActivitySchemaVersion = 1
 
-// PlayerIdentity is one Server-scoped UUID-backed or temporary name-backed player.
+// PlayerIdentity 是 Server 范围内以 UUID 或临时名称为依据的玩家身份。
 type PlayerIdentity struct {
 	ID, ServerID                      ID
 	UUID, CurrentName, NormalizedName string
@@ -20,7 +20,7 @@ type PlayerIdentity struct {
 	SchemaVersion                     int
 }
 
-// PlayerActivityEvent is immutable idempotent evidence collected from one managed process cycle.
+// PlayerActivityEvent 是从一个受管进程周期采集到的不可变幂等证据。
 type PlayerActivityEvent struct {
 	ID, ServerID, ProcessIdentityID         ID
 	PlayerIdentityID                        *ID
@@ -31,7 +31,7 @@ type PlayerActivityEvent struct {
 	SchemaVersion                           int
 }
 
-// PlayerSession is one persisted player connection and its settlement evidence.
+// PlayerSession 是一次持久化的玩家连接及其结算证据。
 type PlayerSession struct {
 	ID                ID                             `json:"id"`
 	ServerID          ID                             `json:"serverID"`
@@ -48,7 +48,7 @@ type PlayerSession struct {
 	SchemaVersion     int                            `json:"schemaVersion"`
 }
 
-// PlayerStatistics is the rebuildable fast-query projection of closed sessions.
+// PlayerStatistics 是由已结束会话重算得出的快查投影。
 type PlayerStatistics struct {
 	PlayerIdentityID, ServerID                  ID
 	TotalDurationSeconds, LongestSessionSeconds int64
@@ -59,7 +59,7 @@ type PlayerStatistics struct {
 	SchemaVersion                               int
 }
 
-// PlayerDirectorySnapshot records authoritative Minecraft directory and permission evidence.
+// PlayerDirectorySnapshot 记录 Minecraft 权威名录与权限证据。
 type PlayerDirectorySnapshot struct {
 	ID, ServerID, PlayerIdentityID                    ID
 	Known, Whitelisted, Operator, Banned              bool
@@ -68,7 +68,7 @@ type PlayerDirectorySnapshot struct {
 	SchemaVersion                                     int
 }
 
-// PlayerCollectorStatus records the durable synchronization checkpoint and quality state for one Server.
+// PlayerCollectorStatus 记录某台 Server 的持久化同步检查点与数据质量状态。
 type PlayerCollectorStatus struct {
 	ServerID                              ID
 	ProcessIdentityID                     *ID
@@ -80,10 +80,10 @@ type PlayerCollectorStatus struct {
 	SchemaVersion                         int
 }
 
-// NormalizePlayerName returns the canonical Server-local fallback identity key.
+// NormalizePlayerName 返回 Server 本地兜底身份的规范化键。
 func NormalizePlayerName(name string) string { return strings.ToLower(strings.TrimSpace(name)) }
 
-// Validate checks the durable player identity and its UUID/name evidence.
+// Validate 校验持久化玩家身份及其 UUID 或名称证据。
 func (p PlayerIdentity) Validate() error {
 	if !p.ID.Valid() || !p.ServerID.Valid() || !p.Kind.Valid() || p.SchemaVersion != PlayerActivitySchemaVersion || p.CreatedAt.IsZero() || p.UpdatedAt.IsZero() {
 		return apperror.New(apperror.CodeValidationInvalidArgument, "玩家身份、类型、时间或 Schema 无效")
@@ -94,7 +94,7 @@ func (p PlayerIdentity) Validate() error {
 	return nil
 }
 
-// Validate checks immutable player activity evidence.
+// Validate 校验不可变的玩家活动证据。
 func (e PlayerActivityEvent) Validate() error {
 	if !e.ID.Valid() || !e.ServerID.Valid() || !e.ProcessIdentityID.Valid() || e.PlayerIdentityID != nil && !e.PlayerIdentityID.Valid() || !e.Type.Valid() || e.SourceSequence == 0 || e.ObservedAt.IsZero() || e.CreatedAt.IsZero() || e.SchemaVersion != PlayerActivitySchemaVersion {
 		return apperror.New(apperror.CodeValidationInvalidArgument, "玩家事件身份、序号、类型、时间或 Schema 无效")
@@ -105,7 +105,7 @@ func (e PlayerActivityEvent) Validate() error {
 	return nil
 }
 
-// Validate checks player session ownership, state, duration, and settlement evidence.
+// Validate 校验玩家会话的归属、状态、时长与结算证据。
 func (s PlayerSession) Validate() error {
 	if !s.ID.Valid() || !s.ServerID.Valid() || !s.PlayerIdentityID.Valid() || !s.ProcessIdentityID.Valid() || !s.State.Valid() || !s.Accuracy.Valid() || s.JoinedAt.IsZero() || s.CreatedAt.IsZero() || s.UpdatedAt.IsZero() || s.DurationSeconds < 0 || s.SchemaVersion != PlayerActivitySchemaVersion {
 		return apperror.New(apperror.CodeValidationInvalidArgument, "玩家会话身份、状态、时间、时长或 Schema 无效")
@@ -116,7 +116,7 @@ func (s PlayerSession) Validate() error {
 	return nil
 }
 
-// Validate checks the rebuildable player statistics projection.
+// Validate 校验可重算的玩家统计投影。
 func (s PlayerStatistics) Validate() error {
 	if !s.PlayerIdentityID.Valid() || !s.ServerID.Valid() || s.TotalDurationSeconds < 0 || s.LongestSessionSeconds < 0 || s.CompletedSessionCount < 0 || !s.Accuracy.Valid() || s.UpdatedAt.IsZero() || s.SchemaVersion != PlayerActivitySchemaVersion {
 		return apperror.New(apperror.CodeValidationInvalidArgument, "玩家统计身份、计数、准确性或 Schema 无效")
@@ -124,7 +124,7 @@ func (s PlayerStatistics) Validate() error {
 	return nil
 }
 
-// Validate checks one player directory snapshot.
+// Validate 校验一份玩家名录快照。
 func (s PlayerDirectorySnapshot) Validate() error {
 	if !s.ID.Valid() || !s.ServerID.Valid() || !s.PlayerIdentityID.Valid() || s.ObservedAt.IsZero() || len(s.BanReason) > 2048 || len(s.BanSource) > 256 || len(s.SourceVersion) > 256 || s.SchemaVersion != PlayerActivitySchemaVersion {
 		return apperror.New(apperror.CodeValidationInvalidArgument, "玩家目录快照身份、证据或 Schema 无效")
@@ -132,7 +132,7 @@ func (s PlayerDirectorySnapshot) Validate() error {
 	return nil
 }
 
-// Validate checks one collector synchronization checkpoint.
+// Validate 校验一个采集器同步检查点。
 func (s PlayerCollectorStatus) Validate() error {
 	if !s.ServerID.Valid() || s.ProcessIdentityID != nil && !s.ProcessIdentityID.Valid() || !s.Accuracy.Valid() || len(s.LastError) > 2048 || s.UpdatedAt.IsZero() || s.SchemaVersion != PlayerActivitySchemaVersion {
 		return apperror.New(apperror.CodeValidationInvalidArgument, "玩家采集状态身份、准确性或 Schema 无效")

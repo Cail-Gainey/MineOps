@@ -8,7 +8,7 @@ import (
 	"github.com/Cail-Gainey/MineOps/internal/global/enums"
 )
 
-// PlayerQuery contains bounded unified-player filters and sorting.
+// PlayerQuery 承载有界的统一玩家过滤与排序条件。
 type PlayerQuery struct {
 	ServerID  ID     `json:"serverID"`
 	Search    string `json:"search,omitempty"`
@@ -19,7 +19,7 @@ type PlayerQuery struct {
 	Offset    int    `json:"offset"`
 }
 
-// PlayerSessionQuery contains one bounded recent-session request.
+// PlayerSessionQuery 承载一次有界的近期会话查询。
 type PlayerSessionQuery struct {
 	ServerID         ID  `json:"serverID"`
 	PlayerIdentityID ID  `json:"playerIdentityID"`
@@ -27,7 +27,7 @@ type PlayerSessionQuery struct {
 	Offset           int `json:"offset"`
 }
 
-// PlayerActionInput contains one validated player management request.
+// PlayerActionInput 承载一次已校验的玩家管理请求。
 type PlayerActionInput struct {
 	ServerID         ID         `json:"serverID"`
 	PlayerIdentityID ID         `json:"playerIdentityID"`
@@ -35,7 +35,7 @@ type PlayerActionInput struct {
 	ExpiresAt        *time.Time `json:"expiresAt,omitempty"`
 }
 
-// PlayerOverview is the unified Server-scoped player list and detail projection.
+// PlayerOverview 是 Server 范围内统一的玩家列表与详情投影。
 type PlayerOverview struct {
 	IdentityID            ID                           `json:"identityID"`
 	ServerID              ID                           `json:"serverID"`
@@ -62,7 +62,7 @@ type PlayerOverview struct {
 	DirectoryError        string                       `json:"directoryError,omitempty"`
 }
 
-// PlayerListResult contains one bounded page and collector quality evidence.
+// PlayerListResult 承载一页有界数据与采集器质量证据。
 type PlayerListResult struct {
 	Players         []PlayerOverview `json:"players"`
 	Total           int64            `json:"total"`
@@ -72,7 +72,7 @@ type PlayerListResult struct {
 	DirectoryError  string           `json:"directoryError,omitempty"`
 }
 
-// PlayerEvent is the versioned realtime player state contract.
+// PlayerEvent 是带版本的玩家实时状态契约。
 type PlayerEvent struct {
 	Version          int             `json:"version"`
 	Type             string          `json:"type"`
@@ -83,7 +83,7 @@ type PlayerEvent struct {
 	EmittedAt        time.Time       `json:"emittedAt"`
 }
 
-// Validate checks supported player filters, sorting, and bounded pagination.
+// Validate 校验受支持的玩家过滤、排序与有界分页。
 func (q PlayerQuery) Validate() error {
 	if !q.ServerID.Valid() || q.Limit < 0 || q.Limit > 200 || q.Offset < 0 || len(q.Search) > 64 {
 		return apperror.New(apperror.CodeValidationInvalidArgument, "玩家查询身份、搜索或分页参数无效")
@@ -96,7 +96,7 @@ func (q PlayerQuery) Validate() error {
 	return nil
 }
 
-// Validate checks recent-session ownership and bounded pagination.
+// Validate 校验近期会话的归属与有界分页。
 func (q PlayerSessionQuery) Validate() error {
 	if !q.ServerID.Valid() || !q.PlayerIdentityID.Valid() || q.Limit < 0 || q.Limit > 100 || q.Offset < 0 {
 		return apperror.New(apperror.CodeValidationInvalidArgument, "玩家会话查询身份或分页参数无效")
@@ -104,7 +104,7 @@ func (q PlayerSessionQuery) Validate() error {
 	return nil
 }
 
-// Validate checks player management ownership and optional Ban metadata.
+// Validate 校验玩家管理操作的归属与可选的封禁元数据。
 func (i PlayerActionInput) Validate() error {
 	if !i.ServerID.Valid() || !i.PlayerIdentityID.Valid() || len(strings.TrimSpace(i.Reason)) > 512 {
 		return apperror.New(apperror.CodeValidationInvalidArgument, "玩家操作身份或原因无效")

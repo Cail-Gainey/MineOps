@@ -21,6 +21,7 @@ type ProxyCredentialRecord struct {
 
 type proxyCredentialRepository struct{ database *gorm.DB }
 
+// Create 新增一条加密代理凭据。
 func (r *proxyCredentialRepository) Create(ctx context.Context, credential *model.ProxyCredential) error {
 	if credential == nil || len(credential.Password) == 0 {
 		return apperror.New(apperror.CodeValidationRequired, "Proxy Credential 不能为空")
@@ -34,6 +35,7 @@ func (r *proxyCredentialRepository) Create(ctx context.Context, credential *mode
 	return nil
 }
 
+// Update 更新一条加密代理凭据。
 func (r *proxyCredentialRepository) Update(ctx context.Context, credential *model.ProxyCredential) error {
 	if credential == nil || len(credential.Password) == 0 {
 		return apperror.New(apperror.CodeValidationRequired, "Proxy Credential 不能为空")
@@ -50,6 +52,7 @@ func (r *proxyCredentialRepository) Update(ctx context.Context, credential *mode
 	return nil
 }
 
+// Get 按 ID 返回一条加密代理凭据。
 func (r *proxyCredentialRepository) Get(ctx context.Context, id model.ID) (*model.ProxyCredential, error) {
 	var record ProxyCredentialRecord
 	if err := r.database.WithContext(ctx).First(&record, "id = ?", id.String()).Error; err != nil {
@@ -64,6 +67,7 @@ func (r *proxyCredentialRepository) Get(ctx context.Context, id model.ID) (*mode
 	}, nil
 }
 
+// Delete 删除一条加密代理凭据。
 func (r *proxyCredentialRepository) Delete(ctx context.Context, id model.ID) error {
 	result := r.database.WithContext(ctx).Delete(&ProxyCredentialRecord{}, "id = ?", id.String())
 	if result.Error != nil {

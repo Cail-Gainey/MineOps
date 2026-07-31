@@ -9,7 +9,7 @@ import (
 	"github.com/Cail-Gainey/MineOps/internal/global/applog"
 )
 
-// Recover converts a panic at a named boundary into an application error and structured crash log.
+// Recover 把命名边界上的 panic 转换成应用错误与结构化崩溃日志。
 func Recover(ctx context.Context, logger *applog.Logger, boundary string, target *error) {
 	value := recover()
 	if value == nil {
@@ -24,7 +24,7 @@ func Recover(ctx context.Context, logger *applog.Logger, boundary string, target
 	}
 }
 
-// Guard executes one process or service boundary with unified panic conversion.
+// Guard 以统一的 panic 转换执行一个进程或服务边界。
 func Guard(ctx context.Context, logger *applog.Logger, boundary string, action func() error) (err error) {
 	defer Recover(ctx, logger, boundary, &err)
 	if action == nil {

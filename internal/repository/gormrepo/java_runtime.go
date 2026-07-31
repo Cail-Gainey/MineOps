@@ -31,6 +31,7 @@ type JavaRuntimeRecord struct {
 
 type javaRuntimeRepository struct{ store *Store }
 
+// Create 新增一条 Java 运行时登记。
 func (r *javaRuntimeRepository) Create(ctx context.Context, javaRuntime *model.JavaRuntime) error {
 	if javaRuntime == nil {
 		return apperror.New(apperror.CodeValidationRequired, "Java Runtime 不能为空")
@@ -45,6 +46,7 @@ func (r *javaRuntimeRepository) Create(ctx context.Context, javaRuntime *model.J
 	return nil
 }
 
+// Update 更新一条 Java 运行时登记。
 func (r *javaRuntimeRepository) Update(ctx context.Context, javaRuntime *model.JavaRuntime) error {
 	if javaRuntime == nil {
 		return apperror.New(apperror.CodeValidationRequired, "Java Runtime 不能为空")
@@ -63,6 +65,7 @@ func (r *javaRuntimeRepository) Update(ctx context.Context, javaRuntime *model.J
 	return nil
 }
 
+// Get 按 ID 返回一条 Java 运行时登记。
 func (r *javaRuntimeRepository) Get(ctx context.Context, id model.ID) (*model.JavaRuntime, error) {
 	var record JavaRuntimeRecord
 	if err := r.store.database.WithContext(ctx).First(&record, "id = ?", id.String()).Error; err != nil {
@@ -72,6 +75,7 @@ func (r *javaRuntimeRepository) Get(ctx context.Context, id model.ID) (*model.Ja
 	return &javaRuntime, nil
 }
 
+// GetByPath 按 SSH Session 与安装路径返回 Java 运行时登记。
 func (r *javaRuntimeRepository) GetByPath(ctx context.Context, sshSessionID model.ID, installPath string) (*model.JavaRuntime, error) {
 	var record JavaRuntimeRecord
 	if err := r.store.database.WithContext(ctx).Where("ssh_session_id = ? AND install_path = ?", sshSessionID.String(), installPath).First(&record).Error; err != nil {
@@ -81,6 +85,7 @@ func (r *javaRuntimeRepository) GetByPath(ctx context.Context, sshSessionID mode
 	return &javaRuntime, nil
 }
 
+// List 按查询条件分页列出 Java 运行时登记。
 func (r *javaRuntimeRepository) List(ctx context.Context, query repository.JavaRuntimeQuery) ([]model.JavaRuntime, error) {
 	database := r.store.database.WithContext(ctx).Order("is_default desc, major_version desc, install_path asc")
 	if query.SSHSessionID != "" {
@@ -110,6 +115,7 @@ func (r *javaRuntimeRepository) List(ctx context.Context, query repository.JavaR
 	return result, nil
 }
 
+// SetDefault 把某条 Java 运行时设为该 SSH Session 的默认项,并清除同主机上的旧默认。
 func (r *javaRuntimeRepository) SetDefault(ctx context.Context, sshSessionID, id model.ID) error {
 	return r.store.database.WithContext(ctx).Transaction(func(transaction *gorm.DB) error {
 		if err := transaction.Model(&JavaRuntimeRecord{}).Where("ssh_session_id = ?", sshSessionID.String()).Update("is_default", false).Error; err != nil {
@@ -126,6 +132,7 @@ func (r *javaRuntimeRepository) SetDefault(ctx context.Context, sshSessionID, id
 	})
 }
 
+// CountServerReferences 统计引用该 Java 运行时的 Server 数量,用于阻止误删。
 func (r *javaRuntimeRepository) CountServerReferences(ctx context.Context, id model.ID) (int64, error) {
 	if !r.store.database.Migrator().HasTable("server_records") {
 		return 0, nil
@@ -137,6 +144,7 @@ func (r *javaRuntimeRepository) CountServerReferences(ctx context.Context, id mo
 	return count, nil
 }
 
+// Delete 删除一条 Java 运行时登记,不触碰远端文件。
 func (r *javaRuntimeRepository) Delete(ctx context.Context, id model.ID) error {
 	result := r.store.database.WithContext(ctx).Delete(&JavaRuntimeRecord{}, "id = ?", id.String())
 	if result.Error != nil {

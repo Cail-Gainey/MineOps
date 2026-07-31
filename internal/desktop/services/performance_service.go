@@ -9,54 +9,54 @@ import (
 	"github.com/Cail-Gainey/MineOps/internal/service"
 )
 
-// PerformanceOverviewResult contains one complete Performance Center snapshot.
+// PerformanceOverviewResult 承载一份完整的性能中心快照。
 type PerformanceOverviewResult struct {
 	Overview *service.PerformanceOverview `json:"overview,omitempty"`
 	Error    *apperror.DTO                `json:"error,omitempty"`
 }
 
-// SparkCapabilityServiceResult contains capability evidence or a stable error.
+// SparkCapabilityServiceResult 承载 Spark 能力证据或稳定错误。
 type SparkCapabilityServiceResult struct {
 	Capability *model.SparkCapability `json:"capability,omitempty"`
 	Error      *apperror.DTO          `json:"error,omitempty"`
 }
 
-// SparkInstallPlanServiceResult contains an exact approved mutation plan.
+// SparkInstallPlanServiceResult 承载一份确切且已核准的变更计划。
 type SparkInstallPlanServiceResult struct {
 	Plan  *service.SparkInstallPlan `json:"plan,omitempty"`
 	Error *apperror.DTO             `json:"error,omitempty"`
 }
 
-// SparkInstallServiceResult contains the completed install/upgrade result.
+// SparkInstallServiceResult 承载安装或升级完成后的结果。
 type SparkInstallServiceResult struct {
 	Result *service.SparkInstallResult `json:"result,omitempty"`
 	Error  *apperror.DTO               `json:"error,omitempty"`
 }
 
-// SparkSnapshotServiceResult contains one TPS/MSPT snapshot.
+// SparkSnapshotServiceResult 承载一条 TPS/MSPT Snapshot。
 type SparkSnapshotServiceResult struct {
 	Snapshot *model.SparkSnapshot `json:"snapshot,omitempty"`
 	Error    *apperror.DTO        `json:"error,omitempty"`
 }
 
-// SparkReportServiceResult contains one durable report and its Operation ID.
+// SparkReportServiceResult 承载一份持久化报告及其 Operation ID。
 type SparkReportServiceResult struct {
 	Report *model.SparkReport `json:"report,omitempty"`
 	Error  *apperror.DTO      `json:"error,omitempty"`
 }
 
-// PerformanceService exposes Spark detection, install, collection, reports, and correlated metrics.
+// PerformanceService 对外暴露 Spark 探测、安装、采集、报告与关联指标。
 type PerformanceService struct {
 	manager *service.PerformanceManager
 	logger  *applog.Logger
 }
 
-// NewPerformanceService creates the Wails Performance Center facade.
+// NewPerformanceService 创建 Wails 侧的性能中心门面。
 func NewPerformanceService(manager *service.PerformanceManager, logger *applog.Logger) *PerformanceService {
 	return &PerformanceService{manager: manager, logger: logger}
 }
 
-// Overview returns bounded Spark, report, Agent, and related metric state.
+// Overview 返回有界的 Spark、报告、采集与相关指标状态。
 func (s *PerformanceService) Overview(ctx context.Context, serverID string) (result PerformanceOverviewResult) {
 	defer s.recoverOverview(ctx, "PerformanceService.Overview", &result)
 	overview, err := s.manager.Overview(ctx, model.ID(serverID))
@@ -67,7 +67,7 @@ func (s *PerformanceService) Overview(ctx context.Context, serverID string) (res
 	return PerformanceOverviewResult{Overview: &overview}
 }
 
-// Probe detects Spark installation, compatibility, permissions, and collection method.
+// Probe 探测 Spark 的安装情况、兼容性、权限与采集方式。
 func (s *PerformanceService) Probe(ctx context.Context, serverID string) (result SparkCapabilityServiceResult) {
 	defer s.recoverCapability(ctx, "PerformanceService.Probe", &result)
 	capability, err := s.manager.Probe(ctx, model.ID(serverID))
@@ -78,7 +78,7 @@ func (s *PerformanceService) Probe(ctx context.Context, serverID string) (result
 	return SparkCapabilityServiceResult{Capability: &capability}
 }
 
-// PlanInstall computes the approved source, checksum, target, backup, and restart impact.
+// PlanInstall 计算已核准的来源、校验和、目标路径、备份与重启影响。
 func (s *PerformanceService) PlanInstall(ctx context.Context, serverID string) (result SparkInstallPlanServiceResult) {
 	defer func() {
 		var err error
@@ -96,7 +96,7 @@ func (s *PerformanceService) PlanInstall(ctx context.Context, serverID string) (
 	return SparkInstallPlanServiceResult{Plan: &plan}
 }
 
-// Install executes one explicitly confirmed Spark install or upgrade.
+// Install 执行一次显式确认过的 Spark 安装或升级。
 func (s *PerformanceService) Install(ctx context.Context, serverID, planDigest string, confirmed bool) (result SparkInstallServiceResult) {
 	defer func() {
 		var err error
@@ -114,7 +114,7 @@ func (s *PerformanceService) Install(ctx context.Context, serverID, planDigest s
 	return SparkInstallServiceResult{Result: &installed}
 }
 
-// Rollback restores the latest recorded Spark backup after explicit confirmation.
+// Rollback 在显式确认后恢复最近一次记录的 Spark 备份。
 func (s *PerformanceService) Rollback(ctx context.Context, serverID string, confirmed bool) (result SparkCapabilityServiceResult) {
 	defer s.recoverCapability(ctx, "PerformanceService.Rollback", &result)
 	capability, err := s.manager.Rollback(ctx, model.ID(serverID), confirmed)
@@ -125,7 +125,7 @@ func (s *PerformanceService) Rollback(ctx context.Context, serverID string, conf
 	return SparkCapabilityServiceResult{Capability: &capability}
 }
 
-// CollectSnapshot collects and persists one locked TPS/MSPT sample.
+// CollectSnapshot 采集并持久化一条锁定的 TPS/MSPT 样本。
 func (s *PerformanceService) CollectSnapshot(ctx context.Context, serverID string) (result SparkSnapshotServiceResult) {
 	defer func() {
 		var err error
@@ -143,7 +143,7 @@ func (s *PerformanceService) CollectSnapshot(ctx context.Context, serverID strin
 	return SparkSnapshotServiceResult{Snapshot: &snapshot}
 }
 
-// StartHealthReport starts one privacy-confirmed health report Operation.
+// StartHealthReport 启动一次已确认隐私风险的健康报告 Operation。
 func (s *PerformanceService) StartHealthReport(ctx context.Context, serverID string, privacyAcknowledged bool) (result SparkReportServiceResult) {
 	defer func() {
 		var err error
@@ -161,7 +161,7 @@ func (s *PerformanceService) StartHealthReport(ctx context.Context, serverID str
 	return SparkReportServiceResult{Report: &report}
 }
 
-// StartProfiler starts one explicit-duration privacy-confirmed profiler Operation.
+// StartProfiler 启动一次时长显式、已确认隐私风险的性能分析 Operation。
 func (s *PerformanceService) StartProfiler(ctx context.Context, serverID string, durationSeconds int, privacyAcknowledged bool) (result SparkReportServiceResult) {
 	defer func() {
 		var err error

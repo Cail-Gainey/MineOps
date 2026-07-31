@@ -15,7 +15,7 @@ func init() {
 	application.RegisterEvent[EventSpikeBatch](constants.EventSpikeBatchName)
 }
 
-// EventSpikeBatch contains one ordered batch from the stage 0 event throughput spike.
+// EventSpikeBatch 承载事件吞吐验证中的一个有序批次。
 type EventSpikeBatch struct {
 	BatchID            int   `json:"batchID"`
 	FirstSequence      int   `json:"firstSequence"`
@@ -24,14 +24,14 @@ type EventSpikeBatch struct {
 	EmittedAtUnixMilli int64 `json:"emittedAtUnixMilli"`
 }
 
-// EventSpikeStatus reports the current event generator state and counters.
+// EventSpikeStatus 汇报当前事件生成器状态与计数。
 type EventSpikeStatus struct {
 	Running        bool `json:"running"`
 	EmittedBatches int  `json:"emittedBatches"`
 	EmittedItems   int  `json:"emittedItems"`
 }
 
-// EventSpikeService emits bounded event batches and owns their shutdown lifecycle.
+// EventSpikeService 发送有界事件批次并负责其关闭生命周期。
 type EventSpikeService struct {
 	mu      sync.Mutex
 	app     *application.App
@@ -42,7 +42,7 @@ type EventSpikeService struct {
 	items   atomic.Int64
 }
 
-// ServiceStartup captures the application context used to stop all event goroutines on shutdown.
+// ServiceStartup 捕获应用上下文,用于关闭时停止全部事件 goroutine。
 func (s *EventSpikeService) ServiceStartup(ctx context.Context, _ application.ServiceOptions) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -52,13 +52,13 @@ func (s *EventSpikeService) ServiceStartup(ctx context.Context, _ application.Se
 	return nil
 }
 
-// ServiceShutdown cancels the active generator and waits until its goroutine exits.
+// ServiceShutdown 取消活动生成器并等待其 goroutine 退出。
 func (s *EventSpikeService) ServiceShutdown() error {
 	s.stop()
 	return nil
 }
 
-// Start begins emitting ordered batches at the requested interval.
+// Start 按指定间隔开始发送有序批次。
 func (s *EventSpikeService) Start(_ context.Context, intervalMilliseconds int, batchSize int) error {
 	if intervalMilliseconds < 1 || intervalMilliseconds > 1_000 {
 		return errors.New("intervalMilliseconds must be between 1 and 1000")
@@ -85,13 +85,13 @@ func (s *EventSpikeService) Start(_ context.Context, intervalMilliseconds int, b
 	return nil
 }
 
-// Stop cancels the active generator and returns its final counters.
+// Stop 取消活动生成器并返回最终计数。
 func (s *EventSpikeService) Stop(_ context.Context) EventSpikeStatus {
 	s.stop()
 	return s.Status()
 }
 
-// Status returns an atomic snapshot of the event generator state.
+// Status 返回事件生成器状态的原子快照。
 func (s *EventSpikeService) Status() EventSpikeStatus {
 	s.mu.Lock()
 	running := s.cancel != nil

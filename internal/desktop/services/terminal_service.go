@@ -26,7 +26,7 @@ func init() {
 	application.RegisterEvent[TerminalEvent](constants.TerminalEventName)
 }
 
-// TerminalEvent is the versioned Opened/Data/Closed/Error event contract for one PTY.
+// TerminalEvent 是单个 PTY 的带版本事件契约:Opened/Data/Closed/Error。
 type TerminalEvent struct {
 	Version   int                    `json:"version"`
 	Type      string                 `json:"type"`
@@ -37,7 +37,7 @@ type TerminalEvent struct {
 	Session   *model.TerminalSession `json:"session,omitempty"`
 }
 
-// TerminalSessionResult contains one PTY session or a stable error.
+// TerminalSessionResult 承载一个 PTY 会话或稳定错误。
 type TerminalSessionResult struct {
 	Session *model.TerminalSession `json:"session,omitempty"`
 	Error   *apperror.DTO          `json:"error,omitempty"`
@@ -56,7 +56,7 @@ type activeTerminal struct {
 	droppedBytes atomic.Int64
 }
 
-// TerminalService owns authenticated SSH PTYs, bounded output queues, and Wails events.
+// TerminalService 持有已认证的 SSH PTY、有界输出队列与 Wails 事件。
 type TerminalService struct {
 	clients  *service.SSHClientFactory
 	store    repository.Store
@@ -69,7 +69,7 @@ type TerminalService struct {
 	sessions map[model.ID]*activeTerminal
 }
 
-// NewTerminalService creates the desktop SSH PTY facade.
+// NewTerminalService 创建桌面侧的 SSH PTY 门面。
 func NewTerminalService(clients *service.SSHClientFactory, store repository.Store, settings *appsettings.Manager, logger *applog.Logger) *TerminalService {
 	return &TerminalService{
 		clients: clients, store: store, settings: settings, logger: logger,
@@ -77,7 +77,7 @@ func NewTerminalService(clients *service.SSHClientFactory, store repository.Stor
 	}
 }
 
-// ServiceStartup captures the root application context and event emitter.
+// ServiceStartup 捕获根应用上下文与事件发射器。
 func (s *TerminalService) ServiceStartup(ctx context.Context, _ application.ServiceOptions) error {
 	s.mu.Lock()
 	s.rootCtx = ctx
@@ -86,12 +86,12 @@ func (s *TerminalService) ServiceStartup(ctx context.Context, _ application.Serv
 	return nil
 }
 
-// ServiceShutdown closes all PTYs and waits for their goroutines.
+// ServiceShutdown 关闭全部 PTY 并等待其 goroutine 退出。
 func (s *TerminalService) ServiceShutdown() error {
 	return s.closeAll()
 }
 
-// Open authenticates an SSH Session, requests xterm-256color PTY, and starts bounded output streaming.
+// Open 完成 SSH Session 认证、申请 xterm-256color PTY,并开始有界的输出流转。
 func (s *TerminalService) Open(ctx context.Context, sshSessionID string, columns, rows int) (result TerminalSessionResult) {
 	defer s.recoverSession(ctx, "TerminalService.Open", &result)
 	if columns < 1 || rows < 1 || columns > 1000 || rows > 500 {
@@ -187,7 +187,7 @@ func (s *TerminalService) Open(ctx context.Context, sshSessionID string, columns
 	return TerminalSessionResult{Session: &copy}
 }
 
-// Input writes ordered UTF-8 terminal input to one PTY.
+// Input 向一个 PTY 有序写入 UTF-8 终端输入。
 func (s *TerminalService) Input(ctx context.Context, sessionID, data string) (result ActionResult) {
 	active, err := s.get(sessionID)
 	if err != nil {
@@ -204,7 +204,7 @@ func (s *TerminalService) Input(ctx context.Context, sessionID, data string) (re
 	return ActionResult{}
 }
 
-// Resize applies a remote window-change request and updates session dimensions.
+// Resize 应用远端窗口尺寸变更请求并更新会话尺寸。
 func (s *TerminalService) Resize(ctx context.Context, sessionID string, columns, rows int) (result ActionResult) {
 	if columns < 1 || rows < 1 || columns > 1000 || rows > 500 {
 		dto := apperror.ToDTO(apperror.New(apperror.CodeValidationInvalidArgument, "Terminal 尺寸无效"))
@@ -224,7 +224,7 @@ func (s *TerminalService) Resize(ctx context.Context, sessionID string, columns,
 	return ActionResult{}
 }
 
-// Close terminates one PTY and emits its final event.
+// Close 终止一个 PTY 并发出其最终事件。
 func (s *TerminalService) Close(ctx context.Context, sessionID string) (result ActionResult) {
 	active, err := s.get(sessionID)
 	if err != nil {
@@ -238,7 +238,7 @@ func (s *TerminalService) Close(ctx context.Context, sessionID string) (result A
 	return ActionResult{}
 }
 
-// CloseAll terminates every active PTY owned by the desktop process.
+// CloseAll 终止桌面进程持有的全部活动 PTY。
 func (s *TerminalService) CloseAll(ctx context.Context) (result ActionResult) {
 	if err := s.closeAll(); err != nil {
 		dto := apperror.ToDTO(err)

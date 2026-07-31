@@ -7,7 +7,7 @@ import (
 	"github.com/Cail-Gainey/MineOps/internal/global/enums"
 )
 
-// FirewallRuleLease records one Server reference to a remote firewall rule managed by MineOps.
+// FirewallRuleLease 记录一台 Server 对某条由 MineOps 管理的远端防火墙规则的引用。
 type FirewallRuleLease struct {
 	ServerID       ID                    `json:"serverID"`
 	SSHSessionID   ID                    `json:"sshSessionID"`
@@ -19,7 +19,7 @@ type FirewallRuleLease struct {
 	UpdatedAt      time.Time             `json:"updatedAt"`
 }
 
-// Validate checks firewall lease identity, backend, port, and timestamps.
+// Validate 校验防火墙归属的身份、后端、端口与时间戳。
 func (l FirewallRuleLease) Validate() error {
 	if !l.ServerID.Valid() || !l.SSHSessionID.Valid() || !l.Backend.Valid() || l.Backend == enums.FirewallBackendNone || l.Port == 0 {
 		return apperror.New(apperror.CodeValidationInvalidArgument, "防火墙规则租约无效")
@@ -30,7 +30,7 @@ func (l FirewallRuleLease) Validate() error {
 	return nil
 }
 
-// DefaultMinecraftPort returns the initial listening port used before generated configuration exists.
+// DefaultMinecraftPort 返回配置文件生成之前使用的初始监听端口。
 func DefaultMinecraftPort(serverType enums.MinecraftServerType) uint16 {
 	switch serverType {
 	case enums.ServerVelocity, enums.ServerWaterfall, enums.ServerBungee:

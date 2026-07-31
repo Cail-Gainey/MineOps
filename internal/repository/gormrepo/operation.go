@@ -34,6 +34,7 @@ type operationRepository struct {
 	database *gorm.DB
 }
 
+// Create 新增一条 Operation。
 func (r *operationRepository) Create(ctx context.Context, operation *model.Operation) error {
 	record := operationToRecord(operation)
 	if err := r.database.WithContext(ctx).Create(&record).Error; err != nil {
@@ -42,6 +43,7 @@ func (r *operationRepository) Create(ctx context.Context, operation *model.Opera
 	return nil
 }
 
+// Update 更新一条 Operation。
 func (r *operationRepository) Update(ctx context.Context, operation *model.Operation) error {
 	record := operationToRecord(operation)
 	result := r.database.WithContext(ctx).Model(&OperationRecord{}).Where("id = ?", record.ID).Select("*").Updates(&record)
@@ -54,6 +56,7 @@ func (r *operationRepository) Update(ctx context.Context, operation *model.Opera
 	return nil
 }
 
+// Get 按 ID 返回一条 Operation。
 func (r *operationRepository) Get(ctx context.Context, id model.ID) (*model.Operation, error) {
 	var record OperationRecord
 	if err := r.database.WithContext(ctx).First(&record, "id = ?", id.String()).Error; err != nil {
@@ -66,6 +69,7 @@ func (r *operationRepository) Get(ctx context.Context, id model.ID) (*model.Oper
 	return &operation, nil
 }
 
+// ListActive 列出某个目标对象进行中的 Operation。
 func (r *operationRepository) ListActive(ctx context.Context, targetID model.ID) ([]model.Operation, error) {
 	states := []string{enums.OperationPending.String(), enums.OperationRunning.String()}
 	query := r.database.WithContext(ctx).Where("state IN ?", states).Order("created_at asc")
@@ -75,6 +79,7 @@ func (r *operationRepository) ListActive(ctx context.Context, targetID model.ID)
 	return queryOperations(query)
 }
 
+// ListHistory 按查询条件分页列出已结束的 Operation 历史。
 func (r *operationRepository) ListHistory(ctx context.Context, query repository.OperationQuery) ([]model.Operation, error) {
 	database := r.database.WithContext(ctx).Order("created_at desc")
 	if query.TargetID != "" {

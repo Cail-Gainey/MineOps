@@ -97,6 +97,6 @@ export function ScheduleVacuum() {
     }));
 }
 
-// 私有类型创建函数
+// Private type creation functions
 const $$createType0 = $models.StorageResult.createFrom;
 const $$createType1 = $models.ActionResult.createFrom;

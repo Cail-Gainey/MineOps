@@ -16,33 +16,33 @@ import (
 	"github.com/Cail-Gainey/MineOps/internal/service"
 )
 
-// InstallationStartResult contains durable task/operation identities or a stable error.
+// InstallationStartResult 承载持久化的任务与 Operation 标识或稳定错误。
 type InstallationStartResult struct {
 	TaskID      string        `json:"taskID,omitempty"`
 	OperationID string        `json:"operationID,omitempty"`
 	Error       *apperror.DTO `json:"error,omitempty"`
 }
 
-// InstallationResult contains one durable installation aggregate or a stable error.
+// InstallationResult 承载一份持久化安装聚合或稳定错误。
 type InstallationResult struct {
 	Task  *model.InstallationTask  `json:"task,omitempty"`
 	Steps []model.InstallationStep `json:"steps"`
 	Error *apperror.DTO            `json:"error,omitempty"`
 }
 
-// InstallationListResult contains recent durable installation tasks or a stable error.
+// InstallationListResult 承载近期的持久化安装任务或稳定错误。
 type InstallationListResult struct {
 	Tasks []model.InstallationTask `json:"tasks"`
 	Error *apperror.DTO            `json:"error,omitempty"`
 }
 
-// ServerDistributionListResult contains the dynamic server type registry or a stable error.
+// ServerDistributionListResult 承载动态服务端类型注册表或稳定错误。
 type ServerDistributionListResult struct {
 	Distributions []port.ServerDistribution `json:"distributions"`
 	Error         *apperror.DTO             `json:"error,omitempty"`
 }
 
-// ServerVersionListResult contains cached provider-neutral catalog versions or a stable error.
+// ServerVersionListResult 承载已缓存的、与供应方无关的目录版本或稳定错误。
 type ServerVersionListResult struct {
 	Versions []port.ServerVersion `json:"versions"`
 	Error    *apperror.DTO        `json:"error,omitempty"`
@@ -75,7 +75,7 @@ const (
 	serverVersionRefreshLimit = 45 * time.Second
 )
 
-// InstallationService exposes catalog, start, cancel, get, and retry workflows to Wails.
+// InstallationService 向 Wails 暴露目录、启动、取消、查询与重试流程。
 type InstallationService struct {
 	manager *service.InstallationManager
 	logger  *applog.Logger
@@ -88,7 +88,7 @@ type InstallationService struct {
 	cachePath string
 }
 
-// NewInstallationService creates the desktop installation facade with persistent stale-while-refresh version caching.
+// NewInstallationService 创建桌面安装门面,版本缓存采用持久化的过期即用并后台刷新策略。
 func NewInstallationService(manager *service.InstallationManager, logger *applog.Logger, dataDirectory string) *InstallationService {
 	result := &InstallationService{
 		manager: manager, logger: logger,
@@ -102,13 +102,13 @@ func NewInstallationService(manager *service.InstallationManager, logger *applog
 	return result
 }
 
-// ListDistributions returns all dynamically registered first-release server types.
+// ListDistributions 返回全部动态注册的首发服务端类型。
 func (s *InstallationService) ListDistributions(ctx context.Context) (result ServerDistributionListResult) {
 	defer s.recoverDistributions(ctx, &result)
 	return ServerDistributionListResult{Distributions: s.manager.ListDistributions()}
 }
 
-// ResolveVersions returns cached catalog versions for one distribution.
+// ResolveVersions 返回某个发行版已缓存的目录版本。
 func (s *InstallationService) ResolveVersions(ctx context.Context, distribution string) (result ServerVersionListResult) {
 	defer s.recoverVersions(ctx, &result)
 	typeValue := enums.MinecraftServerType(distribution)
@@ -261,7 +261,7 @@ func (s *InstallationService) persistVersionCache() error {
 	return os.Rename(temporaryPath, s.cachePath)
 }
 
-// Start performs preflight and immediately returns durable task and operation IDs.
+// Start 先做预检,随后立即返回持久化的任务与 Operation ID。
 func (s *InstallationService) Start(ctx context.Context, serverID string) (result InstallationStartResult) {
 	defer s.recoverStart(ctx, &result)
 	started, err := s.manager.Start(ctx, model.ID(serverID))
@@ -272,7 +272,7 @@ func (s *InstallationService) Start(ctx context.Context, serverID string) (resul
 	return InstallationStartResult{TaskID: started.TaskID.String(), OperationID: started.OperationID.String()}
 }
 
-// Cancel requests cancellation of the active installation Operation.
+// Cancel 请求取消进行中的安装 Operation。
 func (s *InstallationService) Cancel(ctx context.Context, operationID string) (result ActionResult) {
 	defer s.recoverAction(ctx, "InstallationService.Cancel", &result)
 	if err := s.manager.Cancel(ctx, model.ID(operationID)); err != nil {
@@ -282,7 +282,7 @@ func (s *InstallationService) Cancel(ctx context.Context, operationID string) (r
 	return ActionResult{}
 }
 
-// Get returns one task and its ordered durable step checkpoints.
+// Get 返回一个任务及其有序的持久化步骤检查点。
 func (s *InstallationService) Get(ctx context.Context, taskID string) (result InstallationResult) {
 	defer s.recoverInstallation(ctx, &result)
 	task, steps, err := s.manager.Get(ctx, model.ID(taskID))
@@ -293,7 +293,7 @@ func (s *InstallationService) Get(ctx context.Context, taskID string) (result In
 	return InstallationResult{Task: task, Steps: steps}
 }
 
-// ListByServer returns paginated installation history for one Minecraft Server.
+// ListByServer 分页返回某台 Minecraft Server 的安装历史。
 func (s *InstallationService) ListByServer(ctx context.Context, serverID string, limit, offset int) (result InstallationListResult) {
 	defer s.recoverInstallationList(ctx, &result)
 	tasks, err := s.manager.ListByServer(ctx, model.ID(serverID), limit, offset)
@@ -304,7 +304,7 @@ func (s *InstallationService) ListByServer(ctx context.Context, serverID string,
 	return InstallationListResult{Tasks: tasks}
 }
 
-// Retry starts a new Operation and preserves every successful step checkpoint.
+// Retry 启动一个新的 Operation,并保留全部已成功的步骤检查点。
 func (s *InstallationService) Retry(ctx context.Context, taskID string) (result InstallationStartResult) {
 	defer s.recoverStart(ctx, &result)
 	started, err := s.manager.Retry(ctx, model.ID(taskID))
@@ -315,7 +315,7 @@ func (s *InstallationService) Retry(ctx context.Context, taskID string) (result 
 	return InstallationStartResult{TaskID: started.TaskID.String(), OperationID: started.OperationID.String()}
 }
 
-// ResolveDirectoryConflict chooses backup, rename, or cancel for a failed server-directory step.
+// ResolveDirectoryConflict 为失败的服务器目录步骤选择备份、改名或取消。
 func (s *InstallationService) ResolveDirectoryConflict(ctx context.Context, taskID, action, newName string) (result InstallationStartResult) {
 	defer s.recoverStart(ctx, &result)
 	started, err := s.manager.ResolveDirectoryConflict(ctx, model.ID(taskID), action, newName)

@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-// RotatingWriterOptions controls date/size rotation and bounded retention.
+// RotatingWriterOptions 控制按日期与体积轮转以及有界保留。
 type RotatingWriterOptions struct {
 	Directory          string
 	Prefix             string
@@ -20,7 +20,7 @@ type RotatingWriterOptions struct {
 	Clock              func() time.Time
 }
 
-// RotatingWriter writes one JSON log stream with date and size rotation.
+// RotatingWriter 写入一路带日期与体积轮转的 JSON 日志流。
 type RotatingWriter struct {
 	mu      sync.Mutex
 	options RotatingWriterOptions
@@ -30,7 +30,7 @@ type RotatingWriter struct {
 	size    int64
 }
 
-// RotatingWriterStatus describes the active file and bounded log directory usage.
+// RotatingWriterStatus 描述当前文件与有界的日志目录占用。
 type RotatingWriterStatus struct {
 	Directory   string `json:"directory"`
 	CurrentPath string `json:"currentPath"`
@@ -38,7 +38,7 @@ type RotatingWriterStatus struct {
 	Bytes       int64  `json:"bytes"`
 }
 
-// NewRotatingWriter opens a bounded log writer after normalizing policy defaults.
+// NewRotatingWriter 归一化策略默认值后打开一个有界日志写入器。
 func NewRotatingWriter(options RotatingWriterOptions) (*RotatingWriter, error) {
 	if options.Directory == "" || options.Prefix == "" {
 		return nil, fmt.Errorf("log directory and prefix are required")
@@ -66,7 +66,7 @@ func NewRotatingWriter(options RotatingWriterOptions) (*RotatingWriter, error) {
 	return writer, nil
 }
 
-// Write appends a log record, rotating before the write when date or size limits require it.
+// Write 追加一条日志记录;日期或体积达到上限时先轮转再写入。
 func (w *RotatingWriter) Write(payload []byte) (int, error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -81,7 +81,7 @@ func (w *RotatingWriter) Write(payload []byte) (int, error) {
 	return written, err
 }
 
-// Close flushes and closes the active log file.
+// Close 刷盘并关闭当前日志文件。
 func (w *RotatingWriter) Close() error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -93,14 +93,14 @@ func (w *RotatingWriter) Close() error {
 	return err
 }
 
-// Cleanup applies retention-day and total-capacity limits immediately.
+// Cleanup 立即应用保留天数与总容量上限。
 func (w *RotatingWriter) Cleanup() error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	return w.cleanup(w.options.Clock())
 }
 
-// UpdatePolicy applies committed rotation and retention settings without replacing the active writer.
+// UpdatePolicy 应用已提交的轮转与保留设置,不替换当前写入器。
 func (w *RotatingWriter) UpdatePolicy(maxFileBytes int64, retentionDays int, totalCapacityBytes int64) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -113,7 +113,7 @@ func (w *RotatingWriter) UpdatePolicy(maxFileBytes int64, retentionDays int, tot
 	return w.cleanup(w.options.Clock())
 }
 
-// ClearArchived removes every rotated MineOps log while preserving the active file.
+// ClearArchived 删除全部已轮转的 MineOps 日志,保留当前文件。
 func (w *RotatingWriter) ClearArchived() error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -133,7 +133,7 @@ func (w *RotatingWriter) ClearArchived() error {
 	return nil
 }
 
-// Status returns the active path and aggregate MineOps log directory usage.
+// Status 返回当前路径与 MineOps 日志目录的总体占用。
 func (w *RotatingWriter) Status() (RotatingWriterStatus, error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()

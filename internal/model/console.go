@@ -2,7 +2,7 @@ package model
 
 import "time"
 
-// ConsoleSession is a desktop attachment to one running remote Minecraft tmux session.
+// ConsoleSession 表示桌面对一个运行中远端 Minecraft tmux 会话的附着。
 type ConsoleSession struct {
 	ID                ID         `json:"id"`
 	ServerID          ID         `json:"serverID"`

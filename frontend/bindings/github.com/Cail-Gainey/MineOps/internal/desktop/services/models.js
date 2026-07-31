@@ -26,7 +26,7 @@ import * as port$0 from "../../port/models.js";
 import * as service$0 from "../../service/models.js";
 
 /**
- * ActionResult contains the stable error result of a command without a data payload.
+ * ActionResult 承载无数据负载命令的稳定错误结果。
  */
 export class ActionResult {
     /**
@@ -61,7 +61,7 @@ export class ActionResult {
 }
 
 /**
- * AlertEventListResult contains bounded incident history.
+ * AlertEventListResult 承载有界的告警事件历史。
  */
 export class AlertEventListResult {
     /**
@@ -107,7 +107,7 @@ export class AlertEventListResult {
 }
 
 /**
- * AlertEventResult contains one active, recovered, or acknowledged incident.
+ * AlertEventResult 承载一条活跃、已恢复或已确认的告警事件。
  */
 export class AlertEventResult {
     /**
@@ -153,7 +153,7 @@ export class AlertEventResult {
 }
 
 /**
- * AlertRuleListResult contains bounded threshold rules.
+ * AlertRuleListResult 承载有界的阈值规则列表。
  */
 export class AlertRuleListResult {
     /**
@@ -199,7 +199,7 @@ export class AlertRuleListResult {
 }
 
 /**
- * AlertRuleResult contains one threshold rule or a stable error.
+ * AlertRuleResult 承载一条阈值规则或稳定错误。
  */
 export class AlertRuleResult {
     /**
@@ -245,7 +245,7 @@ export class AlertRuleResult {
 }
 
 /**
- * BackgroundResourceResult contains the controlled background status or a stable desktop error.
+ * BackgroundResourceResult 承载受控背景资源状态或稳定的桌面错误。
  */
 export class BackgroundResourceResult {
     /**
@@ -302,7 +302,7 @@ export class BackgroundResourceResult {
 }
 
 /**
- * BindingSpikeRequest exercises Wails generation for scalar, slice, and map fields.
+ * BindingSpikeRequest 用于验证 Wails 对标量、切片与映射字段的绑定生成。
  */
 export class BindingSpikeRequest {
     /**
@@ -355,7 +355,7 @@ export class BindingSpikeRequest {
 }
 
 /**
- * BindingSpikeResponse is returned by BindingSpikeService during the binding baseline check.
+ * BindingSpikeResponse 是绑定基线校验中 BindingSpikeService 的返回值。
  */
 export class BindingSpikeResponse {
     /**
@@ -397,7 +397,7 @@ export class BindingSpikeResponse {
 }
 
 /**
- * ClientErrorReport contains a redacted frontend exception report.
+ * ClientErrorReport 承载一份脱敏的前端异常报告。
  */
 export class ClientErrorReport {
     /**
@@ -456,7 +456,7 @@ export class ClientErrorReport {
 }
 
 /**
- * ConsoleEvent is the versioned Opened/Data/Dropped/Closed/Error contract for Server Console.
+ * ConsoleEvent 是 Server 控制台的带版本事件契约:Opened/Data/Dropped/Closed/Error。
  */
 export class ConsoleEvent {
     /**
@@ -544,7 +544,7 @@ export class ConsoleEvent {
 }
 
 /**
- * ConsoleSessionResult contains one Console attachment or a stable error.
+ * ConsoleSessionResult 承载一次控制台附着或稳定错误。
  */
 export class ConsoleSessionResult {
     /**
@@ -590,7 +590,7 @@ export class ConsoleSessionResult {
 }
 
 /**
- * DesktopUpdateStatusResult contains one Desktop update state or a stable error.
+ * DesktopUpdateStatusResult 承载一份桌面更新状态或稳定错误。
  */
 export class DesktopUpdateStatusResult {
     /**
@@ -636,7 +636,7 @@ export class DesktopUpdateStatusResult {
 }
 
 /**
- * DiagnosticExportResult contains one completed diagnostic package or a stable desktop error.
+ * DiagnosticExportResult 承载一份已完成的诊断包或稳定的桌面错误。
  */
 export class DiagnosticExportResult {
     /**
@@ -682,7 +682,7 @@ export class DiagnosticExportResult {
 }
 
 /**
- * DownloadCacheStatusResult contains current cache usage or a stable error.
+ * DownloadCacheStatusResult 承载当前缓存占用或稳定错误。
  */
 export class DownloadCacheStatusResult {
     /**
@@ -728,7 +728,7 @@ export class DownloadCacheStatusResult {
 }
 
 /**
- * DownloadSourceStatusResult contains live source checks or a stable error.
+ * DownloadSourceStatusResult 承载下载源实时探测结果或稳定错误。
  */
 export class DownloadSourceStatusResult {
     /**
@@ -774,7 +774,7 @@ export class DownloadSourceStatusResult {
 }
 
 /**
- * EventSpikeBatch contains one ordered batch from the stage 0 event throughput spike.
+ * EventSpikeBatch 承载事件吞吐验证中的一个有序批次。
  */
 export class EventSpikeBatch {
     /**
@@ -837,7 +837,7 @@ export class EventSpikeBatch {
 }
 
 /**
- * EventSpikeStatus reports the current event generator state and counters.
+ * EventSpikeStatus 汇报当前事件生成器状态与计数。
  */
 export class EventSpikeStatus {
     /**
@@ -882,7 +882,7 @@ export class EventSpikeStatus {
 }
 
 /**
- * ExitGuardStateResult contains the current unsaved-content registry.
+ * ExitGuardStateResult 承载当前的未保存内容登记表。
  */
 export class ExitGuardStateResult {
     /**
@@ -928,7 +928,7 @@ export class ExitGuardStateResult {
 }
 
 /**
- * FileDropEvent reports whether a native file drop started an upload Operation.
+ * FileDropEvent 汇报一次原生文件拖放是否启动了上传任务。
  */
 export class FileDropEvent {
     /**
@@ -977,7 +977,7 @@ export class FileDropEvent {
 }
 
 /**
- * FileResult contains a directory, text document, or stable desktop error.
+ * FileResult 承载目录、文本文档或稳定的桌面错误。
  */
 export class FileResult {
     /**
@@ -1034,7 +1034,7 @@ export class FileResult {
 }
 
 /**
- * FileTransferResult contains a started Operation identity or a stable desktop error.
+ * FileTransferResult 承载已启动任务的标识或稳定的桌面错误。
  */
 export class FileTransferResult {
     /**
@@ -1090,7 +1090,7 @@ export class FileTransferResult {
 }
 
 /**
- * HostKeyCheckResult contains a strict verification decision and safe existing record.
+ * HostKeyCheckResult 承载严格校验结论与安全的既有记录。
  */
 export class HostKeyCheckResult {
     /**
@@ -1143,7 +1143,7 @@ export class HostKeyCheckResult {
 }
 
 /**
- * InstallationListResult contains recent durable installation tasks or a stable error.
+ * InstallationListResult 承载近期的持久化安装任务或稳定错误。
  */
 export class InstallationListResult {
     /**
@@ -1189,7 +1189,7 @@ export class InstallationListResult {
 }
 
 /**
- * InstallationResult contains one durable installation aggregate or a stable error.
+ * InstallationResult 承载一份持久化安装聚合或稳定错误。
  */
 export class InstallationResult {
     /**
@@ -1246,7 +1246,7 @@ export class InstallationResult {
 }
 
 /**
- * InstallationStartResult contains durable task/operation identities or a stable error.
+ * InstallationStartResult 承载持久化的任务与 Operation 标识或稳定错误。
  */
 export class InstallationStartResult {
     /**
@@ -1295,7 +1295,7 @@ export class InstallationStartResult {
 }
 
 /**
- * JDKArtifactListResult contains approved provider-neutral download artifacts or a stable error.
+ * JDKArtifactListResult 承载已核准、与供应方无关的下载构件或稳定错误。
  */
 export class JDKArtifactListResult {
     /**
@@ -1341,7 +1341,7 @@ export class JDKArtifactListResult {
 }
 
 /**
- * JavaCandidateListResult contains verified remote candidates or a stable error.
+ * JavaCandidateListResult 承载已校验的远端 Java 候选或稳定错误。
  */
 export class JavaCandidateListResult {
     /**
@@ -1387,7 +1387,7 @@ export class JavaCandidateListResult {
 }
 
 /**
- * JavaInstallResult contains a started managed JDK installation Operation or a stable error.
+ * JavaInstallResult 承载已启动的受管 JDK 安装 Operation 或稳定错误。
  */
 export class JavaInstallResult {
     /**
@@ -1429,7 +1429,7 @@ export class JavaInstallResult {
 }
 
 /**
- * JavaRuntimeListResult contains persisted Java Runtimes or a stable error.
+ * JavaRuntimeListResult 承载已持久化的 Java 运行时列表或稳定错误。
  */
 export class JavaRuntimeListResult {
     /**
@@ -1475,7 +1475,7 @@ export class JavaRuntimeListResult {
 }
 
 /**
- * JavaRuntimeResult contains one persisted Java Runtime or a stable error.
+ * JavaRuntimeResult 承载一条已持久化的 Java 运行时或稳定错误。
  */
 export class JavaRuntimeResult {
     /**
@@ -1521,7 +1521,7 @@ export class JavaRuntimeResult {
 }
 
 /**
- * KnownHostDTO is the desktop-safe trusted-key representation without raw public-key bytes.
+ * KnownHostDTO 是桌面侧安全的受信任密钥表示,不含公钥原始字节。
  */
 export class KnownHostDTO {
     /**
@@ -1615,7 +1615,7 @@ export class KnownHostDTO {
 }
 
 /**
- * KnownHostListResult contains trusted host history or a stable error.
+ * KnownHostListResult 承载受信任主机历史或稳定错误。
  */
 export class KnownHostListResult {
     /**
@@ -1661,7 +1661,7 @@ export class KnownHostListResult {
 }
 
 /**
- * KnownHostResult contains one trusted host or a stable error.
+ * KnownHostResult 承载一条受信任主机或稳定错误。
  */
 export class KnownHostResult {
     /**
@@ -1707,7 +1707,7 @@ export class KnownHostResult {
 }
 
 /**
- * LifecycleOperationResult contains the immediately returned Operation ID or a stable error.
+ * LifecycleOperationResult 承载立即返回的 Operation ID 或稳定错误。
  */
 export class LifecycleOperationResult {
     /**
@@ -1749,7 +1749,7 @@ export class LifecycleOperationResult {
 }
 
 /**
- * LifecycleStateResult contains verified Server and remote process state or a stable error.
+ * LifecycleStateResult 承载已校验的 Server 与远端进程状态或稳定错误。
  */
 export class LifecycleStateResult {
     /**
@@ -1802,7 +1802,7 @@ export class LifecycleStateResult {
 }
 
 /**
- * LogStatusResult contains runtime log status or a stable desktop error.
+ * LogStatusResult 承载运行期日志状态或稳定的桌面错误。
  */
 export class LogStatusResult {
     /**
@@ -1848,7 +1848,7 @@ export class LogStatusResult {
 }
 
 /**
- * MetricIngestServiceResult contains one atomic ingest decision or a stable error.
+ * MetricIngestServiceResult 承载一次原子写入的判定结果或稳定错误。
  */
 export class MetricIngestServiceResult {
     /**
@@ -1894,7 +1894,7 @@ export class MetricIngestServiceResult {
 }
 
 /**
- * MetricLatestServiceResult contains latest cached or persisted values.
+ * MetricLatestServiceResult 承载缓存或持久化的最新值。
  */
 export class MetricLatestServiceResult {
     /**
@@ -1940,7 +1940,7 @@ export class MetricLatestServiceResult {
 }
 
 /**
- * MetricMaintenanceServiceResult contains one maintenance pass summary.
+ * MetricMaintenanceServiceResult 承载一轮维护的执行摘要。
  */
 export class MetricMaintenanceServiceResult {
     /**
@@ -1986,7 +1986,7 @@ export class MetricMaintenanceServiceResult {
 }
 
 /**
- * MetricQueryServiceResult contains query-ready Metric series.
+ * MetricQueryServiceResult 承载可直接展示的 Metric 序列。
  */
 export class MetricQueryServiceResult {
     /**
@@ -2032,7 +2032,7 @@ export class MetricQueryServiceResult {
 }
 
 /**
- * MetricStorageServiceResult contains current database capacity evidence.
+ * MetricStorageServiceResult 承载当前数据库容量证据。
  */
 export class MetricStorageServiceResult {
     /**
@@ -2078,7 +2078,7 @@ export class MetricStorageServiceResult {
 }
 
 /**
- * MinecraftServerInput contains editable metadata and structured launch arguments.
+ * MinecraftServerInput 承载可编辑元数据与结构化启动参数。
  */
 export class MinecraftServerInput {
     /**
@@ -2194,7 +2194,7 @@ export class MinecraftServerInput {
 }
 
 /**
- * MinecraftServerListResult contains Server rows or a stable error.
+ * MinecraftServerListResult 承载 Server 列表或稳定错误。
  */
 export class MinecraftServerListResult {
     /**
@@ -2240,7 +2240,7 @@ export class MinecraftServerListResult {
 }
 
 /**
- * MinecraftServerOperationResult contains a started destructive Operation or a stable error.
+ * MinecraftServerOperationResult 承载已启动的破坏性 Operation 或稳定错误。
  */
 export class MinecraftServerOperationResult {
     /**
@@ -2282,7 +2282,7 @@ export class MinecraftServerOperationResult {
 }
 
 /**
- * MinecraftServerResult contains one Server or a stable error.
+ * MinecraftServerResult 承载一台 Server 或稳定错误。
  */
 export class MinecraftServerResult {
     /**
@@ -2328,7 +2328,7 @@ export class MinecraftServerResult {
 }
 
 /**
- * MonitoringOverviewResult contains unified Collector, Metric, Spark, Alert, and issue state.
+ * MonitoringOverviewResult 承载采集器、Metric、Spark、告警与问题的统一状态。
  */
 export class MonitoringOverviewResult {
     /**
@@ -2374,7 +2374,7 @@ export class MonitoringOverviewResult {
 }
 
 /**
- * ObservedHostKeyInput contains public host-key material supplied by the SSH verification boundary.
+ * ObservedHostKeyInput 承载 SSH 校验边界提供的主机公钥材料。
  */
 export class ObservedHostKeyInput {
     /**
@@ -2440,7 +2440,7 @@ export class ObservedHostKeyInput {
 }
 
 /**
- * OperationListResult contains Operation rows or a stable desktop error.
+ * OperationListResult 承载 Operation 列表或稳定的桌面错误。
  */
 export class OperationListResult {
     /**
@@ -2486,7 +2486,7 @@ export class OperationListResult {
 }
 
 /**
- * OperationMutationResult contains the number of terminal Operation rows deleted.
+ * OperationMutationResult 承载已删除的终态 Operation 行数。
  */
 export class OperationMutationResult {
     /**
@@ -2528,7 +2528,7 @@ export class OperationMutationResult {
 }
 
 /**
- * OperationResult contains one Operation or a stable desktop error.
+ * OperationResult 承载一条 Operation 或稳定的桌面错误。
  */
 export class OperationResult {
     /**
@@ -2574,7 +2574,7 @@ export class OperationResult {
 }
 
 /**
- * PerformanceOverviewResult contains one complete Performance Center snapshot.
+ * PerformanceOverviewResult 承载一份完整的性能中心快照。
  */
 export class PerformanceOverviewResult {
     /**
@@ -2620,7 +2620,7 @@ export class PerformanceOverviewResult {
 }
 
 /**
- * PlayerActionServiceResult contains the refreshed player after a command.
+ * PlayerActionServiceResult 承载命令执行后刷新的玩家数据。
  */
 export class PlayerActionServiceResult {
     /**
@@ -2666,7 +2666,7 @@ export class PlayerActionServiceResult {
 }
 
 /**
- * PlayerDetailServiceResult contains one player overview or stable error.
+ * PlayerDetailServiceResult 承载一份玩家总览或稳定错误。
  */
 export class PlayerDetailServiceResult {
     /**
@@ -2712,7 +2712,7 @@ export class PlayerDetailServiceResult {
 }
 
 /**
- * PlayerListServiceResult contains one unified player page or stable error.
+ * PlayerListServiceResult 承载一页统一玩家数据或稳定错误。
  */
 export class PlayerListServiceResult {
     /**
@@ -2758,7 +2758,7 @@ export class PlayerListServiceResult {
 }
 
 /**
- * PlayerSessionsServiceResult contains bounded recent player sessions.
+ * PlayerSessionsServiceResult 承载有界的近期玩家会话。
  */
 export class PlayerSessionsServiceResult {
     /**
@@ -2804,7 +2804,7 @@ export class PlayerSessionsServiceResult {
 }
 
 /**
- * ProxyCredentialInput contains write-only proxy authentication fields.
+ * ProxyCredentialInput 承载只写的代理认证字段。
  */
 export class ProxyCredentialInput {
     /**
@@ -2842,7 +2842,7 @@ export class ProxyCredentialInput {
 }
 
 /**
- * ProxyCredentialResult contains non-secret credential status or a stable error.
+ * ProxyCredentialResult 承载非机密的凭据状态或稳定错误。
  */
 export class ProxyCredentialResult {
     /**
@@ -2888,7 +2888,7 @@ export class ProxyCredentialResult {
 }
 
 /**
- * QuitBlockedEvent contains the editors and forms preventing application exit.
+ * QuitBlockedEvent 承载阻止应用退出的编辑器与表单。
  */
 export class QuitBlockedEvent {
     /**
@@ -2923,7 +2923,7 @@ export class QuitBlockedEvent {
 }
 
 /**
- * RemoteServerInspectionResult contains read-only import evidence or a stable error.
+ * RemoteServerInspectionResult 承载只读的导入探测证据或稳定错误。
  */
 export class RemoteServerInspectionResult {
     /**
@@ -2969,7 +2969,7 @@ export class RemoteServerInspectionResult {
 }
 
 /**
- * SSHConfigDTO contains the resolved non-secret connection policy used by a preflight or handshake.
+ * SSHConfigDTO 承载预检或握手所用、已解析的非机密连接策略。
  */
 export class SSHConfigDTO {
     /**
@@ -3035,7 +3035,7 @@ export class SSHConfigDTO {
 }
 
 /**
- * SSHConnectionTestDTO contains authenticated SSH handshake and command-channel evidence.
+ * SSHConnectionTestDTO 承载 SSH 握手与命令通道的认证证据。
  */
 export class SSHConnectionTestDTO {
     /**
@@ -3098,7 +3098,7 @@ export class SSHConnectionTestDTO {
 }
 
 /**
- * SSHPreflightDTO contains authenticated SSH request round-trip statistics through the configured route.
+ * SSHPreflightDTO 承载经配置路由完成认证后的 SSH 请求往返统计。
  * 主机规格不在预检中返回:它随 SSH Session 持久化,由 List/Get 直接读取。
  */
 export class SSHPreflightDTO {
@@ -3205,7 +3205,7 @@ export class SSHPreflightDTO {
 }
 
 /**
- * SSHSessionDTO is the desktop-safe SSH Session representation without credential identifiers or secrets.
+ * SSHSessionDTO 是桌面侧安全的 SSH Session 表示,不含凭据标识与密文。
  */
 export class SSHSessionDTO {
     /**
@@ -3390,7 +3390,7 @@ export class SSHSessionDTO {
 }
 
 /**
- * SSHSessionInput contains editable metadata and write-only secret fields.
+ * SSHSessionInput 承载可编辑元数据与只写的密文字段。
  */
 export class SSHSessionInput {
     /**
@@ -3526,7 +3526,7 @@ export class SSHSessionInput {
 }
 
 /**
- * SSHSessionListResult contains safe SSH Session DTOs or a stable error.
+ * SSHSessionListResult 承载安全的 SSH Session DTO 列表或稳定错误。
  */
 export class SSHSessionListResult {
     /**
@@ -3572,7 +3572,7 @@ export class SSHSessionListResult {
 }
 
 /**
- * SSHSessionResult contains one safe SSH Session DTO or a stable error.
+ * SSHSessionResult 承载一份安全的 SSH Session DTO 或稳定错误。
  */
 export class SSHSessionResult {
     /**
@@ -3618,7 +3618,7 @@ export class SSHSessionResult {
 }
 
 /**
- * ServerBackupListResult contains managed remote Server backups or a stable error.
+ * ServerBackupListResult 承载受管的远端 Server 备份或稳定错误。
  */
 export class ServerBackupListResult {
     /**
@@ -3664,7 +3664,7 @@ export class ServerBackupListResult {
 }
 
 /**
- * ServerDistributionListResult contains the dynamic server type registry or a stable error.
+ * ServerDistributionListResult 承载动态服务端类型注册表或稳定错误。
  */
 export class ServerDistributionListResult {
     /**
@@ -3710,7 +3710,7 @@ export class ServerDistributionListResult {
 }
 
 /**
- * ServerInstallationStatusResult contains remote installation consistency evidence or a stable error.
+ * ServerInstallationStatusResult 承载远端安装一致性证据或稳定错误。
  */
 export class ServerInstallationStatusResult {
     /**
@@ -3756,7 +3756,7 @@ export class ServerInstallationStatusResult {
 }
 
 /**
- * ServerPropertiesBackupListResult contains retained configuration revisions or a stable error.
+ * ServerPropertiesBackupListResult 承载保留的配置历史版本或稳定错误。
  */
 export class ServerPropertiesBackupListResult {
     /**
@@ -3802,7 +3802,7 @@ export class ServerPropertiesBackupListResult {
 }
 
 /**
- * ServerPropertiesResult contains parsed server.properties state or a stable error.
+ * ServerPropertiesResult 承载已解析的 server.properties 状态或稳定错误。
  */
 export class ServerPropertiesResult {
     /**
@@ -3848,7 +3848,7 @@ export class ServerPropertiesResult {
 }
 
 /**
- * ServerVersionListResult contains cached provider-neutral catalog versions or a stable error.
+ * ServerVersionListResult 承载已缓存的、与供应方无关的目录版本或稳定错误。
  */
 export class ServerVersionListResult {
     /**
@@ -3894,7 +3894,7 @@ export class ServerVersionListResult {
 }
 
 /**
- * SettingsChangedEvent identifies one committed category that consumers should reload.
+ * SettingsChangedEvent 标识一个已提交、消费方需要重载的设置分类。
  */
 export class SettingsChangedEvent {
     /**
@@ -3925,7 +3925,7 @@ export class SettingsChangedEvent {
 }
 
 /**
- * SettingsResult contains the current Settings Snapshot or a stable desktop error.
+ * SettingsResult 承载当前 Settings Snapshot 或稳定的桌面错误。
  */
 export class SettingsResult {
     /**
@@ -3971,7 +3971,7 @@ export class SettingsResult {
 }
 
 /**
- * SparkCapabilityServiceResult contains capability evidence or a stable error.
+ * SparkCapabilityServiceResult 承载 Spark 能力证据或稳定错误。
  */
 export class SparkCapabilityServiceResult {
     /**
@@ -4017,7 +4017,7 @@ export class SparkCapabilityServiceResult {
 }
 
 /**
- * SparkInstallPlanServiceResult contains an exact approved mutation plan.
+ * SparkInstallPlanServiceResult 承载一份确切且已核准的变更计划。
  */
 export class SparkInstallPlanServiceResult {
     /**
@@ -4063,7 +4063,7 @@ export class SparkInstallPlanServiceResult {
 }
 
 /**
- * SparkInstallServiceResult contains the completed install/upgrade result.
+ * SparkInstallServiceResult 承载安装或升级完成后的结果。
  */
 export class SparkInstallServiceResult {
     /**
@@ -4109,7 +4109,7 @@ export class SparkInstallServiceResult {
 }
 
 /**
- * SparkReportServiceResult contains one durable report and its Operation ID.
+ * SparkReportServiceResult 承载一份持久化报告及其 Operation ID。
  */
 export class SparkReportServiceResult {
     /**
@@ -4155,7 +4155,7 @@ export class SparkReportServiceResult {
 }
 
 /**
- * SparkSnapshotServiceResult contains one TPS/MSPT snapshot.
+ * SparkSnapshotServiceResult 承载一条 TPS/MSPT Snapshot。
  */
 export class SparkSnapshotServiceResult {
     /**
@@ -4258,7 +4258,7 @@ export class StorageResult {
 }
 
 /**
- * TerminalEvent is the versioned Opened/Data/Closed/Error event contract for one PTY.
+ * TerminalEvent 是单个 PTY 的带版本事件契约:Opened/Data/Closed/Error。
  */
 export class TerminalEvent {
     /**
@@ -4339,7 +4339,7 @@ export class TerminalEvent {
 }
 
 /**
- * TerminalSessionResult contains one PTY session or a stable error.
+ * TerminalSessionResult 承载一个 PTY 会话或稳定错误。
  */
 export class TerminalSessionResult {
     /**

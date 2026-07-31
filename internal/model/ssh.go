@@ -11,7 +11,7 @@ import (
 	"github.com/Cail-Gainey/MineOps/internal/global/enums"
 )
 
-// SSHSession contains reusable SSH connection metadata without secret material.
+// SSHSession 承载可复用的 SSH 连接元数据,不含任何密文。
 type SSHSession struct {
 	ID                  ID                     `json:"id"`
 	Name                string                 `json:"name"`
@@ -34,7 +34,7 @@ type SSHSession struct {
 	UpdatedAt           time.Time              `json:"updatedAt"`
 }
 
-// SSHHostSpecs contains host capacity facts collected once over SSH and persisted with the Session.
+// SSHHostSpecs 承载经 SSH 采集一次并随 Session 持久化的主机容量信息。
 type SSHHostSpecs struct {
 	CPUCount    int        `json:"cpuCount"`
 	MemoryBytes int64      `json:"memoryBytes"`
@@ -42,17 +42,17 @@ type SSHHostSpecs struct {
 	CollectedAt *time.Time `json:"collectedAt,omitempty"`
 }
 
-// Empty reports whether a Session has no persisted host specs, which is the state of pre-migration rows.
+// Empty 返回该 Session 是否尚无持久化主机规格,迁移前的历史行即为此状态。
 func (s SSHHostSpecs) Empty() bool {
 	return s.CollectedAt == nil && s.CPUCount == 0 && s.MemoryBytes == 0 && s.DiskBytes == 0
 }
 
-// Collected reports whether persisted host specs are complete and can be listed without another SSH probe.
+// Collected 返回持久化的主机规格是否完整,完整则列表无需再次 SSH 探测。
 func (s SSHHostSpecs) Collected() bool {
 	return s.CollectedAt != nil && !s.CollectedAt.IsZero() && s.CPUCount > 0 && s.MemoryBytes > 0 && s.DiskBytes > 0
 }
 
-// Validate rejects partially collected or non-positive host capacity facts.
+// Validate 拒绝采集不完整或非正数的主机容量信息。
 func (s SSHHostSpecs) Validate() error {
 	if s.CPUCount < 1 || s.MemoryBytes < 1 || s.DiskBytes < 1 {
 		return apperror.New(apperror.CodeValidationInvalidArgument, "SSH 主机规格必须为正数")
@@ -63,7 +63,7 @@ func (s SSHHostSpecs) Validate() error {
 	return nil
 }
 
-// EffectiveSSHConfig contains resolved connection values after applying global defaults and Session overrides.
+// EffectiveSSHConfig 承载应用全局默认与 Session 覆盖后解析出的连接取值。
 type EffectiveSSHConfig struct {
 	Port                uint16
 	ConnectTimeoutSec   int
@@ -73,7 +73,7 @@ type EffectiveSSHConfig struct {
 	HostKeyPolicy       enums.SSHHostKeyPolicy
 }
 
-// ResolveSSHConfig applies global Settings unless the Session explicitly enables per-connection overrides.
+// ResolveSSHConfig 应用全局设置,除非该 Session 显式启用了逐连接覆盖。
 func ResolveSSHConfig(session SSHSession, settings SSHSettings) EffectiveSSHConfig {
 	if session.OverrideSettings {
 		return EffectiveSSHConfig{
@@ -89,7 +89,7 @@ func ResolveSSHConfig(session SSHSession, settings SSHSettings) EffectiveSSHConf
 	}
 }
 
-// SSHCredential stores encrypted-database secret bytes and must never be exposed through a desktop DTO.
+// SSHCredential 存放加密库中的密文字节,绝不能经桌面 DTO 暴露。
 type SSHCredential struct {
 	ID         ID                `json:"-"`
 	AuthType   enums.SSHAuthType `json:"-"`
@@ -99,7 +99,7 @@ type SSHCredential struct {
 	UpdatedAt  time.Time         `json:"-"`
 }
 
-// KnownHost stores one trusted SSH public-key fingerprint and replacement history.
+// KnownHost 存放一条受信任的 SSH 公钥指纹及其替换历史。
 type KnownHost struct {
 	ID             ID         `json:"id"`
 	HostIdentifier string     `json:"hostIdentifier"`
@@ -114,7 +114,7 @@ type KnownHost struct {
 	ReplacedByID   *ID        `json:"replacedByID,omitempty"`
 }
 
-// NewSSHSession creates validated connection metadata with strict host-key verification by default.
+// NewSSHSession 创建已校验的连接元数据,默认启用严格主机密钥校验。
 func NewSSHSession(clock Clock, session SSHSession) (*SSHSession, error) {
 	if clock == nil {
 		return nil, apperror.New(apperror.CodeValidationRequired, "Clock 不能为空")
@@ -148,7 +148,7 @@ func NewSSHSession(clock Clock, session SSHSession) (*SSHSession, error) {
 	return &session, nil
 }
 
-// Validate checks SSH connection metadata and credential references without performing network access.
+// Validate 校验 SSH 连接元数据与凭据引用,不做网络访问。
 func (s SSHSession) Validate() error {
 	if strings.TrimSpace(s.Name) == "" || strings.TrimSpace(s.Host) == "" || strings.TrimSpace(s.Username) == "" {
 		return apperror.New(apperror.CodeValidationRequired, "SSH 名称、主机和用户名不能为空")
@@ -171,7 +171,7 @@ func (s SSHSession) Validate() error {
 	return nil
 }
 
-// NewSSHCredential creates a password or private-key credential for encrypted SQLite persistence.
+// NewSSHCredential 创建口令或私钥凭据,用于加密 SQLite 持久化。
 func NewSSHCredential(clock Clock, authType enums.SSHAuthType, secret, passphrase []byte) (*SSHCredential, error) {
 	if clock == nil || len(secret) == 0 {
 		return nil, apperror.New(apperror.CodeValidationRequired, "SSH 凭据内容不能为空")
@@ -190,7 +190,7 @@ func NewSSHCredential(clock Clock, authType enums.SSHAuthType, secret, passphras
 	}, nil
 }
 
-// Clear overwrites in-memory credential byte slices and releases their references.
+// Clear 覆写内存中的凭据字节切片并释放其引用。
 func (c *SSHCredential) Clear() {
 	if c == nil {
 		return
@@ -201,7 +201,7 @@ func (c *SSHCredential) Clear() {
 	c.Passphrase = nil
 }
 
-// NewKnownHost creates a trusted host-key record after validating its identifier and fingerprint.
+// NewKnownHost 在校验标识与指纹后创建一条受信任的主机密钥记录。
 func NewKnownHost(clock Clock, hostIdentifier, host string, port uint16, algorithm string, publicKey []byte, fingerprint string) (*KnownHost, error) {
 	if clock == nil {
 		return nil, apperror.New(apperror.CodeValidationRequired, "Clock 不能为空")
@@ -220,7 +220,7 @@ func NewKnownHost(clock Clock, hostIdentifier, host string, port uint16, algorit
 	}, nil
 }
 
-// ValidateKnownHost accepts plain, non-standard-port, or OpenSSH hashed host identifiers.
+// ValidateKnownHost 接受明文、非标准端口或 OpenSSH 哈希形式的主机标识。
 func ValidateKnownHost(hostIdentifier, host string, port uint16, algorithm string, publicKey []byte, fingerprint string) error {
 	if strings.TrimSpace(hostIdentifier) == "" || strings.TrimSpace(host) == "" || port == 0 {
 		return apperror.New(apperror.CodeValidationRequired, "Known Host 标识、主机和端口不能为空")
@@ -237,7 +237,7 @@ func ValidateKnownHost(hostIdentifier, host string, port uint16, algorithm strin
 	return nil
 }
 
-// MatchKnownHostIdentifier compares plain, non-standard-port, or OpenSSH hashed identifiers.
+// MatchKnownHostIdentifier 比较明文、非标准端口或 OpenSSH 哈希形式的标识。
 func MatchKnownHostIdentifier(stored, candidate string) bool {
 	if stored == candidate {
 		return true

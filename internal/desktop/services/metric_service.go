@@ -9,48 +9,48 @@ import (
 	"github.com/Cail-Gainey/MineOps/internal/service"
 )
 
-// MetricIngestServiceResult contains one atomic ingest decision or a stable error.
+// MetricIngestServiceResult 承载一次原子写入的判定结果或稳定错误。
 type MetricIngestServiceResult struct {
 	Result *model.MetricIngestResult `json:"result,omitempty"`
 	Error  *apperror.DTO             `json:"error,omitempty"`
 }
 
-// MetricLatestServiceResult contains latest cached or persisted values.
+// MetricLatestServiceResult 承载缓存或持久化的最新值。
 type MetricLatestServiceResult struct {
 	Samples []model.MetricSample `json:"samples"`
 	Error   *apperror.DTO        `json:"error,omitempty"`
 }
 
-// MetricQueryServiceResult contains query-ready Metric series.
+// MetricQueryServiceResult 承载可直接展示的 Metric 序列。
 type MetricQueryServiceResult struct {
 	Result *model.MetricQueryResult `json:"result,omitempty"`
 	Error  *apperror.DTO            `json:"error,omitempty"`
 }
 
-// MetricMaintenanceServiceResult contains one maintenance pass summary.
+// MetricMaintenanceServiceResult 承载一轮维护的执行摘要。
 type MetricMaintenanceServiceResult struct {
 	Result *model.MetricMaintenanceResult `json:"result,omitempty"`
 	Error  *apperror.DTO                  `json:"error,omitempty"`
 }
 
-// MetricStorageServiceResult contains current database capacity evidence.
+// MetricStorageServiceResult 承载当前数据库容量证据。
 type MetricStorageServiceResult struct {
 	Status *model.MetricStorageStatus `json:"status,omitempty"`
 	Error  *apperror.DTO              `json:"error,omitempty"`
 }
 
-// MetricService exposes stage 10 ingest, latest, history, maintenance, and capacity operations.
+// MetricService 对外暴露写入、最新值、历史、维护与容量操作。
 type MetricService struct {
 	manager *service.MetricManager
 	logger  *applog.Logger
 }
 
-// NewMetricService creates the desktop Metric facade.
+// NewMetricService 创建桌面侧的 Metric 门面。
 func NewMetricService(manager *service.MetricManager, logger *applog.Logger) *MetricService {
 	return &MetricService{manager: manager, logger: logger}
 }
 
-// Ingest atomically accepts one bounded Metric batch.
+// Ingest 原子接收一个有界的 Metric 批次。
 func (s *MetricService) Ingest(ctx context.Context, samples []model.MetricSample) (result MetricIngestServiceResult) {
 	defer func() {
 		var err error
@@ -68,7 +68,7 @@ func (s *MetricService) Ingest(ctx context.Context, samples []model.MetricSample
 	return MetricIngestServiceResult{Result: &accepted}
 }
 
-// Latest returns every available latest Metric for one Server.
+// Latest 返回某台 Server 全部可用指标的最新值。
 func (s *MetricService) Latest(ctx context.Context, serverID string) (result MetricLatestServiceResult) {
 	defer func() {
 		var err error
@@ -86,7 +86,7 @@ func (s *MetricService) Latest(ctx context.Context, serverID string) (result Met
 	return MetricLatestServiceResult{Samples: samples}
 }
 
-// Query returns raw, minute, or hour series with explicit missing-data points.
+// Query 返回原始、分钟或小时序列,并显式标注缺失数据点。
 func (s *MetricService) Query(ctx context.Context, query model.MetricQuery) (result MetricQueryServiceResult) {
 	defer func() {
 		var err error
@@ -104,7 +104,7 @@ func (s *MetricService) Query(ctx context.Context, query model.MetricQuery) (res
 	return MetricQueryServiceResult{Result: &queryResult}
 }
 
-// RunMaintenance triggers one bounded rollup and retention pass.
+// RunMaintenance 触发一轮有界的降采样与保留清理。
 func (s *MetricService) RunMaintenance(ctx context.Context) (result MetricMaintenanceServiceResult) {
 	defer func() {
 		var err error
@@ -122,7 +122,7 @@ func (s *MetricService) RunMaintenance(ctx context.Context) (result MetricMainte
 	return MetricMaintenanceServiceResult{Result: &maintenance}
 }
 
-// StorageStatus returns database capacity and free-disk status.
+// StorageStatus 返回数据库容量与磁盘可用空间状态。
 func (s *MetricService) StorageStatus(ctx context.Context) (result MetricStorageServiceResult) {
 	defer func() {
 		var err error

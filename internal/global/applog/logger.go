@@ -9,10 +9,10 @@ import (
 	"sync/atomic"
 )
 
-// Fields contains structured values attached to a log record.
+// Fields 承载附加到日志记录上的结构化取值。
 type Fields map[string]any
 
-// ContextFields contains the standard MineOps correlation identifiers.
+// ContextFields 承载 MineOps 标准的关联标识。
 type ContextFields struct {
 	RequestID   string
 	OperationID string
@@ -29,7 +29,7 @@ type Logger struct {
 	level  *slog.LevelVar
 }
 
-// New creates a JSON logger with sensitive-field redaction and runtime level control.
+// New 创建带敏感字段脱敏与运行期等级控制的 JSON 日志器。
 func New(output io.Writer, level slog.Level) *Logger {
 	levelVariable := &slog.LevelVar{}
 	levelVariable.Set(level)
@@ -37,34 +37,34 @@ func New(output io.Writer, level slog.Level) *Logger {
 	return &Logger{logger: slog.New(handler), level: levelVariable}
 }
 
-// WithContextFields returns a context carrying standard correlation identifiers.
+// WithContextFields 返回携带标准关联标识的上下文。
 func WithContextFields(ctx context.Context, fields ContextFields) context.Context {
 	return context.WithValue(ctx, contextFieldsKey{}, fields)
 }
 
-// SetLevel changes the minimum runtime log level.
+// SetLevel 修改运行期的最低日志等级。
 func (l *Logger) SetLevel(level slog.Level) {
 	if l != nil {
 		l.level.Set(level)
 	}
 }
 
-// Debug writes a structured debug record.
+// Debug 写入一条结构化 debug 记录。
 func (l *Logger) Debug(ctx context.Context, message string, fields Fields) {
 	l.log(ctx, slog.LevelDebug, message, fields)
 }
 
-// Info writes a structured informational record.
+// Info 写入一条结构化 info 记录。
 func (l *Logger) Info(ctx context.Context, message string, fields Fields) {
 	l.log(ctx, slog.LevelInfo, message, fields)
 }
 
-// Warn writes a structured warning record.
+// Warn 写入一条结构化 warn 记录。
 func (l *Logger) Warn(ctx context.Context, message string, fields Fields) {
 	l.log(ctx, slog.LevelWarn, message, fields)
 }
 
-// Error writes a structured error record and preserves the diagnostic cause as a redacted value.
+// Error 写入一条结构化 error 记录,并以脱敏形式保留诊断根因。
 func (l *Logger) Error(ctx context.Context, message string, err error, fields Fields) {
 	cloned := make(Fields, len(fields)+1)
 	for key, value := range fields {
@@ -110,10 +110,12 @@ type redactingHandler struct {
 	next slog.Handler
 }
 
+// Enabled 判断该等级的日志是否需要处理。
 func (h *redactingHandler) Enabled(ctx context.Context, level slog.Level) bool {
 	return h.next.Enabled(ctx, level)
 }
 
+// Handle 对日志记录执行敏感信息脱敏后交给下游 Handler。
 func (h *redactingHandler) Handle(ctx context.Context, record slog.Record) error {
 	redacted := slog.NewRecord(record.Time, record.Level, record.Message, record.PC)
 	record.Attrs(func(attribute slog.Attr) bool {
@@ -123,6 +125,7 @@ func (h *redactingHandler) Handle(ctx context.Context, record slog.Record) error
 	return h.next.Handle(ctx, redacted)
 }
 
+// WithAttrs 返回附带固定属性且保持脱敏行为的 Handler。
 func (h *redactingHandler) WithAttrs(attributes []slog.Attr) slog.Handler {
 	redacted := make([]slog.Attr, len(attributes))
 	for index, attribute := range attributes {
@@ -131,6 +134,7 @@ func (h *redactingHandler) WithAttrs(attributes []slog.Attr) slog.Handler {
 	return &redactingHandler{next: h.next.WithAttrs(redacted)}
 }
 
+// WithGroup 返回带分组前缀且保持脱敏行为的 Handler。
 func (h *redactingHandler) WithGroup(name string) slog.Handler {
 	return &redactingHandler{next: h.next.WithGroup(name)}
 }
@@ -233,12 +237,12 @@ func attrsToAny(attributes []slog.Attr) []any {
 
 var defaultLogger atomic.Pointer[Logger]
 
-// SetDefault installs the process logger after bootstrap has selected its controlled output.
+// SetDefault 在 bootstrap 选定受控输出后安装进程级日志器。
 func SetDefault(logger *Logger) {
 	defaultLogger.Store(logger)
 }
 
-// Default returns the installed process logger or a discard logger before bootstrap completes.
+// Default 返回已安装的进程日志器;bootstrap 完成前返回丢弃型日志器。
 func Default() *Logger {
 	if logger := defaultLogger.Load(); logger != nil {
 		return logger

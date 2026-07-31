@@ -14,14 +14,14 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
-// FileResult contains a directory, text document, or stable desktop error.
+// FileResult 承载目录、文本文档或稳定的桌面错误。
 type FileResult struct {
 	Directory *service.RemoteDirectory  `json:"directory,omitempty"`
 	Document  *model.RemoteTextDocument `json:"document,omitempty"`
 	Error     *apperror.DTO             `json:"error,omitempty"`
 }
 
-// FileTransferResult contains a started Operation identity or a stable desktop error.
+// FileTransferResult 承载已启动任务的标识或稳定的桌面错误。
 type FileTransferResult struct {
 	OperationID    string        `json:"operationID,omitempty"`
 	SelectionCount int           `json:"selectionCount,omitempty"`
@@ -29,14 +29,14 @@ type FileTransferResult struct {
 	Error          *apperror.DTO `json:"error,omitempty"`
 }
 
-// FileDropEvent reports whether a native file drop started an upload Operation.
+// FileDropEvent 汇报一次原生文件拖放是否启动了上传任务。
 type FileDropEvent struct {
 	OperationID string        `json:"operationID,omitempty"`
 	FileCount   int           `json:"fileCount"`
 	Error       *apperror.DTO `json:"error,omitempty"`
 }
 
-// FileService exposes bounded remote Linux file operations over existing SSH Sessions.
+// FileService 基于已有 SSH Session 暴露有界的远端 Linux 文件操作。
 type FileService struct {
 	manager  *service.FileManager
 	settings *appsettings.Manager
@@ -45,17 +45,17 @@ type FileService struct {
 	dataRoot string
 }
 
-// NewFileService creates the desktop remote file facade.
+// NewFileService 创建桌面侧的远端文件门面。
 func NewFileService(manager *service.FileManager, settings *appsettings.Manager, logger *applog.Logger, dataRoot string) *FileService {
 	return &FileService{manager: manager, settings: settings, logger: logger, dataRoot: dataRoot}
 }
 
-// SetApplication attaches the Wails application used for native upload and download path selection.
+// SetApplication 挂接用于原生上传下载路径选择的 Wails 应用实例。
 func (s *FileService) SetApplication(app *application.App) {
 	s.app = app
 }
 
-// List returns one normalized remote directory.
+// List 返回一个规范化后的远端目录。
 func (s *FileService) List(ctx context.Context, sshSessionID, path, currentDirectory string) (result FileResult) {
 	defer s.recover(ctx, "FileService.List", &result)
 	directory, err := s.manager.List(ctx, model.ID(sshSessionID), path, currentDirectory)
@@ -65,7 +65,7 @@ func (s *FileService) List(ctx context.Context, sshSessionID, path, currentDirec
 	return FileResult{Directory: &directory}
 }
 
-// ReadText returns one bounded UTF-8 remote document.
+// ReadText 返回一份有界的 UTF-8 远端文档。
 func (s *FileService) ReadText(ctx context.Context, sshSessionID, path, currentDirectory string) (result FileResult) {
 	defer s.recover(ctx, "FileService.ReadText", &result)
 	document, err := s.manager.ReadText(ctx, model.ID(sshSessionID), path, currentDirectory)
@@ -75,7 +75,7 @@ func (s *FileService) ReadText(ctx context.Context, sshSessionID, path, currentD
 	return FileResult{Document: document}
 }
 
-// SaveText conflict-checks and atomically replaces one existing remote document.
+// SaveText 做冲突检测并原子替换一份已存在的远端文档。
 func (s *FileService) SaveText(ctx context.Context, sshSessionID, path, currentDirectory, content, expectedVersion string) (result FileResult) {
 	defer s.recover(ctx, "FileService.SaveText", &result)
 	document, err := s.manager.SaveText(ctx, model.ID(sshSessionID), path, currentDirectory, content, expectedVersion)
@@ -85,7 +85,7 @@ func (s *FileService) SaveText(ctx context.Context, sshSessionID, path, currentD
 	return FileResult{Document: document}
 }
 
-// SaveTextAs atomically creates one new remote document without replacing an existing path.
+// SaveTextAs 原子创建一份新的远端文档,不覆盖已存在的路径。
 func (s *FileService) SaveTextAs(ctx context.Context, sshSessionID, path, currentDirectory, content string) (result FileResult) {
 	defer s.recover(ctx, "FileService.SaveTextAs", &result)
 	document, err := s.manager.SaveTextAs(ctx, model.ID(sshSessionID), path, currentDirectory, content)
@@ -95,34 +95,34 @@ func (s *FileService) SaveTextAs(ctx context.Context, sshSessionID, path, curren
 	return FileResult{Document: document}
 }
 
-// CreateDirectory creates one remote directory.
+// CreateDirectory 创建一个远端目录。
 func (s *FileService) CreateDirectory(ctx context.Context, sshSessionID, path, currentDirectory string) ActionResult {
 	return s.action(ctx, "FileService.CreateDirectory", func() error { return s.manager.CreateDirectory(ctx, model.ID(sshSessionID), path, currentDirectory) })
 }
 
-// CreateFile creates one empty remote file.
+// CreateFile 创建一个空的远端文件。
 func (s *FileService) CreateFile(ctx context.Context, sshSessionID, path, currentDirectory string) ActionResult {
 	return s.action(ctx, "FileService.CreateFile", func() error { return s.manager.CreateFile(ctx, model.ID(sshSessionID), path, currentDirectory) })
 }
 
-// Rename moves one remote entry without replacing an existing target.
+// Rename 移动一个远端条目,不覆盖已存在的目标。
 func (s *FileService) Rename(ctx context.Context, sshSessionID, sourcePath, targetPath, currentDirectory string) ActionResult {
 	return s.action(ctx, "FileService.Rename", func() error {
 		return s.manager.Rename(ctx, model.ID(sshSessionID), sourcePath, targetPath, currentDirectory)
 	})
 }
 
-// Delete removes one remote entry after dangerous-path checks.
+// Delete 在危险路径检查通过后删除一个远端条目。
 func (s *FileService) Delete(ctx context.Context, sshSessionID, path, currentDirectory string, recursive bool) ActionResult {
 	return s.action(ctx, "FileService.Delete", func() error { return s.manager.Delete(ctx, model.ID(sshSessionID), path, currentDirectory, recursive) })
 }
 
-// Chmod applies one validated octal mode to a remote entry.
+// Chmod 对远端条目应用一个已校验的八进制权限。
 func (s *FileService) Chmod(ctx context.Context, sshSessionID, path, currentDirectory, mode string) ActionResult {
 	return s.action(ctx, "FileService.Chmod", func() error { return s.manager.Chmod(ctx, model.ID(sshSessionID), path, currentDirectory, mode) })
 }
 
-// PickAndUpload opens the native multi-file picker and starts an SSH stdin upload Operation.
+// PickAndUpload 打开原生多选文件框并启动一次 SSH 标准输入上传任务。
 func (s *FileService) PickAndUpload(ctx context.Context, sshSessionID, remoteDirectory, currentDirectory string) (result FileTransferResult) {
 	defer s.recoverTransfer(ctx, "FileService.PickAndUpload", &result)
 	if s.app == nil || s.app.Dialog == nil || s.settings == nil {
@@ -151,7 +151,7 @@ func (s *FileService) PickAndUpload(ctx context.Context, sshSessionID, remoteDir
 	return FileTransferResult{OperationID: operationID.String(), SelectionCount: len(selected)}
 }
 
-// PickAndDownload opens the native save dialog and starts an SSH stdout download Operation.
+// PickAndDownload 打开原生保存框并启动一次 SSH 标准输出下载任务。
 func (s *FileService) PickAndDownload(ctx context.Context, sshSessionID, remotePath, currentDirectory string) (result FileTransferResult) {
 	defer s.recoverTransfer(ctx, "FileService.PickAndDownload", &result)
 	if s.app == nil || s.app.Dialog == nil || s.settings == nil {
@@ -192,7 +192,7 @@ func (s *FileService) localInitialDirectory(configured string) (string, error) {
 	return directory, nil
 }
 
-// ExtractZIP starts safe extraction of one remote ZIP into a new remote directory.
+// ExtractZIP 启动一次安全解压,把远端 ZIP 解到新的远端目录。
 func (s *FileService) ExtractZIP(ctx context.Context, sshSessionID, archivePath, destinationPath, currentDirectory string) (result FileTransferResult) {
 	defer s.recoverTransfer(ctx, "FileService.ExtractZIP", &result)
 	operationID, err := s.manager.StartExtractZIP(ctx, model.ID(sshSessionID), archivePath, destinationPath, currentDirectory)

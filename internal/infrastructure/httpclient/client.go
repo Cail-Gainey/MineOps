@@ -232,6 +232,7 @@ type rateLimitedReadCloser struct {
 	readBytes      int64
 }
 
+// Read 按配置的限速读取响应数据。
 func (r *rateLimitedReadCloser) Read(payload []byte) (int, error) {
 	read, err := r.ReadCloser.Read(payload)
 	r.readBytes += int64(read)

@@ -12,7 +12,7 @@ import (
 	"github.com/Cail-Gainey/MineOps/internal/service"
 )
 
-// KnownHostDTO is the desktop-safe trusted-key representation without raw public-key bytes.
+// KnownHostDTO 是桌面侧安全的受信任密钥表示,不含公钥原始字节。
 type KnownHostDTO struct {
 	ID             string `json:"id"`
 	HostIdentifier string `json:"hostIdentifier"`
@@ -26,7 +26,7 @@ type KnownHostDTO struct {
 	Active         bool   `json:"active"`
 }
 
-// ObservedHostKeyInput contains public host-key material supplied by the SSH verification boundary.
+// ObservedHostKeyInput 承载 SSH 校验边界提供的主机公钥材料。
 type ObservedHostKeyInput struct {
 	HostIdentifier  string `json:"hostIdentifier"`
 	Host            string `json:"host"`
@@ -36,38 +36,38 @@ type ObservedHostKeyInput struct {
 	Fingerprint     string `json:"fingerprint"`
 }
 
-// HostKeyCheckResult contains a strict verification decision and safe existing record.
+// HostKeyCheckResult 承载严格校验结论与安全的既有记录。
 type HostKeyCheckResult struct {
 	Decision string        `json:"decision"`
 	Existing *KnownHostDTO `json:"existing,omitempty"`
 	Error    *apperror.DTO `json:"error,omitempty"`
 }
 
-// KnownHostResult contains one trusted host or a stable error.
+// KnownHostResult 承载一条受信任主机或稳定错误。
 type KnownHostResult struct {
 	KnownHost *KnownHostDTO `json:"knownHost,omitempty"`
 	Error     *apperror.DTO `json:"error,omitempty"`
 }
 
-// KnownHostListResult contains trusted host history or a stable error.
+// KnownHostListResult 承载受信任主机历史或稳定错误。
 type KnownHostListResult struct {
 	KnownHosts []KnownHostDTO `json:"knownHosts"`
 	Error      *apperror.DTO  `json:"error,omitempty"`
 }
 
-// KnownHostService exposes first-trust, fingerprint-change, history, and deletion workflows.
+// KnownHostService 对外暴露首次信任、指纹变更、历史与删除流程。
 type KnownHostService struct {
 	manager *service.KnownHostManager
 	store   repository.Store
 	logger  *applog.Logger
 }
 
-// NewKnownHostService creates the desktop Known Hosts facade.
+// NewKnownHostService 创建桌面侧的 Known Hosts 门面。
 func NewKnownHostService(manager *service.KnownHostManager, store repository.Store, logger *applog.Logger) *KnownHostService {
 	return &KnownHostService{manager: manager, store: store, logger: logger}
 }
 
-// Check returns first_trust, trusted, or changed; changed always requires a separate confirmation.
+// Check 返回 first_trust、trusted 或 changed;changed 一律需要单独确认。
 func (s *KnownHostService) Check(ctx context.Context, hostIdentifier, fingerprint string) (result HostKeyCheckResult) {
 	defer s.recoverCheck(ctx, "KnownHostService.Check", &result)
 	check, err := s.manager.Check(ctx, hostIdentifier, fingerprint)
@@ -83,7 +83,7 @@ func (s *KnownHostService) Check(ctx context.Context, hostIdentifier, fingerprin
 	return result
 }
 
-// TrustFirst persists a user-confirmed first-seen host key.
+// TrustFirst 持久化一条用户确认过的首见主机密钥。
 func (s *KnownHostService) TrustFirst(ctx context.Context, input ObservedHostKeyInput) (result KnownHostResult) {
 	defer s.recoverOne(ctx, "KnownHostService.TrustFirst", &result)
 	publicKey, err := base64.StdEncoding.DecodeString(input.PublicKeyBase64)
@@ -101,7 +101,7 @@ func (s *KnownHostService) TrustFirst(ctx context.Context, input ObservedHostKey
 	return KnownHostResult{KnownHost: &dto}
 }
 
-// Replace persists a separately confirmed fingerprint change and retains history.
+// Replace 持久化一次单独确认过的指纹变更并保留历史。
 func (s *KnownHostService) Replace(ctx context.Context, input ObservedHostKeyInput) (result KnownHostResult) {
 	defer s.recoverOne(ctx, "KnownHostService.Replace", &result)
 	publicKey, err := base64.StdEncoding.DecodeString(input.PublicKeyBase64)
@@ -119,7 +119,7 @@ func (s *KnownHostService) Replace(ctx context.Context, input ObservedHostKeyInp
 	return KnownHostResult{KnownHost: &dto}
 }
 
-// List returns active and historical host keys for Settings management.
+// List 返回生效与历史主机密钥,供设置页管理。
 func (s *KnownHostService) List(ctx context.Context, search string, limit, offset int) (result KnownHostListResult) {
 	defer s.recoverList(ctx, "KnownHostService.List", &result)
 	knownHosts, err := s.store.KnownHosts().List(ctx, search, limit, offset)
@@ -134,7 +134,7 @@ func (s *KnownHostService) List(ctx context.Context, search string, limit, offse
 	return result
 }
 
-// Delete removes one trusted key record from encrypted SQLite.
+// Delete 从加密 SQLite 中删除一条受信任密钥记录。
 func (s *KnownHostService) Delete(ctx context.Context, id string) (result ActionResult) {
 	defer func() {
 		var err error

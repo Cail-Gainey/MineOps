@@ -8,24 +8,24 @@ import (
 	"github.com/Cail-Gainey/MineOps/internal/service"
 )
 
-// LogStatusResult contains runtime log status or a stable desktop error.
+// LogStatusResult 承载运行期日志状态或稳定的桌面错误。
 type LogStatusResult struct {
 	Status *service.LogStatus `json:"status,omitempty"`
 	Error  *apperror.DTO      `json:"error,omitempty"`
 }
 
-// LoggingService exposes actual runtime log paths and safe cleanup actions.
+// LoggingService 对外暴露真实的运行期日志路径与安全清理操作。
 type LoggingService struct {
 	manager *service.LogManager
 	logger  *applog.Logger
 }
 
-// NewLoggingService creates the desktop logging facade.
+// NewLoggingService 创建桌面侧的日志门面。
 func NewLoggingService(manager *service.LogManager, logger *applog.Logger) *LoggingService {
 	return &LoggingService{manager: manager, logger: logger}
 }
 
-// GetStatus returns the active log location and bounded usage.
+// GetStatus 返回当前日志位置与有界的占用量。
 func (s *LoggingService) GetStatus(ctx context.Context) (result LogStatusResult) {
 	defer s.recover(ctx, "LoggingService.GetStatus", &result)
 	status, err := s.manager.Status()
@@ -36,7 +36,7 @@ func (s *LoggingService) GetStatus(ctx context.Context) (result LogStatusResult)
 	return LogStatusResult{Status: &status}
 }
 
-// ClearArchived removes rotated logs while preserving the active process file.
+// ClearArchived 删除已轮转的日志,保留当前进程正在写的文件。
 func (s *LoggingService) ClearArchived(ctx context.Context) (result LogStatusResult) {
 	defer s.recover(ctx, "LoggingService.ClearArchived", &result)
 	if err := s.manager.ClearArchived(); err != nil {
@@ -51,7 +51,7 @@ func (s *LoggingService) ClearArchived(ctx context.Context) (result LogStatusRes
 	return LogStatusResult{Status: &status}
 }
 
-// OpenDirectory opens the actual runtime log directory.
+// OpenDirectory 打开真实的运行期日志目录。
 func (s *LoggingService) OpenDirectory(ctx context.Context) (result ActionResult) {
 	defer func() {
 		var err error

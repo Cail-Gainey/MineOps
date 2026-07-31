@@ -2,7 +2,7 @@ package model
 
 import "time"
 
-// TerminalSessionState identifies the lifecycle of one remote SSH PTY.
+// TerminalSessionState 标识一个远端 SSH PTY 的生命周期。
 type TerminalSessionState string
 
 const (
@@ -12,7 +12,7 @@ const (
 	TerminalFailed  TerminalSessionState = "failed"
 )
 
-// TerminalSession contains one SSH PTY identity, dimensions, state, and timestamps.
+// TerminalSession 承载一个 SSH PTY 的身份、尺寸、状态与时间戳。
 type TerminalSession struct {
 	ID           ID                   `json:"id"`
 	SSHSessionID ID                   `json:"sshSessionID"`

@@ -15,29 +15,29 @@ func init() {
 	application.RegisterEvent[QuitBlockedEvent](constants.QuitBlockedEventName)
 }
 
-// QuitBlockedEvent contains the editors and forms preventing application exit.
+// QuitBlockedEvent 承载阻止应用退出的编辑器与表单。
 type QuitBlockedEvent struct {
 	Items []service.UnsavedItem `json:"items"`
 }
 
-// ExitGuardStateResult contains the current unsaved-content registry.
+// ExitGuardStateResult 承载当前的未保存内容登记表。
 type ExitGuardStateResult struct {
 	Items []service.UnsavedItem `json:"items"`
 	Error *apperror.DTO         `json:"error,omitempty"`
 }
 
-// ExitGuardService exposes dirty-state registration and confirmed quit continuation.
+// ExitGuardService 对外暴露未保存状态登记与确认后的退出续行。
 type ExitGuardService struct {
 	guard  *service.ExitGuard
 	logger *applog.Logger
 }
 
-// NewExitGuardService creates the Wails exit protection facade.
+// NewExitGuardService 创建 Wails 退出保护门面。
 func NewExitGuardService(guard *service.ExitGuard, logger *applog.Logger) *ExitGuardService {
 	return &ExitGuardService{guard: guard, logger: logger}
 }
 
-// SetDirty registers or clears one editor or form dirty state.
+// SetDirty 登记或清除一个编辑器或表单的未保存状态。
 func (s *ExitGuardService) SetDirty(ctx context.Context, owner, label string, dirty bool) (result ActionResult) {
 	defer func() {
 		var err error
@@ -54,7 +54,7 @@ func (s *ExitGuardService) SetDirty(ctx context.Context, owner, label string, di
 	return ActionResult{}
 }
 
-// State returns the current unsaved-content registry.
+// State 返回当前的未保存内容登记表。
 func (s *ExitGuardService) State(ctx context.Context) (result ExitGuardStateResult) {
 	defer func() {
 		var err error
@@ -67,7 +67,7 @@ func (s *ExitGuardService) State(ctx context.Context) (result ExitGuardStateResu
 	return ExitGuardStateResult{Items: s.guard.Items()}
 }
 
-// ConfirmQuit authorizes one native quit request and resumes shutdown after the binding response is delivered.
+// ConfirmQuit 放行一次原生退出请求,并在绑定响应送达后继续关闭流程。
 func (s *ExitGuardService) ConfirmQuit(ctx context.Context) (result ActionResult) {
 	s.guard.ConfirmQuit()
 	app := application.Get()

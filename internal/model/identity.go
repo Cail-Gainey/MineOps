@@ -8,15 +8,15 @@ import (
 	"time"
 )
 
-// ID is a time-ordered UUIDv7-compatible MineOps identifier.
+// ID 是按时间有序、兼容 UUIDv7 的 MineOps 标识符。
 type ID string
 
-// String returns the serialized UUIDv7 identifier.
+// String 返回序列化后的 UUIDv7 标识符。
 func (id ID) String() string {
 	return string(id)
 }
 
-// NewID creates a UUIDv7-compatible identifier using the supplied UTC timestamp.
+// NewID 按给定的 UTC 时间戳创建兼容 UUIDv7 的标识符。
 func NewID(now time.Time) (ID, error) {
 	var value [16]byte
 	if _, err := rand.Read(value[:]); err != nil {
@@ -44,7 +44,7 @@ func NewID(now time.Time) (ID, error) {
 	return ID(encoded), nil
 }
 
-// Valid reports whether the ID has the UUIDv7 shape and version bits.
+// Valid 返回该 ID 是否符合 UUIDv7 的格式与版本位。
 func (id ID) Valid() bool {
 	value := string(id)
 	if len(value) != 36 || value[8] != '-' || value[13] != '-' || value[18] != '-' || value[23] != '-' || value[14] != '7' {
@@ -58,7 +58,7 @@ func (id ID) Valid() bool {
 	return decoded[8]&0xc0 == 0x80
 }
 
-// Time extracts the millisecond UTC timestamp encoded in the UUIDv7 identifier.
+// Time 取出 UUIDv7 标识符中编码的毫秒级 UTC 时间戳。
 func (id ID) Time() (time.Time, error) {
 	if !id.Valid() {
 		return time.Time{}, errors.New("invalid MineOps ID")

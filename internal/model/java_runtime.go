@@ -11,7 +11,7 @@ import (
 	"github.com/Cail-Gainey/MineOps/internal/global/apperror"
 )
 
-// JavaRuntimeSource identifies how a remote Java installation was discovered or managed.
+// JavaRuntimeSource 标识一个远端 Java 安装是如何被发现或纳管的。
 type JavaRuntimeSource string
 
 const (
@@ -22,7 +22,7 @@ const (
 	JavaSourceManual   JavaRuntimeSource = "manual"
 )
 
-// JavaRuntime is one reusable remote Java installation bound to an SSH Session.
+// JavaRuntime 是绑定到某个 SSH Session、可复用的远端 Java 安装。
 type JavaRuntime struct {
 	ID           ID                `json:"id"`
 	SSHSessionID ID                `json:"sshSessionID"`
@@ -40,7 +40,7 @@ type JavaRuntime struct {
 	UpdatedAt    time.Time         `json:"updatedAt"`
 }
 
-// JavaVersionInfo contains parsed `java -XshowSettings:properties -version` properties.
+// JavaVersionInfo 承载从 `java -XshowSettings:properties -version` 解析出的属性。
 type JavaVersionInfo struct {
 	Version      string `json:"version"`
 	MajorVersion int    `json:"majorVersion"`
@@ -49,7 +49,7 @@ type JavaVersionInfo struct {
 	JavaHome     string `json:"javaHome"`
 }
 
-// JavaRequirement contains the supported range and preferred Java major for one server version.
+// JavaRequirement 承载某个服务端版本支持的 Java 主版本范围与首选值。
 type JavaRequirement struct {
 	MinimumMajor   int `json:"minimumMajor"`
 	MaximumMajor   int `json:"maximumMajor"`
@@ -59,7 +59,7 @@ type JavaRequirement struct {
 var quotedJavaVersion = regexp.MustCompile(`(?i)(?:java|openjdk)(?: full)? version "([^"]+)"`)
 var plainJavaVersion = regexp.MustCompile(`(?i)^(?:java|openjdk)\s+(?:version\s+)?["']?([0-9][^\s"']*)`)
 
-// NewJavaRuntime creates a validated remote Java record with an ordered ID.
+// NewJavaRuntime 创建一条带有序 ID 且已校验的远端 Java 记录。
 func NewJavaRuntime(clock Clock, runtime JavaRuntime) (*JavaRuntime, error) {
 	if clock == nil {
 		return nil, apperror.New(apperror.CodeValidationRequired, "Clock 不能为空")
@@ -78,7 +78,7 @@ func NewJavaRuntime(clock Clock, runtime JavaRuntime) (*JavaRuntime, error) {
 	return &runtime, nil
 }
 
-// Validate checks Java identity, remote paths, and source values without network access.
+// Validate 校验 Java 身份、远端路径与来源取值,不做网络访问。
 func (r JavaRuntime) Validate() error {
 	if !r.SSHSessionID.Valid() || strings.TrimSpace(r.Version) == "" || r.MajorVersion < 1 {
 		return apperror.New(apperror.CodeValidationRequired, "Java Runtime SSH、版本和主版本不能为空")
@@ -92,7 +92,7 @@ func (r JavaRuntime) Validate() error {
 	return nil
 }
 
-// ParseJavaVersionOutput parses Java 8, modern OpenJDK, vendor, architecture, and Java Home output.
+// ParseJavaVersionOutput 解析 Java 8、现代 OpenJDK 的版本、厂商、架构与 Java Home 输出。
 func ParseJavaVersionOutput(output string) (JavaVersionInfo, error) {
 	info := JavaVersionInfo{}
 	scanner := bufio.NewScanner(strings.NewReader(output))
@@ -144,7 +144,7 @@ func ParseJavaVersionOutput(output string) (JavaVersionInfo, error) {
 	return info, nil
 }
 
-// JavaRequirementForMinecraft returns the centralized versioned Java compatibility policy.
+// JavaRequirementForMinecraft 返回集中维护的、带版本的 Java 兼容性策略。
 func JavaRequirementForMinecraft(serverType, minecraftVersion string) (JavaRequirement, error) {
 	major, minor, patchVersion, err := parseMinecraftVersion(minecraftVersion)
 	if err != nil {
@@ -169,7 +169,7 @@ func JavaRequirementForMinecraft(serverType, minecraftVersion string) (JavaRequi
 	}
 }
 
-// Compatible reports whether a Java major falls inside the requirement range.
+// Compatible 返回某个 Java 主版本是否落在要求范围内。
 func (r JavaRequirement) Compatible(javaMajor int) bool {
 	return javaMajor >= r.MinimumMajor && javaMajor <= r.MaximumMajor
 }

@@ -49,6 +49,7 @@ type AlertEventRecord struct {
 
 type alertRepository struct{ database *gorm.DB }
 
+// CreateRule 新增一条阈值告警规则。
 func (r *alertRepository) CreateRule(ctx context.Context, rule *model.AlertRule) error {
 	if rule == nil {
 		return apperror.New(apperror.CodeValidationRequired, "Alert Rule 不能为空")
@@ -63,6 +64,7 @@ func (r *alertRepository) CreateRule(ctx context.Context, rule *model.AlertRule)
 	return nil
 }
 
+// UpdateRule 更新一条阈值告警规则。
 func (r *alertRepository) UpdateRule(ctx context.Context, rule *model.AlertRule) error {
 	if rule == nil {
 		return apperror.New(apperror.CodeValidationRequired, "Alert Rule 不能为空")
@@ -81,6 +83,7 @@ func (r *alertRepository) UpdateRule(ctx context.Context, rule *model.AlertRule)
 	return nil
 }
 
+// DeleteRule 删除一条阈值告警规则。
 func (r *alertRepository) DeleteRule(ctx context.Context, id model.ID) error {
 	result := r.database.WithContext(ctx).Delete(&AlertRuleRecord{}, "id = ?", id.String())
 	if result.Error != nil {
@@ -92,6 +95,7 @@ func (r *alertRepository) DeleteRule(ctx context.Context, id model.ID) error {
 	return nil
 }
 
+// GetRule 按 ID 返回一条阈值告警规则。
 func (r *alertRepository) GetRule(ctx context.Context, id model.ID) (*model.AlertRule, error) {
 	var record AlertRuleRecord
 	if err := r.database.WithContext(ctx).First(&record, "id = ?", id.String()).Error; err != nil {
@@ -101,6 +105,7 @@ func (r *alertRepository) GetRule(ctx context.Context, id model.ID) (*model.Aler
 	return &rule, nil
 }
 
+// ListRules 按查询条件分页列出阈值告警规则。
 func (r *alertRepository) ListRules(ctx context.Context, query repository.AlertRuleQuery) ([]model.AlertRule, error) {
 	database := r.database.WithContext(ctx).Order("created_at desc")
 	if query.ServerID.Valid() {
@@ -123,6 +128,7 @@ func (r *alertRepository) ListRules(ctx context.Context, query repository.AlertR
 	return result, nil
 }
 
+// CreateEvent 新增一条告警事件。
 func (r *alertRepository) CreateEvent(ctx context.Context, event *model.AlertEvent) error {
 	if event == nil {
 		return apperror.New(apperror.CodeValidationRequired, "Alert Event 不能为空")
@@ -137,6 +143,7 @@ func (r *alertRepository) CreateEvent(ctx context.Context, event *model.AlertEve
 	return nil
 }
 
+// UpdateEvent 更新一条告警事件。
 func (r *alertRepository) UpdateEvent(ctx context.Context, event *model.AlertEvent) error {
 	if event == nil {
 		return apperror.New(apperror.CodeValidationRequired, "Alert Event 不能为空")
@@ -155,6 +162,7 @@ func (r *alertRepository) UpdateEvent(ctx context.Context, event *model.AlertEve
 	return nil
 }
 
+// DeleteEvent 删除一条告警事件。
 func (r *alertRepository) DeleteEvent(ctx context.Context, id model.ID) error {
 	result := r.database.WithContext(ctx).Delete(&AlertEventRecord{}, "id = ?", id.String())
 	if result.Error != nil {
@@ -166,6 +174,7 @@ func (r *alertRepository) DeleteEvent(ctx context.Context, id model.ID) error {
 	return nil
 }
 
+// GetEvent 按 ID 返回一条告警事件。
 func (r *alertRepository) GetEvent(ctx context.Context, id model.ID) (*model.AlertEvent, error) {
 	var record AlertEventRecord
 	if err := r.database.WithContext(ctx).First(&record, "id = ?", id.String()).Error; err != nil {
@@ -175,6 +184,7 @@ func (r *alertRepository) GetEvent(ctx context.Context, id model.ID) (*model.Ale
 	return &event, nil
 }
 
+// FindActiveEvent 查找某条规则当前处于活跃状态的告警事件。
 func (r *alertRepository) FindActiveEvent(ctx context.Context, ruleID model.ID) (*model.AlertEvent, error) {
 	var record AlertEventRecord
 	if err := r.database.WithContext(ctx).Where("rule_id = ? AND state = ?", ruleID.String(), enums.AlertEventActive.String()).Order("triggered_at desc").First(&record).Error; err != nil {
@@ -184,6 +194,7 @@ func (r *alertRepository) FindActiveEvent(ctx context.Context, ruleID model.ID) 
 	return &event, nil
 }
 
+// ListEvents 按查询条件分页列出告警事件。
 func (r *alertRepository) ListEvents(ctx context.Context, query repository.AlertEventQuery) ([]model.AlertEvent, error) {
 	database := r.database.WithContext(ctx).Order("created_at desc")
 	if query.ServerID.Valid() {

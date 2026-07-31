@@ -11,7 +11,7 @@ import (
 	"github.com/Cail-Gainey/MineOps/internal/global/apperror"
 )
 
-// RemoteFileKind identifies the POSIX entry type shown by the SFTP browser.
+// RemoteFileKind 标识 SFTP 浏览器展示的 POSIX 条目类型。
 type RemoteFileKind string
 
 const (
@@ -21,7 +21,7 @@ const (
 	RemoteFileOther     RemoteFileKind = "other"
 )
 
-// RemoteFile is the infrastructure-neutral DTO for one remote POSIX entry.
+// RemoteFile 是一个远端 POSIX 条目的、与基础设施无关的 DTO。
 type RemoteFile struct {
 	Path       string         `json:"path"`
 	Name       string         `json:"name"`
@@ -32,7 +32,7 @@ type RemoteFile struct {
 	LinkTarget string         `json:"linkTarget,omitempty"`
 }
 
-// RemoteTextDocument contains bounded UTF-8 content and a conflict-detection version token.
+// RemoteTextDocument 承载有界的 UTF-8 内容与用于冲突检测的版本标识。
 type RemoteTextDocument struct {
 	Path         string    `json:"path"`
 	Content      string    `json:"content"`
@@ -42,7 +42,7 @@ type RemoteTextDocument struct {
 	VersionToken string    `json:"versionToken"`
 }
 
-// NormalizeRemotePath resolves Home aliases and relative paths into a clean POSIX absolute path.
+// NormalizeRemotePath 把 Home 别名与相对路径解析成规范的 POSIX 绝对路径。
 func NormalizeRemotePath(value, currentDirectory, homeDirectory string) (string, error) {
 	if strings.ContainsRune(value, '\x00') || strings.ContainsRune(currentDirectory, '\x00') || strings.ContainsRune(homeDirectory, '\x00') {
 		return "", apperror.New(apperror.CodeSFTPPathRejected, "远程路径包含 NUL 字符")
@@ -67,7 +67,7 @@ func NormalizeRemotePath(value, currentDirectory, homeDirectory string) (string,
 	return normalized, nil
 }
 
-// ValidateRemoteDelete rejects root, Home, and Home ancestors before destructive operations.
+// ValidateRemoteDelete 在破坏性操作前拒绝根目录、Home 及其祖先路径。
 func ValidateRemoteDelete(target, homeDirectory string, recursive bool) error {
 	target = path.Clean(target)
 	homeDirectory = path.Clean(homeDirectory)
@@ -80,7 +80,7 @@ func ValidateRemoteDelete(target, homeDirectory string, recursive bool) error {
 	return nil
 }
 
-// NewRemoteTextDocument validates bounded UTF-8 content and creates a stable conflict token.
+// NewRemoteTextDocument 校验有界 UTF-8 内容并生成稳定的冲突标识。
 func NewRemoteTextDocument(remotePath string, content []byte, modifiedAt time.Time, maximumBytes int64) (*RemoteTextDocument, error) {
 	if maximumBytes <= 0 || int64(len(content)) > maximumBytes {
 		return nil, apperror.New(apperror.CodeSFTPTransferFailed, "远程文本超过允许的读取大小").WithDetails(map[string]any{
@@ -101,7 +101,7 @@ func NewRemoteTextDocument(remotePath string, content []byte, modifiedAt time.Ti
 	}, nil
 }
 
-// RemoteTextVersionToken hashes content metadata for conservative save conflict detection.
+// RemoteTextVersionToken 对内容元信息取哈希,用于保守的保存冲突检测。
 func RemoteTextVersionToken(content []byte, modifiedAt time.Time) string {
 	hash := sha256.New()
 	_, _ = hash.Write(content)
@@ -109,7 +109,7 @@ func RemoteTextVersionToken(content []byte, modifiedAt time.Time) string {
 	return hex.EncodeToString(hash.Sum(nil))
 }
 
-// NormalizeArchiveEntry rejects absolute paths, parent traversal, and entries escaping a destination root.
+// NormalizeArchiveEntry 拒绝绝对路径、上级穿越以及逃逸出目标根目录的条目。
 func NormalizeArchiveEntry(destinationRoot, entryName string) (string, error) {
 	if strings.ContainsRune(entryName, '\x00') || strings.HasPrefix(entryName, "/") || strings.HasPrefix(entryName, "\\") {
 		return "", apperror.New(apperror.CodeSFTPPathRejected, "压缩包条目路径无效")
@@ -126,7 +126,7 @@ func NormalizeArchiveEntry(destinationRoot, entryName string) (string, error) {
 	return target, nil
 }
 
-// ValidateArchiveLimits enforces file-count, per-file, and total uncompressed size bounds.
+// ValidateArchiveLimits 强制约束文件数量、单文件与解压后总体积的上限。
 func ValidateArchiveLimits(fileCount int, singleBytes, totalBytes int64, maximumFiles int, maximumSingleBytes, maximumTotalBytes int64) error {
 	if fileCount < 0 || fileCount > maximumFiles || singleBytes < 0 || singleBytes > maximumSingleBytes || totalBytes < 0 || totalBytes > maximumTotalBytes {
 		return apperror.New(apperror.CodeSFTPTransferFailed, "压缩包超过安全解压限制").WithDetails(map[string]any{

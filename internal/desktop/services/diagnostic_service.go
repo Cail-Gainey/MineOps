@@ -8,24 +8,24 @@ import (
 	"github.com/Cail-Gainey/MineOps/internal/service"
 )
 
-// DiagnosticExportResult contains one completed diagnostic package or a stable desktop error.
+// DiagnosticExportResult 承载一份已完成的诊断包或稳定的桌面错误。
 type DiagnosticExportResult struct {
 	Package *service.DiagnosticPackage `json:"package,omitempty"`
 	Error   *apperror.DTO              `json:"error,omitempty"`
 }
 
-// DiagnosticService exposes privacy-bounded diagnostic archive export to Wails.
+// DiagnosticService 向 Wails 暴露隐私受限的诊断归档导出。
 type DiagnosticService struct {
 	manager *service.DiagnosticManager
 	logger  *applog.Logger
 }
 
-// NewDiagnosticService creates the desktop diagnostic export facade.
+// NewDiagnosticService 创建桌面侧的诊断导出门面。
 func NewDiagnosticService(manager *service.DiagnosticManager, logger *applog.Logger) *DiagnosticService {
 	return &DiagnosticService{manager: manager, logger: logger}
 }
 
-// Export writes one redacted diagnostic archive to the path selected by the user.
+// Export 把一份脱敏诊断归档写入用户选择的路径。
 func (s *DiagnosticService) Export(ctx context.Context, destination string) (result DiagnosticExportResult) {
 	defer func() {
 		var err error

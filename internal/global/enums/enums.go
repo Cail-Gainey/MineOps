@@ -1,79 +1,79 @@
-// Package enums contains validated strong string enums shared across MineOps layers.
+// Package enums 存放 MineOps 各层共用、带校验的强类型字符串枚举。
 package enums
 
-// OperationState identifies the durable lifecycle of a long-running operation.
+// OperationState 标识一个长任务的持久化生命周期。
 type OperationState string
 
-// OperationType identifies the user intent executed by a durable operation.
+// OperationType 标识一个持久化任务所执行的用户意图。
 type OperationType string
 
-// OperationTargetType identifies the resource class locked by an operation.
+// OperationTargetType 标识任务所锁定的资源类别。
 type OperationTargetType string
 
-// SSHAuthType identifies the credential mechanism used by an SSH session.
+// SSHAuthType 标识 SSH Session 使用的凭据机制。
 type SSHAuthType string
 
-// SSHHostKeyPolicy identifies the host-key verification policy for an SSH session.
+// SSHHostKeyPolicy 标识 SSH Session 的主机密钥校验策略。
 type SSHHostKeyPolicy string
 
-// MinecraftServerType identifies one supported server distribution or proxy family.
+// MinecraftServerType 标识一个受支持的服务端发行版或代理端家族。
 type MinecraftServerType string
 
-// FirewallPolicy identifies how MineOps handles the configured Minecraft TCP port.
+// FirewallPolicy 标识 MineOps 如何处理已配置的 Minecraft TCP 端口。
 type FirewallPolicy string
 
-// InstallationState identifies the durable lifecycle of one installation task.
+// InstallationState 标识一个安装任务的持久化生命周期。
 type InstallationState string
 
-// InstallationStepState identifies one checkpointed installation step lifecycle.
+// InstallationStepState 标识一个带检查点的安装步骤的生命周期。
 type InstallationStepState string
 
-// ProxyMode identifies how outbound catalog and artifact HTTP traffic is routed.
+// ProxyMode 标识出站目录与构件 HTTP 流量的路由方式。
 type ProxyMode string
 
-// RemoteProcessState identifies probe evidence independently from persisted Server lifecycle state.
+// RemoteProcessState 标识探测得到的进程证据,与持久化的 Server 生命周期状态相互独立。
 type RemoteProcessState string
 
-// FirewallBackend identifies the detected remote Linux firewall implementation.
+// FirewallBackend 标识探测到的远端 Linux 防火墙实现。
 type FirewallBackend string
 
-// MetricUnit identifies the physical or semantic unit of a metric.
+// MetricUnit 标识一个指标的物理单位或语义单位。
 type MetricUnit string
 
-// MetricValueType identifies how a metric value should be rendered and validated.
+// MetricValueType 标识一个指标值应如何渲染与校验。
 type MetricValueType string
 
-// MetricAggregation identifies the preferred rollup calculation.
+// MetricAggregation 标识降采样时首选的聚合算法。
 type MetricAggregation string
 
-// MetricGranularity identifies raw, minute, or hour storage/query resolution.
+// MetricGranularity 标识原始、分钟或小时级的存储与查询粒度。
 type MetricGranularity string
 
-// SparkReportKind identifies one controlled Minecraft spark report workflow.
+// SparkReportKind 标识一种受控的 Minecraft spark 报告流程。
 type SparkReportKind string
 
-// SparkReportState identifies the durable lifecycle of one Minecraft spark report.
+// SparkReportState 标识一份 Minecraft spark 报告的持久化生命周期。
 type SparkReportState string
 
-// AlertComparison identifies the bounded numeric comparison used by an alert rule.
+// AlertComparison 标识告警规则使用的有界数值比较方式。
 type AlertComparison string
 
-// AlertEventState identifies whether a threshold incident is active or recovered.
+// AlertEventState 标识一次阈值告警处于活跃还是已恢复。
 type AlertEventState string
 
-// PlayerActivityEventType identifies a collected player presence event.
+// PlayerActivityEventType 标识一条采集到的玩家在线状态事件。
 type PlayerActivityEventType string
 
-// PlayerSessionState identifies whether a player connection is still open or settled.
+// PlayerSessionState 标识玩家连接仍在进行还是已结算。
 type PlayerSessionState string
 
-// PlayerSessionCloseReason identifies why a player session was settled.
+// PlayerSessionCloseReason 标识玩家会话结算的原因。
 type PlayerSessionCloseReason string
 
-// PlayerIdentityKind identifies the evidence backing a Server-scoped player identity.
+// PlayerIdentityKind 标识支撑某台 Server 内玩家身份的证据来源。
 type PlayerIdentityKind string
 
-// PlayerActivityAccuracy identifies the confidence of persisted player activity data.
+// PlayerActivityAccuracy 标识已持久化玩家活动数据的可信程度。
 type PlayerActivityAccuracy string
 
 const (
@@ -218,7 +218,7 @@ const (
 	PlayerAccuracyIncomplete     PlayerActivityAccuracy = "incomplete"
 )
 
-// LifecycleState identifies the verified Minecraft server lifecycle.
+// LifecycleState 标识经过校验的 Minecraft 服务端生命周期。
 type LifecycleState string
 
 const (
@@ -235,7 +235,7 @@ const (
 	LifecycleFailed     LifecycleState = "failed"
 )
 
-// MetricType identifies the namespace of a persisted metric sample.
+// MetricType 标识一条持久化指标样本的命名空间。
 type MetricType string
 
 const (
@@ -262,10 +262,10 @@ const (
 	MetricMinecraftPlayers    MetricType = "minecraft.players"
 )
 
-// SparkStatus identifies Minecraft spark availability independently from Agent state.
+// SparkStatus 标识 Minecraft spark 的可用性,与 Agent 状态相互独立。
 type SparkStatus string
 
-// SettingsCategory identifies one independently resettable settings section.
+// SettingsCategory 标识一个可独立重置的设置分区。
 type SettingsCategory string
 
 const (
@@ -290,155 +290,155 @@ const (
 	SettingsStorage    SettingsCategory = "storage"
 )
 
-// String returns the serialized operation state.
+// String 返回序列化后的Operation 状态。
 func (v OperationState) String() string { return string(v) }
 
-// Valid reports whether the operation state is registered.
+// Valid 返回该Operation 状态是否为已注册值。
 func (v OperationState) Valid() bool {
 	return contains(v, OperationPending, OperationRunning, OperationSucceeded, OperationFailed, OperationCancelled)
 }
 
-// String returns the serialized operation type.
+// String 返回序列化后的Operation 类型。
 func (v OperationType) String() string { return string(v) }
 
-// Valid reports whether the operation type is registered.
+// Valid 返回该Operation 类型是否为已注册值。
 func (v OperationType) Valid() bool {
 	return contains(v, OperationInstall, OperationDownload, OperationUpload, OperationExtract, OperationStart, OperationStop, OperationRestart, OperationBackup, OperationRestore, OperationUpdate, OperationDelete, OperationProfile)
 }
 
-// String returns the serialized operation target type.
+// String 返回序列化后的Operation 目标类型。
 func (v OperationTargetType) String() string { return string(v) }
 
-// Valid reports whether the operation target type is registered.
+// Valid 返回该Operation 目标类型是否为已注册值。
 func (v OperationTargetType) Valid() bool {
 	return contains(v, OperationTargetServer, OperationTargetSSHSession, OperationTargetFile, OperationTargetJava, OperationTargetAgent, OperationTargetSettings, OperationTargetSpark)
 }
 
-// String returns the serialized SSH authentication type.
+// String 返回序列化后的SSH 认证方式。
 func (v SSHAuthType) String() string { return string(v) }
 
-// Valid reports whether the SSH authentication type is registered.
+// Valid 返回该SSH 认证方式是否为已注册值。
 func (v SSHAuthType) Valid() bool {
 	return contains(v, SSHAuthPassword, SSHAuthPrivateKey, SSHAuthAgent)
 }
 
-// String returns the serialized SSH host-key policy.
+// String 返回序列化后的SSH 主机密钥策略。
 func (v SSHHostKeyPolicy) String() string { return string(v) }
 
-// Valid reports whether the SSH host-key policy is registered.
+// Valid 返回该SSH 主机密钥策略是否为已注册值。
 func (v SSHHostKeyPolicy) Valid() bool {
 	return contains(v, SSHHostKeyStrict, SSHHostKeyTrustOnFirst)
 }
 
-// String returns the serialized Minecraft server type.
+// String 返回序列化后的Minecraft 服务端类型。
 func (v MinecraftServerType) String() string { return string(v) }
 
-// Valid reports whether the Minecraft server type is registered.
+// Valid 返回该Minecraft 服务端类型是否为已注册值。
 func (v MinecraftServerType) Valid() bool {
 	return contains(v, ServerVanilla, ServerPaper, ServerPurpur, ServerSpigot, ServerFabric, ServerForge, ServerNeoForge, ServerQuilt, ServerFolia, ServerVelocity, ServerWaterfall, ServerBungee)
 }
 
-// String returns the serialized firewall policy.
+// String 返回序列化后的防火墙策略。
 func (v FirewallPolicy) String() string { return string(v) }
 
-// Valid reports whether the firewall policy is registered.
+// Valid 返回该防火墙策略是否为已注册值。
 func (v FirewallPolicy) Valid() bool {
 	return contains(v, FirewallDisabled, FirewallPrompt, FirewallAutomatic)
 }
 
-// String returns the serialized installation state.
+// String 返回序列化后的安装任务状态。
 func (v InstallationState) String() string { return string(v) }
 
-// Valid reports whether the installation state is registered.
+// Valid 返回该安装任务状态是否为已注册值。
 func (v InstallationState) Valid() bool {
 	return contains(v, InstallationWaiting, InstallationRunning, InstallationSucceeded, InstallationFailed, InstallationCancelled)
 }
 
-// String returns the serialized installation step state.
+// String 返回序列化后的安装步骤状态。
 func (v InstallationStepState) String() string { return string(v) }
 
-// Valid reports whether the installation step state is registered.
+// Valid 返回该安装步骤状态是否为已注册值。
 func (v InstallationStepState) Valid() bool {
 	return contains(v, InstallationStepWaiting, InstallationStepRunning, InstallationStepSuccess, InstallationStepFailed, InstallationStepSkipped, InstallationStepCancelled)
 }
 
-// String returns the serialized proxy mode.
+// String 返回序列化后的代理模式。
 func (v ProxyMode) String() string { return string(v) }
 
-// Valid reports whether the proxy mode is registered.
+// Valid 返回该代理模式是否为已注册值。
 func (v ProxyMode) Valid() bool {
 	return contains(v, ProxyNone, ProxySystem, ProxyHTTP, ProxyHTTPS, ProxySOCKS5)
 }
 
-// String returns the serialized remote process state.
+// String 返回序列化后的远端进程状态。
 func (v RemoteProcessState) String() string { return string(v) }
 
-// Valid reports whether the remote process state is registered.
+// Valid 返回该远端进程状态是否为已注册值。
 func (v RemoteProcessState) Valid() bool {
 	return contains(v, RemoteProcessUnknown, RemoteProcessRunning, RemoteProcessExited, RemoteProcessMismatched)
 }
 
-// String returns the serialized firewall backend.
+// String 返回序列化后的防火墙后端。
 func (v FirewallBackend) String() string { return string(v) }
 
-// Valid reports whether the firewall backend is registered.
+// Valid 返回该防火墙后端是否为已注册值。
 func (v FirewallBackend) Valid() bool {
 	return contains(v, FirewallBackendNone, FirewallBackendUFW, FirewallBackendFirewalld)
 }
 
-// String returns the serialized metric unit.
+// String 返回序列化后的指标单位。
 func (v MetricUnit) String() string { return string(v) }
 
-// Valid reports whether the metric unit is registered.
+// Valid 返回该指标单位是否为已注册值。
 func (v MetricUnit) Valid() bool {
 	return contains(v, MetricUnitPercent, MetricUnitBytes, MetricUnitBytesPerSec, MetricUnitCount, MetricUnitMilliseconds, MetricUnitTicksPerSec, MetricUnitRatio, MetricUnitSeconds)
 }
 
-// String returns the serialized metric value type.
+// String 返回序列化后的指标值类型。
 func (v MetricValueType) String() string { return string(v) }
 
-// Valid reports whether the metric value type is registered.
+// Valid 返回该指标值类型是否为已注册值。
 func (v MetricValueType) Valid() bool { return contains(v, MetricValueGauge, MetricValueCounter) }
 
-// String returns the serialized metric aggregation.
+// String 返回序列化后的指标聚合方式。
 func (v MetricAggregation) String() string { return string(v) }
 
-// Valid reports whether the metric aggregation is registered.
+// Valid 返回该指标聚合方式是否为已注册值。
 func (v MetricAggregation) Valid() bool {
 	return contains(v, MetricAggregationAverage, MetricAggregationSum, MetricAggregationLatest, MetricAggregationMaximum)
 }
 
-// String returns the serialized metric granularity.
+// String 返回序列化后的指标粒度。
 func (v MetricGranularity) String() string { return string(v) }
 
-// Valid reports whether the metric granularity is registered.
+// Valid 返回该指标粒度是否为已注册值。
 func (v MetricGranularity) Valid() bool {
 	return contains(v, MetricGranularityRaw, MetricGranularityMinute, MetricGranularityHour)
 }
 
-// String returns the serialized Minecraft spark report kind.
+// String 返回序列化后的Minecraft spark 报告类型。
 func (v SparkReportKind) String() string { return string(v) }
 
-// Valid reports whether the Minecraft spark report kind is registered.
+// Valid 返回该Minecraft spark 报告类型是否为已注册值。
 func (v SparkReportKind) Valid() bool { return contains(v, SparkReportHealth, SparkReportProfiler) }
 
-// String returns the serialized Minecraft spark report state.
+// String 返回序列化后的Minecraft spark 报告状态。
 func (v SparkReportState) String() string { return string(v) }
 
-// Valid reports whether the Minecraft spark report state is registered.
+// Valid 返回该Minecraft spark 报告状态是否为已注册值。
 func (v SparkReportState) Valid() bool {
 	return contains(v, SparkReportPending, SparkReportRunning, SparkReportCompleted, SparkReportFailed, SparkReportCancelled)
 }
 
-// String returns the serialized alert comparison.
+// String 返回序列化后的告警比较方式。
 func (v AlertComparison) String() string { return string(v) }
 
-// Valid reports whether the alert comparison is registered.
+// Valid 返回该告警比较方式是否为已注册值。
 func (v AlertComparison) Valid() bool {
 	return contains(v, AlertGreaterThan, AlertGreaterThanOrEqual, AlertLessThan, AlertLessThanOrEqual)
 }
 
-// Match evaluates the registered numeric comparison.
+// Match 执行已注册的数值比较。
 func (v AlertComparison) Match(value, threshold float64) bool {
 	switch v {
 	case AlertGreaterThan:
@@ -454,69 +454,69 @@ func (v AlertComparison) Match(value, threshold float64) bool {
 	}
 }
 
-// String returns the serialized alert event state.
+// String 返回序列化后的告警事件状态。
 func (v AlertEventState) String() string { return string(v) }
 
-// Valid reports whether the alert event state is registered.
+// Valid 返回该告警事件状态是否为已注册值。
 func (v AlertEventState) Valid() bool { return contains(v, AlertEventActive, AlertEventRecovered) }
 
-// String returns the serialized player activity event type.
+// String 返回序列化后的玩家活动事件类型。
 func (v PlayerActivityEventType) String() string { return string(v) }
 
-// Valid reports whether the player activity event type is registered.
+// Valid 返回该玩家活动事件类型是否为已注册值。
 func (v PlayerActivityEventType) Valid() bool {
 	return contains(v, PlayerActivityJoin, PlayerActivityLeave)
 }
 
-// String returns the serialized player session state.
+// String 返回序列化后的玩家会话状态。
 func (v PlayerSessionState) String() string { return string(v) }
 
-// Valid reports whether the player session state is registered.
+// Valid 返回该玩家会话状态是否为已注册值。
 func (v PlayerSessionState) Valid() bool {
 	return contains(v, PlayerSessionOpen, PlayerSessionClosed, PlayerSessionInterrupted)
 }
 
-// String returns the serialized player session close reason.
+// String 返回序列化后的玩家会话结束原因。
 func (v PlayerSessionCloseReason) String() string { return string(v) }
 
-// Valid reports whether the player session close reason is registered.
+// Valid 返回该玩家会话结束原因是否为已注册值。
 func (v PlayerSessionCloseReason) Valid() bool {
 	return contains(v, PlayerCloseLeave, PlayerCloseDuplicateJoin, PlayerCloseServerStopped, PlayerCloseUnexpectedExit, PlayerCloseProcessReplaced, PlayerCloseIdentityMerged)
 }
 
-// String returns the serialized player identity kind.
+// String 返回序列化后的玩家身份类别。
 func (v PlayerIdentityKind) String() string { return string(v) }
 
-// Valid reports whether the player identity kind is registered.
+// Valid 返回该玩家身份类别是否为已注册值。
 func (v PlayerIdentityKind) Valid() bool {
 	return contains(v, PlayerIdentityUUID, PlayerIdentityNameOnly)
 }
 
-// String returns the serialized player activity accuracy.
+// String 返回序列化后的玩家活动数据精确度。
 func (v PlayerActivityAccuracy) String() string { return string(v) }
 
-// Valid reports whether the player activity accuracy is registered.
+// Valid 返回该玩家活动数据精确度是否为已注册值。
 func (v PlayerActivityAccuracy) Valid() bool {
 	return contains(v, PlayerAccuracyExact, PlayerAccuracyServerBoundary, PlayerAccuracyEstimated, PlayerAccuracyReconstructed, PlayerAccuracyIncomplete)
 }
 
-// String returns the serialized lifecycle state.
+// String 返回序列化后的生命周期状态。
 func (v LifecycleState) String() string { return string(v) }
 
-// Valid reports whether the lifecycle state is registered.
+// Valid 返回该生命周期状态是否为已注册值。
 func (v LifecycleState) Valid() bool {
 	return contains(v, LifecycleCreating, LifecycleInstalling, LifecycleReady, LifecycleStarting, LifecycleRunning, LifecycleStopping, LifecycleStopped, LifecycleUpdating, LifecycleBackingUp, LifecycleDeleted, LifecycleFailed)
 }
 
-// String returns the serialized metric type.
+// String 返回序列化后的指标名称。
 func (v MetricType) String() string { return string(v) }
 
-// Valid reports whether the metric type is registered.
+// Valid 返回该指标名称是否为已注册值。
 func (v MetricType) Valid() bool {
 	return contains(v, MetricTypes()...)
 }
 
-// MetricTypes returns the immutable registered Metric namespace list.
+// MetricTypes 返回不可变的已注册 Metric 命名空间列表。
 func MetricTypes() []MetricType {
 	return []MetricType{
 		MetricHostCPU, MetricHostMemory, MetricMinecraftTPS, MetricMinecraftMSPT,
@@ -528,18 +528,18 @@ func MetricTypes() []MetricType {
 	}
 }
 
-// String returns the serialized Minecraft spark status.
+// String 返回序列化后的Minecraft spark 状态。
 func (v SparkStatus) String() string { return string(v) }
 
-// Valid reports whether the Minecraft spark status is registered.
+// Valid 返回该Minecraft spark 状态是否为已注册值。
 func (v SparkStatus) Valid() bool {
 	return contains(v, SparkUnknown, SparkUnavailable, SparkUnsupported, SparkAvailable, SparkCollecting, SparkFailed)
 }
 
-// String returns the serialized settings category.
+// String 返回序列化后的设置分类。
 func (v SettingsCategory) String() string { return string(v) }
 
-// Valid reports whether the settings category is registered.
+// Valid 返回该设置分类是否为已注册值。
 func (v SettingsCategory) Valid() bool {
 	return contains(v, SettingsGeneral, SettingsTheme, SettingsPaths, SettingsMirrors, SettingsLogging, SettingsMonitoring, SettingsFirewall, SettingsLayout, SettingsSSH, SettingsTerminal, SettingsDownloads, SettingsStorage)
 }

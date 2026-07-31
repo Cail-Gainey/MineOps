@@ -14,7 +14,7 @@ import (
 	"github.com/Cail-Gainey/MineOps/internal/service"
 )
 
-// SSHSessionDTO is the desktop-safe SSH Session representation without credential identifiers or secrets.
+// SSHSessionDTO 是桌面侧安全的 SSH Session 表示,不含凭据标识与密文。
 type SSHSessionDTO struct {
 	ID                  string `json:"id"`
 	Name                string `json:"name"`
@@ -41,7 +41,7 @@ type SSHSessionDTO struct {
 	UpdatedAt           string `json:"updatedAt"`
 }
 
-// SSHSessionInput contains editable metadata and write-only secret fields.
+// SSHSessionInput 承载可编辑元数据与只写的密文字段。
 type SSHSessionInput struct {
 	Name                string `json:"name"`
 	Host                string `json:"host"`
@@ -61,19 +61,19 @@ type SSHSessionInput struct {
 	OverrideSettings    bool   `json:"overrideSettings"`
 }
 
-// SSHSessionResult contains one safe SSH Session DTO or a stable error.
+// SSHSessionResult 承载一份安全的 SSH Session DTO 或稳定错误。
 type SSHSessionResult struct {
 	Session *SSHSessionDTO `json:"session,omitempty"`
 	Error   *apperror.DTO  `json:"error,omitempty"`
 }
 
-// SSHSessionListResult contains safe SSH Session DTOs or a stable error.
+// SSHSessionListResult 承载安全的 SSH Session DTO 列表或稳定错误。
 type SSHSessionListResult struct {
 	Sessions []SSHSessionDTO `json:"sessions"`
 	Error    *apperror.DTO   `json:"error,omitempty"`
 }
 
-// SSHPreflightDTO contains authenticated SSH request round-trip statistics through the configured route.
+// SSHPreflightDTO 承载经配置路由完成认证后的 SSH 请求往返统计。
 // 主机规格不在预检中返回:它随 SSH Session 持久化,由 List/Get 直接读取。
 type SSHPreflightDTO struct {
 	Addresses        []string      `json:"addresses"`
@@ -88,7 +88,7 @@ type SSHPreflightDTO struct {
 	Error            *apperror.DTO `json:"error,omitempty"`
 }
 
-// SSHConfigDTO contains the resolved non-secret connection policy used by a preflight or handshake.
+// SSHConfigDTO 承载预检或握手所用、已解析的非机密连接策略。
 type SSHConfigDTO struct {
 	Port                uint16 `json:"port"`
 	ConnectTimeoutSec   int    `json:"connectTimeoutSec"`
@@ -98,7 +98,7 @@ type SSHConfigDTO struct {
 	HostKeyPolicy       string `json:"hostKeyPolicy"`
 }
 
-// SSHConnectionTestDTO contains authenticated SSH handshake and command-channel evidence.
+// SSHConnectionTestDTO 承载 SSH 握手与命令通道的认证证据。
 type SSHConnectionTestDTO struct {
 	ServerVersion     string        `json:"serverVersion"`
 	RemoteAddress     string        `json:"remoteAddress"`
@@ -107,7 +107,7 @@ type SSHConnectionTestDTO struct {
 	Error             *apperror.DTO `json:"error,omitempty"`
 }
 
-// durationMilliseconds converts elapsed durations to high-resolution milliseconds for UI DTOs.
+// durationMilliseconds 把耗时转换成高精度毫秒,供界面 DTO 使用。
 func durationMilliseconds(duration time.Duration) float64 {
 	if duration <= 0 {
 		return 0
@@ -115,7 +115,7 @@ func durationMilliseconds(duration time.Duration) float64 {
 	return math.Round(float64(duration)/float64(time.Millisecond)*1000) / 1000
 }
 
-// SSHSessionService exposes SSH Session CRUD while keeping secrets out of responses and logs.
+// SSHSessionService 对外暴露 SSH Session 增删改查,并确保密文不进入响应与日志。
 type SSHSessionService struct {
 	manager  *service.SSHSessionManager
 	store    repository.Store
@@ -124,12 +124,12 @@ type SSHSessionService struct {
 	logger   *applog.Logger
 }
 
-// NewSSHSessionService creates the desktop SSH Session facade.
+// NewSSHSessionService 创建桌面侧的 SSH Session 门面。
 func NewSSHSessionService(manager *service.SSHSessionManager, store repository.Store, settings *appsettings.Manager, clients *service.SSHClientFactory, logger *applog.Logger) *SSHSessionService {
 	return &SSHSessionService{manager: manager, store: store, settings: settings, clients: clients, logger: logger}
 }
 
-// List returns filtered SSH Sessions without secret material.
+// List 按过滤条件返回不含密文的 SSH Session。
 func (s *SSHSessionService) List(ctx context.Context, search, group string, favouriteOnly bool, limit, offset int) (result SSHSessionListResult) {
 	defer s.recoverList(ctx, "SSHSessionService.List", &result)
 	sessions, err := s.store.SSHSessions().List(ctx, repository.SSHSessionQuery{
@@ -146,7 +146,7 @@ func (s *SSHSessionService) List(ctx context.Context, search, group string, favo
 	return result
 }
 
-// Get returns one SSH Session without secret material.
+// Get 返回一个不含密文的 SSH Session。
 func (s *SSHSessionService) Get(ctx context.Context, id string) (result SSHSessionResult) {
 	defer s.recoverOne(ctx, "SSHSessionService.Get", &result)
 	session, err := s.store.SSHSessions().Get(ctx, model.ID(id))
@@ -158,7 +158,7 @@ func (s *SSHSessionService) Get(ctx context.Context, id string) (result SSHSessi
 	return SSHSessionResult{Session: &dto}
 }
 
-// Create persists a new SSH Session and write-only credential input.
+// Create 持久化一个新的 SSH Session 及其只写凭据输入。
 func (s *SSHSessionService) Create(ctx context.Context, input SSHSessionInput) (result SSHSessionResult) {
 	defer s.recoverOne(ctx, "SSHSessionService.Create", &result)
 	command := input.command()
@@ -173,7 +173,7 @@ func (s *SSHSessionService) Create(ctx context.Context, input SSHSessionInput) (
 	return SSHSessionResult{Session: &dto}
 }
 
-// Update persists metadata and optional replacement credential input.
+// Update 持久化元数据与可选的替换凭据输入。
 func (s *SSHSessionService) Update(ctx context.Context, id string, input SSHSessionInput) (result SSHSessionResult) {
 	defer s.recoverOne(ctx, "SSHSessionService.Update", &result)
 	command := input.command()
@@ -188,7 +188,7 @@ func (s *SSHSessionService) Update(ctx context.Context, id string, input SSHSess
 	return SSHSessionResult{Session: &dto}
 }
 
-// EnsureHostSpecs collects host capacity facts for a Session that has none and persists them.
+// EnsureHostSpecs 为尚无主机规格的 Session 采集并持久化容量信息。
 // 这是主机规格唯一的采集入口:新建 Session、连接目标变更清空规格、以及迁移前的历史 Session 都走它,
 // 每个 Session 最多采集一次。它与 Create/Update 分离,保证保存操作不会阻塞在一次完整 SSH 往返上。
 func (s *SSHSessionService) EnsureHostSpecs(ctx context.Context, id string) (result SSHSessionResult) {
@@ -209,7 +209,7 @@ func (s *SSHSessionService) EnsureHostSpecs(ctx context.Context, id string) (res
 	return SSHSessionResult{Session: &dto}
 }
 
-// Delete removes an unreferenced SSH Session and its credential.
+// Delete 删除一个无引用的 SSH Session 及其凭据。
 func (s *SSHSessionService) Delete(ctx context.Context, id string) (result ActionResult) {
 	defer func() {
 		var err error
@@ -240,7 +240,7 @@ func validateJumpHostDeletion(id model.ID, settings model.SSHSettings) error {
 	return nil
 }
 
-// Preflight authenticates the target through the configured direct or Jump Host route and measures SSH request RTT.
+// Preflight 按配置的直连或 Jump Host 路由完成认证,并测量 SSH 请求往返时延。
 func (s *SSHSessionService) Preflight(ctx context.Context, id string) (result SSHPreflightDTO) {
 	defer func() {
 		var err error
@@ -274,7 +274,7 @@ func (s *SSHSessionService) Preflight(ctx context.Context, id string) (result SS
 	}
 }
 
-// TestConnection performs SSH handshake, host-key verification, authentication, and a no-op command.
+// TestConnection 执行 SSH 握手、主机密钥校验、认证与一次空操作命令。
 func (s *SSHSessionService) TestConnection(ctx context.Context, id string) (result SSHConnectionTestDTO) {
 	defer func() {
 		var err error
@@ -300,7 +300,7 @@ func (s *SSHSessionService) TestConnection(ctx context.Context, id string) (resu
 	}
 }
 
-// TestInput tests unsaved SSH Session input without persisting draft metadata or credential material.
+// TestInput 测试未保存的 SSH Session 输入,不持久化草稿元数据与凭据。
 func (s *SSHSessionService) TestInput(ctx context.Context, id string, input SSHSessionInput) (result SSHConnectionTestDTO) {
 	defer func() {
 		var err error
@@ -348,7 +348,7 @@ func (s *SSHSessionService) toDTO(ctx context.Context, session *model.SSHSession
 	}
 }
 
-// formatOptionalTime renders an absent timestamp as an empty string so the UI can detect uncollected specs.
+// formatOptionalTime 把缺失的时间戳渲染为空串,便于界面识别尚未采集的规格。
 func formatOptionalTime(value *time.Time) string {
 	if value == nil || value.IsZero() {
 		return ""

@@ -9,7 +9,7 @@ import (
 	"github.com/Cail-Gainey/MineOps/internal/global/apperror"
 )
 
-// PropertyLineKind identifies one preserved physical server.properties line.
+// PropertyLineKind 标识一条被原样保留的 server.properties 物理行。
 type PropertyLineKind string
 
 const (
@@ -19,7 +19,7 @@ const (
 	PropertyUnknown PropertyLineKind = "unknown"
 )
 
-// PropertyLine preserves the original physical line and parsed key/value when safely recognized.
+// PropertyLine 保留原始物理行,并在可安全识别时附带解析出的键值。
 type PropertyLine struct {
 	Kind  PropertyLineKind `json:"kind"`
 	Raw   string           `json:"raw"`
@@ -27,14 +27,14 @@ type PropertyLine struct {
 	Value string           `json:"value,omitempty"`
 }
 
-// PropertiesDocument preserves comments, blanks, ordering, duplicates, unknown lines, and newline style.
+// PropertiesDocument 完整保留注释、空行、顺序、重复键、未知行与换行风格。
 type PropertiesDocument struct {
 	Lines           []PropertyLine `json:"lines"`
 	Newline         string         `json:"newline"`
 	TrailingNewline bool           `json:"trailingNewline"`
 }
 
-// ParseProperties creates a lossless physical-line model for Java properties content.
+// ParseProperties 为 Java properties 内容建立无损的物理行模型。
 func ParseProperties(content string) PropertiesDocument {
 	newline := "\n"
 	if strings.Contains(content, "\r\n") {
@@ -56,7 +56,7 @@ func ParseProperties(content string) PropertiesDocument {
 	return PropertiesDocument{Lines: lines, Newline: newline, TrailingNewline: trailing}
 }
 
-// Render reconstructs the document while preserving every untouched physical line.
+// Render 重建文档,未改动的物理行逐字保留。
 func (d PropertiesDocument) Render() string {
 	newline := d.Newline
 	if newline != "\r\n" {
@@ -73,7 +73,7 @@ func (d PropertiesDocument) Render() string {
 	return result
 }
 
-// Get returns the last value for a key, matching Java Properties duplicate-key semantics.
+// Get 返回某个键的最后一个取值,与 Java Properties 的重复键语义一致。
 func (d PropertiesDocument) Get(key string) (string, bool) {
 	for index := len(d.Lines) - 1; index >= 0; index-- {
 		if d.Lines[index].Kind == PropertyEntry && d.Lines[index].Key == key {
@@ -83,7 +83,7 @@ func (d PropertiesDocument) Get(key string) (string, bool) {
 	return "", false
 }
 
-// Set updates only the last matching entry or appends a new entry without rewriting unrelated text.
+// Set 只更新最后一处匹配项或追加新项,不改写无关文本。
 func (d *PropertiesDocument) Set(key, value string) error {
 	if d == nil || strings.TrimSpace(key) == "" || strings.ContainsAny(key, "\r\n\x00") || strings.ContainsAny(value, "\r\n\x00") {
 		return apperror.New(apperror.CodeValidationInvalidArgument, "Properties Key 或 Value 无效")
@@ -99,7 +99,7 @@ func (d *PropertiesDocument) Set(key, value string) error {
 	return nil
 }
 
-// ServerPort returns the validated server-port value or the Minecraft default when absent.
+// ServerPort 返回已校验的 server-port 值,缺失时返回 Minecraft 默认端口。
 func (d PropertiesDocument) ServerPort() (uint16, error) {
 	value, exists := d.Get("server-port")
 	if !exists || strings.TrimSpace(value) == "" {
@@ -112,7 +112,7 @@ func (d PropertiesDocument) ServerPort() (uint16, error) {
 	return uint16(port), nil
 }
 
-// VersionToken returns the content/mtime token used before conservative remote saves.
+// VersionToken 返回保守远端保存前使用的内容与修改时间标识。
 func (d PropertiesDocument) VersionToken(modifiedAt time.Time) string {
 	return RemoteTextVersionToken([]byte(d.Render()), modifiedAt)
 }

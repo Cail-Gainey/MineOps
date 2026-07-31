@@ -11,42 +11,42 @@ import (
 	"github.com/Cail-Gainey/MineOps/internal/service"
 )
 
-// AlertRuleResult contains one threshold rule or a stable error.
+// AlertRuleResult 承载一条阈值规则或稳定错误。
 type AlertRuleResult struct {
 	Rule  *model.AlertRule `json:"rule,omitempty"`
 	Error *apperror.DTO    `json:"error,omitempty"`
 }
 
-// AlertRuleListResult contains bounded threshold rules.
+// AlertRuleListResult 承载有界的阈值规则列表。
 type AlertRuleListResult struct {
 	Rules []model.AlertRule `json:"rules"`
 	Error *apperror.DTO     `json:"error,omitempty"`
 }
 
-// AlertEventResult contains one active, recovered, or acknowledged incident.
+// AlertEventResult 承载一条活跃、已恢复或已确认的告警事件。
 type AlertEventResult struct {
 	Event *model.AlertEvent `json:"event,omitempty"`
 	Error *apperror.DTO     `json:"error,omitempty"`
 }
 
-// AlertEventListResult contains bounded incident history.
+// AlertEventListResult 承载有界的告警事件历史。
 type AlertEventListResult struct {
 	Events []model.AlertEvent `json:"events"`
 	Error  *apperror.DTO      `json:"error,omitempty"`
 }
 
-// AlertService exposes threshold rule CRUD, active/history queries, and acknowledgement.
+// AlertService 对外暴露阈值规则增删改查、活跃与历史查询以及确认操作。
 type AlertService struct {
 	manager *service.AlertManager
 	logger  *applog.Logger
 }
 
-// NewAlertService creates the Wails Alert facade.
+// NewAlertService 创建 Wails 侧的告警门面。
 func NewAlertService(manager *service.AlertManager, logger *applog.Logger) *AlertService {
 	return &AlertService{manager: manager, logger: logger}
 }
 
-// CreateRule creates one bounded Server Metric threshold rule.
+// CreateRule 创建一条有界的 Server 指标阈值规则。
 func (s *AlertService) CreateRule(ctx context.Context, rule model.AlertRule) (result AlertRuleResult) {
 	defer s.recoverRule(ctx, "AlertService.CreateRule", &result)
 	created, err := s.manager.CreateRule(ctx, rule)
@@ -57,7 +57,7 @@ func (s *AlertService) CreateRule(ctx context.Context, rule model.AlertRule) (re
 	return AlertRuleResult{Rule: &created}
 }
 
-// UpdateRule updates one threshold rule.
+// UpdateRule 更新一条阈值规则。
 func (s *AlertService) UpdateRule(ctx context.Context, rule model.AlertRule) (result AlertRuleResult) {
 	defer s.recoverRule(ctx, "AlertService.UpdateRule", &result)
 	updated, err := s.manager.UpdateRule(ctx, rule)
@@ -68,7 +68,7 @@ func (s *AlertService) UpdateRule(ctx context.Context, rule model.AlertRule) (re
 	return AlertRuleResult{Rule: &updated}
 }
 
-// DeleteRule removes one rule and recovers any active event.
+// DeleteRule 删除一条规则,并把其活跃告警置为已恢复。
 func (s *AlertService) DeleteRule(ctx context.Context, ruleID string) (result ActionResult) {
 	defer func() {
 		var err error
@@ -85,7 +85,7 @@ func (s *AlertService) DeleteRule(ctx context.Context, ruleID string) (result Ac
 	return ActionResult{}
 }
 
-// ListRules returns bounded rules for one Server and optional Metric.
+// ListRules 返回某台 Server 及可选指标下的有界规则列表。
 func (s *AlertService) ListRules(ctx context.Context, serverID, metric string, enabledOnly bool, limit, offset int) (result AlertRuleListResult) {
 	defer func() {
 		var err error
@@ -108,7 +108,7 @@ func (s *AlertService) ListRules(ctx context.Context, serverID, metric string, e
 	return AlertRuleListResult{Rules: rules}
 }
 
-// ListEvents returns active or historical incidents for one Server.
+// ListEvents 返回某台 Server 的活跃或历史告警事件。
 func (s *AlertService) ListEvents(ctx context.Context, serverID, state string, limit, offset int) (result AlertEventListResult) {
 	defer func() {
 		var err error
@@ -126,7 +126,7 @@ func (s *AlertService) ListEvents(ctx context.Context, serverID, state string, l
 	return AlertEventListResult{Events: events}
 }
 
-// DeleteEvent permanently removes one durable alert incident.
+// DeleteEvent 永久删除一条持久化告警事件。
 func (s *AlertService) DeleteEvent(ctx context.Context, eventID string) (result ActionResult) {
 	defer func() {
 		var err error
@@ -143,7 +143,7 @@ func (s *AlertService) DeleteEvent(ctx context.Context, eventID string) (result 
 	return ActionResult{}
 }
 
-// Acknowledge marks one incident reviewed without changing recovery state.
+// Acknowledge 把一条告警标记为已查看,不改变其恢复状态。
 func (s *AlertService) Acknowledge(ctx context.Context, eventID string) (result AlertEventResult) {
 	defer func() {
 		var err error

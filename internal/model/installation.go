@@ -8,7 +8,7 @@ import (
 	"github.com/Cail-Gainey/MineOps/internal/global/enums"
 )
 
-// InstallationTask is the durable checkpointed installation aggregate for one Minecraft Server.
+// InstallationTask 是某台 Minecraft Server 带检查点的持久化安装聚合。
 type InstallationTask struct {
 	ID          ID                      `json:"id"`
 	ServerID    ID                      `json:"serverID"`
@@ -22,7 +22,7 @@ type InstallationTask struct {
 	UpdatedAt   time.Time               `json:"updatedAt"`
 }
 
-// InstallationStep is one retryable, checkpointed stage in an InstallationTask.
+// InstallationStep 是 InstallationTask 中一个可重试、带检查点的阶段。
 type InstallationStep struct {
 	ID           ID                          `json:"id"`
 	TaskID       ID                          `json:"taskID"`
@@ -40,12 +40,12 @@ type InstallationStep struct {
 	UpdatedAt    time.Time                   `json:"updatedAt"`
 }
 
-// InstallationStepCount is the fixed number of steps in the standard installation workflow.
+// InstallationStepCount 是标准安装流程中固定的步骤数量。
 //
 // 前端进度换算需要这个总数;修改步骤列表时必须同步更新它,NewInstallationTask 会做一致性校验。
 const InstallationStepCount = 11
 
-// NewInstallationTask creates the standard eleven-step Minecraft installation workflow.
+// NewInstallationTask 创建标准的十一步 Minecraft 安装流程。
 func NewInstallationTask(clock Clock, serverID ID) (*InstallationTask, []InstallationStep, error) {
 	if clock == nil || !serverID.Valid() {
 		return nil, nil, apperror.New(apperror.CodeValidationRequired, "Installation Clock 和 Server ID 不能为空")
@@ -77,7 +77,7 @@ func NewInstallationTask(clock Clock, serverID ID) (*InstallationTask, []Install
 	return task, steps, nil
 }
 
-// Start transitions a waiting or retryable task into Running state.
+// Start 把等待中或可重试的任务切换到运行中状态。
 func (t *InstallationTask) Start(clock Clock) error {
 	if t == nil || clock == nil || t.State != enums.InstallationWaiting && t.State != enums.InstallationFailed {
 		return apperror.New(apperror.CodeValidationConflict, "Installation Task 当前不能启动")
@@ -90,7 +90,7 @@ func (t *InstallationTask) Start(clock Clock) error {
 	return nil
 }
 
-// Complete transitions a running installation to Succeeded, Failed, or Cancelled.
+// Complete 把运行中的安装切换到成功、失败或已取消。
 func (t *InstallationTask) Complete(clock Clock, state enums.InstallationState) error {
 	if t == nil || clock == nil || t.State != enums.InstallationRunning {
 		return apperror.New(apperror.CodeValidationConflict, "只有 Running Installation Task 可以完成")
@@ -105,7 +105,7 @@ func (t *InstallationTask) Complete(clock Clock, state enums.InstallationState) 
 	return nil
 }
 
-// PrepareRetry resets a failed or cancelled task while retaining successful step checkpoints.
+// PrepareRetry 重置失败或已取消的任务,同时保留已成功步骤的检查点。
 func (t *InstallationTask) PrepareRetry(clock Clock) error {
 	if t == nil || clock == nil || t.State != enums.InstallationFailed && t.State != enums.InstallationCancelled {
 		return apperror.New(apperror.CodeValidationConflict, "Installation Task 当前不能重试")
@@ -116,7 +116,7 @@ func (t *InstallationTask) PrepareRetry(clock Clock) error {
 	return nil
 }
 
-// CancelAfterFailure records an explicit user cancellation after a failed decision point.
+// CancelAfterFailure 记录用户在失败决策点之后的显式取消。
 func (t *InstallationTask) CancelAfterFailure(clock Clock) error {
 	if t == nil || clock == nil || t.State != enums.InstallationFailed {
 		return apperror.New(apperror.CodeValidationConflict, "只有 Failed Installation Task 可以取消")
@@ -128,7 +128,7 @@ func (t *InstallationTask) CancelAfterFailure(clock Clock) error {
 	return nil
 }
 
-// Start begins a Waiting or Failed step and increments its attempt counter.
+// Start 开始一个等待中或失败的步骤,并递增其尝试次数。
 func (s *InstallationStep) Start(clock Clock) error {
 	if s == nil || clock == nil || s.State != enums.InstallationStepWaiting && s.State != enums.InstallationStepFailed {
 		return apperror.New(apperror.CodeValidationConflict, "Installation Step 当前不能启动")
@@ -146,7 +146,7 @@ func (s *InstallationStep) Start(clock Clock) error {
 	return nil
 }
 
-// SetProgress updates normalized progress and the durable log cursor for a running step.
+// SetProgress 更新运行中步骤的归一化进度与持久化日志游标。
 func (s *InstallationStep) SetProgress(clock Clock, progress float64, message string, logCursor int64) error {
 	if s == nil || clock == nil || s.State != enums.InstallationStepRunning {
 		return apperror.New(apperror.CodeValidationConflict, "只有 Running Installation Step 可以更新进度")
@@ -172,7 +172,7 @@ func (s *InstallationStep) SetProgress(clock Clock, progress float64, message st
 	return nil
 }
 
-// LogCursor returns the checkpointed monotonically increasing log cursor.
+// LogCursor 返回已检查点化、单调递增的日志游标。
 func (s InstallationStep) LogCursor() int64 {
 	if s.Checkpoint == nil {
 		return 0
@@ -189,7 +189,7 @@ func (s InstallationStep) LogCursor() int64 {
 	}
 }
 
-// PrepareRetry resets a failed or cancelled step to Waiting without removing its previous checkpoint.
+// PrepareRetry 把失败或已取消的步骤重置为等待中,不移除此前的检查点。
 func (s *InstallationStep) PrepareRetry(clock Clock) error {
 	if s == nil || clock == nil || !s.Retryable() {
 		return apperror.New(apperror.CodeValidationConflict, "Installation Step 当前不能重试")
@@ -205,7 +205,7 @@ func (s *InstallationStep) PrepareRetry(clock Clock) error {
 	return nil
 }
 
-// Complete records Success, Failed, Skipped, or Cancelled with checkpoint and stable error fields.
+// Complete 记录成功、失败、跳过或已取消,并附带检查点与稳定错误字段。
 func (s *InstallationStep) Complete(clock Clock, state enums.InstallationStepState, checkpoint map[string]any, failure error) error {
 	if s == nil || clock == nil || s.State != enums.InstallationStepRunning {
 		return apperror.New(apperror.CodeValidationConflict, "只有 Running Installation Step 可以完成")
@@ -230,7 +230,7 @@ func (s *InstallationStep) Complete(clock Clock, state enums.InstallationStepSta
 	return nil
 }
 
-// CancelAfterFailure records an explicit user cancellation at a failed decision point.
+// CancelAfterFailure 记录用户在失败决策点上的显式取消。
 func (s *InstallationStep) CancelAfterFailure(clock Clock) error {
 	if s == nil || clock == nil || s.State != enums.InstallationStepFailed {
 		return apperror.New(apperror.CodeValidationConflict, "只有 Failed Installation Step 可以取消")
@@ -242,7 +242,7 @@ func (s *InstallationStep) CancelAfterFailure(clock Clock) error {
 	return nil
 }
 
-// Retryable reports whether a failed/cancelled step can be reset without rerunning successful steps.
+// Retryable 返回该失败或已取消步骤能否在不重跑已成功步骤的前提下重置。
 func (s InstallationStep) Retryable() bool {
 	return s.State == enums.InstallationStepFailed || s.State == enums.InstallationStepCancelled
 }

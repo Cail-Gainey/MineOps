@@ -45,6 +45,7 @@ type InstallationStepRecord struct {
 
 type installationRepository struct{ store *Store }
 
+// Create 在同一事务内写入安装任务及其全部步骤。
 func (r *installationRepository) Create(ctx context.Context, task *model.InstallationTask, steps []model.InstallationStep) error {
 	if task == nil || len(steps) == 0 {
 		return apperror.New(apperror.CodeValidationRequired, "Installation Task 和 Steps 不能为空")
@@ -65,6 +66,7 @@ func (r *installationRepository) Create(ctx context.Context, task *model.Install
 	})
 }
 
+// UpdateTask 更新一条安装任务。
 func (r *installationRepository) UpdateTask(ctx context.Context, task *model.InstallationTask) error {
 	record := installationTaskToRecord(task)
 	result := r.store.database.WithContext(ctx).Model(&InstallationTaskRecord{}).Where("id = ?", record.ID).Select("*").Updates(&record)
@@ -77,6 +79,7 @@ func (r *installationRepository) UpdateTask(ctx context.Context, task *model.Ins
 	return nil
 }
 
+// UpdateStep 更新一条安装步骤。
 func (r *installationRepository) UpdateStep(ctx context.Context, step *model.InstallationStep) error {
 	record := installationStepToRecord(step)
 	result := r.store.database.WithContext(ctx).Model(&InstallationStepRecord{}).Where("id = ?", record.ID).Select("*").Updates(&record)
@@ -89,6 +92,7 @@ func (r *installationRepository) UpdateStep(ctx context.Context, step *model.Ins
 	return nil
 }
 
+// Get 按 ID 返回安装任务及其有序步骤。
 func (r *installationRepository) Get(ctx context.Context, id model.ID) (*model.InstallationTask, []model.InstallationStep, error) {
 	var taskRecord InstallationTaskRecord
 	if err := r.store.database.WithContext(ctx).First(&taskRecord, "id = ?", id.String()).Error; err != nil {
@@ -109,6 +113,7 @@ func (r *installationRepository) Get(ctx context.Context, id model.ID) (*model.I
 	return &task, steps, nil
 }
 
+// ListByServer 分页列出某台 Server 的安装历史。
 func (r *installationRepository) ListByServer(ctx context.Context, serverID model.ID, limit, offset int) ([]model.InstallationTask, error) {
 	query := r.store.database.WithContext(ctx).Where("server_id = ?", serverID.String()).Order("created_at desc")
 	if limit <= 0 || limit > 200 {
@@ -120,6 +125,7 @@ func (r *installationRepository) ListByServer(ctx context.Context, serverID mode
 	return queryInstallationTasks(query.Limit(limit).Offset(offset))
 }
 
+// ListRecoverable 列出应用重启后需要恢复的未完成安装任务。
 func (r *installationRepository) ListRecoverable(ctx context.Context) ([]model.InstallationTask, error) {
 	return queryInstallationTasks(r.store.database.WithContext(ctx).Where("state IN ?", []string{
 		enums.InstallationWaiting.String(), enums.InstallationRunning.String(), enums.InstallationFailed.String(),

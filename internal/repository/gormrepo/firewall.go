@@ -24,6 +24,7 @@ type FirewallRuleLeaseRecord struct {
 
 type firewallRuleLeaseRepository struct{ database *gorm.DB }
 
+// Upsert 写入或覆盖一条防火墙规则归属记录。
 func (r *firewallRuleLeaseRepository) Upsert(ctx context.Context, lease *model.FirewallRuleLease) error {
 	if lease == nil {
 		return apperror.New(apperror.CodeValidationRequired, "防火墙规则租约不能为空")
@@ -38,6 +39,7 @@ func (r *firewallRuleLeaseRepository) Upsert(ctx context.Context, lease *model.F
 	return nil
 }
 
+// ListByServer 列出某台 Server 名下的防火墙规则归属。
 func (r *firewallRuleLeaseRepository) ListByServer(ctx context.Context, serverID model.ID) ([]model.FirewallRuleLease, error) {
 	var records []FirewallRuleLeaseRecord
 	if err := r.database.WithContext(ctx).Where("server_id = ?", serverID.String()).Order("updated_at desc").Find(&records).Error; err != nil {
@@ -46,6 +48,7 @@ func (r *firewallRuleLeaseRepository) ListByServer(ctx context.Context, serverID
 	return firewallLeaseRecords(records), nil
 }
 
+// ListByRule 按 SSH Session 与后端列出同一条规则的归属记录。
 func (r *firewallRuleLeaseRepository) ListByRule(ctx context.Context, sshSessionID model.ID, backend enums.FirewallBackend, rulePort uint16) ([]model.FirewallRuleLease, error) {
 	var records []FirewallRuleLeaseRecord
 	if err := r.database.WithContext(ctx).Where("ssh_session_id = ? AND backend = ? AND port = ?", sshSessionID.String(), backend.String(), rulePort).Find(&records).Error; err != nil {
@@ -54,6 +57,7 @@ func (r *firewallRuleLeaseRepository) ListByRule(ctx context.Context, sshSession
 	return firewallLeaseRecords(records), nil
 }
 
+// Delete 删除一条防火墙规则归属记录。
 func (r *firewallRuleLeaseRepository) Delete(ctx context.Context, serverID model.ID, backend enums.FirewallBackend, rulePort uint16) error {
 	result := r.database.WithContext(ctx).Delete(&FirewallRuleLeaseRecord{}, "server_id = ? AND backend = ? AND port = ?", serverID.String(), backend.String(), rulePort)
 	if result.Error != nil {

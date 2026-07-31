@@ -618,8 +618,10 @@ type remoteInteractiveProcess struct {
 	client   *SSHClient
 }
 
+// Identity 返回该远端进程的持久化身份。
 func (p *remoteInteractiveProcess) Identity() model.RemoteProcessIdentity { return p.identity }
 
+// Input 向远端进程写入一段输入。
 func (p *remoteInteractiveProcess) Input(ctx context.Context, value []byte) error {
 	p.mu.Lock()
 	closed := p.closed
@@ -650,6 +652,7 @@ func (p *remoteInteractiveProcess) Input(ctx context.Context, value []byte) erro
 	return nil
 }
 
+// Attach 从指定偏移开始把远端进程输出转写到 writer,返回新的偏移。
 func (p *remoteInteractiveProcess) Attach(ctx context.Context, offset int64, writer io.Writer) (int64, error) {
 	if writer == nil || offset < 0 || p.identity.TmuxSession == "" {
 		return offset, apperror.New(apperror.CodeValidationInvalidArgument, "Console Attach Writer 或 Offset 无效")
@@ -720,6 +723,7 @@ func (p *remoteInteractiveProcess) Attach(ctx context.Context, offset int64, wri
 	}
 }
 
+// Detach 断开本地转写但保留远端进程继续运行。
 func (p *remoteInteractiveProcess) Detach() error {
 	p.mu.Lock()
 	p.detached = true
@@ -731,6 +735,7 @@ func (p *remoteInteractiveProcess) Detach() error {
 	return nil
 }
 
+// Close 关闭本地资源并停止转写。
 func (p *remoteInteractiveProcess) Close() error {
 	p.mu.Lock()
 	p.closed = true

@@ -11,7 +11,7 @@ import { Create as $Create } from "@wailsio/runtime";
 import * as enums$0 from "../global/enums/models.js";
 
 /**
- * AlertEvent is one durable threshold incident with active, recovered, and acknowledged timestamps.
+ * AlertEvent 是一次持久化的阈值告警,含活跃、恢复与确认时间。
  */
 export class AlertEvent {
     /**
@@ -147,7 +147,7 @@ export class AlertEvent {
 }
 
 /**
- * AlertRule defines one bounded metric threshold with duration, cooldown, and enablement controls.
+ * AlertRule 定义一条有界的指标阈值,含持续时长、冷却与启停控制。
  */
 export class AlertRule {
     /**
@@ -255,7 +255,7 @@ export class AlertRule {
 }
 
 /**
- * ConsoleSession is a desktop attachment to one running remote Minecraft tmux session.
+ * ConsoleSession 表示桌面对一个运行中远端 Minecraft tmux 会话的附着。
  */
 export class ConsoleSession {
     /**
@@ -672,12 +672,12 @@ export class GeneralSettings {
 }
 
 /**
- * ID is a time-ordered UUIDv7-compatible MineOps identifier.
+ * ID 是按时间有序、兼容 UUIDv7 的 MineOps 标识符。
  * @typedef {string} ID
  */
 
 /**
- * InstallationStep is one retryable, checkpointed stage in an InstallationTask.
+ * InstallationStep 是 InstallationTask 中一个可重试、带检查点的阶段。
  */
 export class InstallationStep {
     /**
@@ -807,7 +807,7 @@ export class InstallationStep {
 }
 
 /**
- * InstallationTask is the durable checkpointed installation aggregate for one Minecraft Server.
+ * InstallationTask 是某台 Minecraft Server 带检查点的持久化安装聚合。
  */
 export class InstallationTask {
     /**
@@ -901,7 +901,7 @@ export class InstallationTask {
 }
 
 /**
- * JavaRuntime is one reusable remote Java installation bound to an SSH Session.
+ * JavaRuntime 是绑定到某个 SSH Session、可复用的远端 Java 安装。
  */
 export class JavaRuntime {
     /**
@@ -1023,7 +1023,7 @@ export class JavaRuntime {
 }
 
 /**
- * JavaRuntimeSource identifies how a remote Java installation was discovered or managed.
+ * JavaRuntimeSource 标识一个远端 Java 安装是如何被发现或纳管的。
  * @readonly
  * @enum {string}
  */
@@ -1041,7 +1041,7 @@ export const JavaRuntimeSource = {
 };
 
 /**
- * JavaVersionInfo contains parsed `java -XshowSettings:properties -version` properties.
+ * JavaVersionInfo 承载从 `java -XshowSettings:properties -version` 解析出的属性。
  */
 export class JavaVersionInfo {
     /**
@@ -1100,7 +1100,7 @@ export class JavaVersionInfo {
 }
 
 /**
- * LaunchProfile contains structured Java process arguments without a concatenated shell command.
+ * LaunchProfile 承载结构化的 Java 进程参数,不拼接 shell 命令。
  */
 export class LaunchProfile {
     /**
@@ -1285,7 +1285,7 @@ export class LoggingSettings {
 }
 
 /**
- * MetricDefinition describes unit, value type, and preferred aggregation for one registered metric.
+ * MetricDefinition 描述一个已注册指标的单位、值类型与首选聚合方式。
  */
 export class MetricDefinition {
     /**
@@ -1337,7 +1337,7 @@ export class MetricDefinition {
 }
 
 /**
- * MetricIngestResult reports one atomic batch acceptance decision.
+ * MetricIngestResult 汇报一次原子批次的接收判定。
  */
 export class MetricIngestResult {
     /**
@@ -1400,7 +1400,7 @@ export class MetricIngestResult {
 }
 
 /**
- * MetricMaintenanceResult summarizes one bounded background maintenance pass.
+ * MetricMaintenanceResult 汇总一轮有界的后台维护结果。
  */
 export class MetricMaintenanceResult {
     /**
@@ -1459,7 +1459,7 @@ export class MetricMaintenanceResult {
 }
 
 /**
- * MetricPoint is a query-ready value with an explicit missing-data marker.
+ * MetricPoint 是可直接展示的值,并带显式的缺失数据标记。
  */
 export class MetricPoint {
     /**
@@ -1532,7 +1532,7 @@ export class MetricPoint {
 }
 
 /**
- * MetricQuery contains indexed Server/Metric/time/granularity pagination.
+ * MetricQuery 承载走索引的 Server、指标、时间、粒度与分页条件。
  */
 export class MetricQuery {
     /**
@@ -1619,7 +1619,7 @@ export class MetricQuery {
 }
 
 /**
- * MetricQueryResult contains normalized query bounds and grouped series.
+ * MetricQueryResult 承载归一化后的查询边界与分组序列。
  */
 export class MetricQueryResult {
     /**
@@ -1696,7 +1696,7 @@ export class MetricQueryResult {
 }
 
 /**
- * MetricRealtimeEvent is the throttled latest-value snapshot for one Server.
+ * MetricRealtimeEvent 是某台 Server 经节流的最新值快照。
  */
 export class MetricRealtimeEvent {
     /**
@@ -1745,7 +1745,7 @@ export class MetricRealtimeEvent {
 }
 
 /**
- * MetricSample is one validated UTC observation from a Server-related source.
+ * MetricSample 是来自某个 Server 相关来源、已校验的一条 UTC 观测。
  */
 export class MetricSample {
     /**
@@ -1829,7 +1829,7 @@ export class MetricSample {
 }
 
 /**
- * MetricSeries is one source/tag-specific query series with explicit gaps.
+ * MetricSeries 是按来源与标签区分的一条查询序列,空洞显式标注。
  */
 export class MetricSeries {
     /**
@@ -1907,7 +1907,7 @@ export class MetricSeries {
 }
 
 /**
- * MetricStorageStatus describes database capacity protection state.
+ * MetricStorageStatus 描述数据库容量保护状态。
  */
 export class MetricStorageStatus {
     /**
@@ -1973,7 +1973,7 @@ export class MetricStorageStatus {
 }
 
 /**
- * MinecraftServer is one remotely managed server bound to exactly one SSH Session.
+ * MinecraftServer 是一台远程纳管、且只绑定一个 SSH Session 的服务器。
  */
 export class MinecraftServer {
     /**
@@ -2316,7 +2316,7 @@ export class MonitoringSettings {
 }
 
 /**
- * Operation is the durable record for a cancellable long-running MineOps action.
+ * Operation 是可取消长任务的持久化记录。
  */
 export class Operation {
     /**
@@ -2487,7 +2487,7 @@ export class PathSettings {
 }
 
 /**
- * PlayerActionInput contains one validated player management request.
+ * PlayerActionInput 承载一次已校验的玩家管理请求。
  */
 export class PlayerActionInput {
     /**
@@ -2539,7 +2539,7 @@ export class PlayerActionInput {
 }
 
 /**
- * PlayerEvent is the versioned realtime player state contract.
+ * PlayerEvent 是带版本的玩家实时状态契约。
  */
 export class PlayerEvent {
     /**
@@ -2616,7 +2616,7 @@ export class PlayerEvent {
 }
 
 /**
- * PlayerListResult contains one bounded page and collector quality evidence.
+ * PlayerListResult 承载一页有界数据与采集器质量证据。
  */
 export class PlayerListResult {
     /**
@@ -2686,7 +2686,7 @@ export class PlayerListResult {
 }
 
 /**
- * PlayerOverview is the unified Server-scoped player list and detail projection.
+ * PlayerOverview 是 Server 范围内统一的玩家列表与详情投影。
  */
 export class PlayerOverview {
     /**
@@ -2871,7 +2871,7 @@ export class PlayerOverview {
 }
 
 /**
- * PlayerQuery contains bounded unified-player filters and sorting.
+ * PlayerQuery 承载有界的统一玩家过滤与排序条件。
  */
 export class PlayerQuery {
     /**
@@ -2944,7 +2944,7 @@ export class PlayerQuery {
 }
 
 /**
- * PlayerSession is one persisted player connection and its settlement evidence.
+ * PlayerSession 是一次持久化的玩家连接及其结算证据。
  */
 export class PlayerSession {
     /**
@@ -3059,7 +3059,7 @@ export class PlayerSession {
 }
 
 /**
- * PlayerSessionQuery contains one bounded recent-session request.
+ * PlayerSessionQuery 承载一次有界的近期会话查询。
  */
 export class PlayerSessionQuery {
     /**
@@ -3174,7 +3174,7 @@ export class ProxySettings {
 }
 
 /**
- * RemoteFile is the infrastructure-neutral DTO for one remote POSIX entry.
+ * RemoteFile 是一个远端 POSIX 条目的、与基础设施无关的 DTO。
  */
 export class RemoteFile {
     /**
@@ -3247,7 +3247,7 @@ export class RemoteFile {
 }
 
 /**
- * RemoteFileKind identifies the POSIX entry type shown by the SFTP browser.
+ * RemoteFileKind 标识 SFTP 浏览器展示的 POSIX 条目类型。
  * @readonly
  * @enum {string}
  */
@@ -3264,7 +3264,7 @@ export const RemoteFileKind = {
 };
 
 /**
- * RemoteProcessIdentity prevents PID reuse from being mistaken for the managed Minecraft process.
+ * RemoteProcessIdentity 防止 PID 复用被误判成受管的 Minecraft 进程。
  */
 export class RemoteProcessIdentity {
     /**
@@ -3421,7 +3421,7 @@ export class RemoteProcessIdentity {
 }
 
 /**
- * RemoteTextDocument contains bounded UTF-8 content and a conflict-detection version token.
+ * RemoteTextDocument 承载有界的 UTF-8 内容与用于冲突检测的版本标识。
  */
 export class RemoteTextDocument {
     /**
@@ -3776,7 +3776,7 @@ export class SettingsSnapshot {
 }
 
 /**
- * SparkCapability records independently detected installation, compatibility, permission, and collection evidence.
+ * SparkCapability 记录独立探测得到的安装、兼容性、权限与采集方式证据。
  */
 export class SparkCapability {
     /**
@@ -3954,7 +3954,7 @@ export class SparkCapability {
 }
 
 /**
- * SparkReport stores durable health/profiler workflow state and a privacy-sensitive viewer reference.
+ * SparkReport 存放持久化的健康或性能分析流程状态,以及涉及隐私的查看器引用。
  */
 export class SparkReport {
     /**
@@ -4097,7 +4097,7 @@ export class SparkReport {
 }
 
 /**
- * SparkSnapshot stores one versioned TPS/MSPT health observation without inventing unavailable fields.
+ * SparkSnapshot 存放一条带版本的 TPS/MSPT 健康观测,不臆造缺失字段。
  */
 export class SparkSnapshot {
     /**
@@ -4355,7 +4355,7 @@ export class StorageSettings {
 }
 
 /**
- * TerminalSession contains one SSH PTY identity, dimensions, state, and timestamps.
+ * TerminalSession 承载一个 SSH PTY 的身份、尺寸、状态与时间戳。
  */
 export class TerminalSession {
     /**
@@ -4428,7 +4428,7 @@ export class TerminalSession {
 }
 
 /**
- * TerminalSessionState identifies the lifecycle of one remote SSH PTY.
+ * TerminalSessionState 标识一个远端 SSH PTY 的生命周期。
  * @readonly
  * @enum {string}
  */

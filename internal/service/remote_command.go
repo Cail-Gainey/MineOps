@@ -214,6 +214,7 @@ func newBoundedCommandBuffer(maximum int, stream string, outputCtx context.Conte
 	return &boundedCommandBuffer{maximum: maximum, stream: stream, outputCtx: outputCtx, output: output}
 }
 
+// Write 写入命令输出,超过上限后丢弃多余内容并标记截断。
 func (b *boundedCommandBuffer) Write(value []byte) (int, error) {
 	b.mu.Lock()
 	remaining := b.maximum - b.buffer.Len()
@@ -239,12 +240,14 @@ func (b *boundedCommandBuffer) Write(value []byte) (int, error) {
 	return len(value), nil
 }
 
+// String 返回已保留的命令输出。
 func (b *boundedCommandBuffer) String() string {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	return b.buffer.String()
 }
 
+// Truncated 返回输出是否因超过上限而被截断。
 func (b *boundedCommandBuffer) Truncated() bool {
 	b.mu.Lock()
 	defer b.mu.Unlock()

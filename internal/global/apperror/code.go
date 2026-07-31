@@ -1,6 +1,6 @@
 package apperror
 
-// Code is a stable machine-readable MineOps error identifier.
+// Code 是稳定的、机器可读的 MineOps 错误标识。
 type Code string
 
 const (
@@ -72,12 +72,12 @@ var validCodes = map[Code]struct{}{
 	CodeDesktopUpdateCancelled: {}, CodeDesktopUpdateApplyFailed: {},
 }
 
-// String returns the stable serialized error code.
+// String 返回稳定的序列化错误码。
 func (c Code) String() string {
 	return string(c)
 }
 
-// Valid reports whether the code belongs to the registered global error set.
+// Valid 返回该错误码是否属于已注册的全局错误集合。
 func (c Code) Valid() bool {
 	_, ok := validCodes[c]
 	return ok

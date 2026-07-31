@@ -377,6 +377,7 @@ type progressReader struct {
 	read     int64
 }
 
+// Read 读取数据并按已读字节数回报传输进度。
 func (r *progressReader) Read(buffer []byte) (int, error) {
 	if err := r.ctx.Err(); err != nil {
 		return 0, err
@@ -398,6 +399,7 @@ type progressWriter struct {
 	written  int64
 }
 
+// Write 写入数据并按已写字节数回报传输进度。
 func (w *progressWriter) Write(buffer []byte) (int, error) {
 	if err := w.ctx.Err(); err != nil {
 		return 0, err

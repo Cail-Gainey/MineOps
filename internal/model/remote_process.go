@@ -9,7 +9,7 @@ import (
 	"github.com/Cail-Gainey/MineOps/internal/global/enums"
 )
 
-// RemoteProcessIdentity prevents PID reuse from being mistaken for the managed Minecraft process.
+// RemoteProcessIdentity 防止 PID 复用被误判成受管的 Minecraft 进程。
 type RemoteProcessIdentity struct {
 	ID                 ID                       `json:"id"`
 	ServerID           ID                       `json:"serverID"`
@@ -32,7 +32,7 @@ type RemoteProcessIdentity struct {
 	UpdatedAt          time.Time                `json:"updatedAt"`
 }
 
-// NewRemoteProcessIdentity creates a validated durable PID identity after a successful remote launch.
+// NewRemoteProcessIdentity 在远端启动成功后创建一条已校验的持久化 PID 身份。
 func NewRemoteProcessIdentity(clock Clock, identity RemoteProcessIdentity) (*RemoteProcessIdentity, error) {
 	if clock == nil {
 		return nil, apperror.New(apperror.CodeValidationRequired, "Remote Process Clock 不能为空")
@@ -54,7 +54,7 @@ func NewRemoteProcessIdentity(clock Clock, identity RemoteProcessIdentity) (*Rem
 	return &identity, nil
 }
 
-// Validate enforces server/session ownership, PID identity, and controlled absolute paths.
+// Validate 校验 Server 与 Session 归属、PID 身份以及受控的绝对路径。
 func (p RemoteProcessIdentity) Validate() error {
 	if !p.ServerID.Valid() || !p.SSHSessionID.Valid() || p.PID < 1 || p.ProcessGroupID < 1 || p.LinuxStartTicks == 0 {
 		return apperror.New(apperror.CodeValidationRequired, "Remote Process Server、SSH、PID 和启动时钟不能为空")
@@ -88,7 +88,7 @@ func validTmuxSessionName(value string) bool {
 	return true
 }
 
-// ApplyProbe updates durable process evidence without changing Server lifecycle by itself.
+// ApplyProbe 更新持久化的进程证据,自身不改变 Server 生命周期。
 func (p *RemoteProcessIdentity) ApplyProbe(clock Clock, state enums.RemoteProcessState, lastOutput string, exitCode *int) error {
 	if p == nil || clock == nil || !state.Valid() {
 		return apperror.New(apperror.CodeValidationInvalidArgument, "Remote Process Probe 状态无效")

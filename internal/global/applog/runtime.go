@@ -14,7 +14,7 @@ import (
 	"github.com/Cail-Gainey/MineOps/internal/global/constants"
 )
 
-// ParseLevel converts one persisted log-level name to a slog level.
+// ParseLevel 把持久化的日志等级名转换成 slog 等级。
 func ParseLevel(value string) (slog.Level, error) {
 	var level slog.Level
 	if err := level.UnmarshalText([]byte(strings.TrimSpace(value))); err != nil {
@@ -23,7 +23,7 @@ func ParseLevel(value string) (slog.Level, error) {
 	return level, nil
 }
 
-// RuntimeMode distinguishes source development from a packaged desktop executable.
+// RuntimeMode 区分源码开发态与已打包的桌面可执行文件。
 type RuntimeMode string
 
 const (
@@ -31,7 +31,7 @@ const (
 	RuntimePackaged    RuntimeMode = "packaged"
 )
 
-// RuntimeLogOptions controls the process log file and cleanup policy.
+// RuntimeLogOptions 控制进程日志文件与清理策略。
 type RuntimeLogOptions struct {
 	Level              slog.Level
 	MaxFileBytes       int64
@@ -39,7 +39,7 @@ type RuntimeLogOptions struct {
 	TotalCapacityBytes int64
 }
 
-// DetectRuntimeMode uses Go BuildInfo tags instead of guessing from the current working directory.
+// DetectRuntimeMode 依据 Go BuildInfo 标记判断,而不是从当前工作目录猜测。
 func DetectRuntimeMode() RuntimeMode {
 	if buildInfo, ok := debug.ReadBuildInfo(); ok {
 		for _, setting := range buildInfo.Settings {
@@ -51,7 +51,7 @@ func DetectRuntimeMode() RuntimeMode {
 	return RuntimeDevelopment
 }
 
-// ResolveStorageMode applies the optional storage override only to development builds.
+// ResolveStorageMode 仅对开发构建应用可选的存储位置覆盖。
 func ResolveStorageMode(mode RuntimeMode) RuntimeMode {
 	if mode != RuntimeDevelopment {
 		return mode
@@ -64,7 +64,7 @@ func ResolveStorageMode(mode RuntimeMode) RuntimeMode {
 	}
 }
 
-// ResolveLogDirectory returns the deterministic logs directory for the current runtime mode.
+// ResolveLogDirectory 返回当前运行模式下确定的日志目录。
 func ResolveLogDirectory(mode RuntimeMode) (string, error) {
 	mode = ResolveStorageMode(mode)
 	if mode == RuntimeDevelopment {
@@ -110,7 +110,7 @@ func ResolveLogDirectory(mode RuntimeMode) (string, error) {
 	return filepath.Join(filepath.Dir(executable), constants.LogsDirectoryName), nil
 }
 
-// ProbeLogDirectory creates the directory and verifies that the current process can write and remove a probe file.
+// ProbeLogDirectory 创建目录并验证当前进程能够写入并删除探测文件。
 func ProbeLogDirectory(directory string) error {
 	if directory == "" {
 		return errors.New("log directory is empty")
@@ -140,7 +140,7 @@ func ProbeLogDirectory(directory string) error {
 	return os.Remove(probePath)
 }
 
-// NewRuntimeLogger creates the process logger in the required writable runtime directory.
+// NewRuntimeLogger 在必需的可写运行目录中创建进程日志器。
 func NewRuntimeLogger(options RuntimeLogOptions) (*Logger, *RotatingWriter, string, error) {
 	directory, err := ResolveLogDirectory(DetectRuntimeMode())
 	if err != nil {
@@ -159,7 +159,7 @@ func NewRuntimeLogger(options RuntimeLogOptions) (*Logger, *RotatingWriter, stri
 	return New(writer, options.Level), writer, directory, nil
 }
 
-// DefaultRuntimeLogOptions returns the bootstrap policy before encrypted Settings are loaded.
+// DefaultRuntimeLogOptions 返回加密设置加载之前的引导期策略。
 func DefaultRuntimeLogOptions() RuntimeLogOptions {
 	return RuntimeLogOptions{
 		Level: slog.LevelInfo, MaxFileBytes: 20 * 1024 * 1024,

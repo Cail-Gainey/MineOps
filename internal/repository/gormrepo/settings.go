@@ -20,6 +20,7 @@ type settingsRepository struct {
 	store *Store
 }
 
+// Load 读出全部设置分类的原始 JSON 负载。
 func (r *settingsRepository) Load(ctx context.Context) (map[enums.SettingsCategory][]byte, error) {
 	var records []SettingsRecord
 	if err := r.store.database.WithContext(ctx).Find(&records).Error; err != nil {
@@ -35,6 +36,7 @@ func (r *settingsRepository) Load(ctx context.Context) (map[enums.SettingsCatego
 	return result, nil
 }
 
+// Save 按分类写入带 schema 版本的设置负载。
 func (r *settingsRepository) Save(ctx context.Context, category enums.SettingsCategory, schemaVersion int, payload []byte) error {
 	if !category.Valid() || schemaVersion <= 0 || len(payload) == 0 {
 		return apperror.New(apperror.CodeValidationInvalidArgument, "Settings Category 保存参数无效")
@@ -46,6 +48,7 @@ func (r *settingsRepository) Save(ctx context.Context, category enums.SettingsCa
 	return nil
 }
 
+// Delete 删除某个设置分类的持久化负载。
 func (r *settingsRepository) Delete(ctx context.Context, category enums.SettingsCategory) error {
 	if !category.Valid() {
 		return apperror.New(apperror.CodeValidationInvalidArgument, "Settings Category 无效")

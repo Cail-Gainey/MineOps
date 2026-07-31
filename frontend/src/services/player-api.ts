@@ -26,6 +26,7 @@ import {
   SynchronizeActivity,
 } from '../../bindings/github.com/Cail-Gainey/MineOps/internal/desktop/services/playerservice'
 import { throwIfError } from './api-client'
+import { translate } from '../locales/runtime'
 
 export const playerEventName = 'mineops:player:event'
 
@@ -63,7 +64,13 @@ export async function listPlayers(request: PlayerListRequest): Promise<PlayerLis
     }),
   )
   throwIfError(result.error)
-  if (!result.result) throw new Error('PlayerService 未返回玩家列表')
+  if (!result.result)
+    throw new Error(
+      translate('service.missingField', {
+        service: 'PlayerService',
+        field: translate('serviceField.playerList'),
+      }),
+    )
   return result.result
 }
 
@@ -78,7 +85,13 @@ export async function getPlayerDetail(
 ): Promise<PlayerOverview> {
   const result = await Detail(serverID, playerIdentityID)
   throwIfError(result.error)
-  if (!result.player) throw new Error('PlayerService 未返回玩家详情')
+  if (!result.player)
+    throw new Error(
+      translate('service.missingField', {
+        service: 'PlayerService',
+        field: translate('serviceField.playerDetail'),
+      }),
+    )
   return result.player
 }
 
@@ -109,7 +122,13 @@ export async function listRecentPlayerSessions(
 export async function refreshPlayerDirectory(serverID: string): Promise<PlayerOverview[]> {
   const result = await RefreshDirectory(serverID)
   throwIfError(result.error)
-  if (!result.result) throw new Error('PlayerService 未返回目录同步后的玩家列表')
+  if (!result.result)
+    throw new Error(
+      translate('service.missingField', {
+        service: 'PlayerService',
+        field: translate('serviceField.directorySyncedPlayers'),
+      }),
+    )
   return result.result.players
 }
 
@@ -120,7 +139,13 @@ export async function refreshPlayerDirectory(serverID: string): Promise<PlayerOv
 export async function synchronizePlayerActivity(serverID: string): Promise<PlayerOverview[]> {
   const result = await SynchronizeActivity(serverID)
   throwIfError(result.error)
-  if (!result.result) throw new Error('PlayerService 未返回活动同步后的玩家列表')
+  if (!result.result)
+    throw new Error(
+      translate('service.missingField', {
+        service: 'PlayerService',
+        field: translate('serviceField.activitySyncedPlayers'),
+      }),
+    )
   return result.result.players
 }
 
@@ -157,7 +182,13 @@ export async function managePlayer(
   }
   const result = await calls[action](input)
   throwIfError(result.error)
-  if (!result.player) throw new Error('PlayerService 未返回操作后的玩家状态')
+  if (!result.player)
+    throw new Error(
+      translate('service.missingField', {
+        service: 'PlayerService',
+        field: translate('serviceField.playerAfterAction'),
+      }),
+    )
   return result.player
 }
 

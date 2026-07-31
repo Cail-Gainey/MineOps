@@ -53,33 +53,37 @@ const pageTitle = computed(() => {
   const titleKey = route.meta.titleKey
   return typeof titleKey === 'string'
     ? locale.t(titleKey as Parameters<typeof locale.t>[0])
-    : String(route.meta.title ?? locale.t('app.name'))
+    : locale.t('app.name')
 })
 const latestOperation = computed(() => operations.active[0] ?? operations.history[0] ?? null)
 const operationSummary = computed(() => {
-  if (operations.activeCount > 0) return `运行中 ${operations.activeCount}`
-  if (!latestOperation.value) return '无活动任务'
-  return `最近 ${latestOperation.value.state} · ${latestOperation.value.type}`
+  if (operations.activeCount > 0)
+    return locale.t('shell.operationRunning', { count: operations.activeCount })
+  if (!latestOperation.value) return locale.t('shell.operationIdle')
+  return locale.t('shell.operationLatest', {
+    state: latestOperation.value.state,
+    type: latestOperation.value.type,
+  })
 })
-const themePresetLabels: Record<ThemePresetName, string> = {
-  mineops: 'MineOps',
-  forest: '森林',
-  ocean: '深海',
-  amethyst: '紫晶',
-  graphite: '极光',
-  sunset: '暮光',
-}
-const currentPresetLabel = computed(() => themePresetLabels[theme.preset])
-const quickThemeOptions = [
+const themePresetLabels = computed<Record<ThemePresetName, string>>(() => ({
+  mineops: locale.t('shell.themePreset.mineops'),
+  forest: locale.t('shell.themePreset.forest'),
+  ocean: locale.t('shell.themePreset.ocean'),
+  amethyst: locale.t('shell.themePreset.amethyst'),
+  graphite: locale.t('shell.themePreset.graphite'),
+  sunset: locale.t('shell.themePreset.sunset'),
+}))
+const currentPresetLabel = computed(() => themePresetLabels.value[theme.preset])
+const quickThemeOptions = computed(() => [
   ...themePresetNames.map((preset) => ({
-    label: themePresetLabels[preset],
+    label: themePresetLabels.value[preset],
     key: `preset:${preset}`,
   })),
   { type: 'divider' as const, key: 'theme-divider' },
-  { label: '跟随系统', key: 'mode:system' },
-  { label: '浅色模式', key: 'mode:light' },
-  { label: '深色模式', key: 'mode:dark' },
-]
+  { label: locale.t('shell.themeFollowSystem'), key: 'mode:system' },
+  { label: locale.t('shell.themeLightMode'), key: 'mode:light' },
+  { label: locale.t('shell.themeDarkMode'), key: 'mode:dark' },
+])
 
 /**
  * 判断事件目标是否处于可编辑控件中，用于避免截获输入场景的按键。
@@ -265,10 +269,13 @@ async function pollDesktopUpdateNotice(): Promise<void> {
     lastDesktopUpdateNotice = noticeKey
     notifications.push({
       kind: 'info',
-      title: status.phase === 'ready' ? 'Desktop 更新等待重启安装' : '发现 Desktop 新版本',
+      title:
+        status.phase === 'ready'
+          ? locale.t('shell.updateReadyTitle')
+          : locale.t('shell.updateAvailableTitle'),
       content:
         status.phase === 'ready'
-          ? `${status.latestVersion} 已下载并通过验证，可在 Settings 中重启安装。`
+          ? locale.t('shell.updateReadyContent', { version: status.latestVersion ?? '' })
           : `${status.currentVersion} → ${status.latestVersion}`,
       dedupeKey: `desktop-update:${noticeKey}`,
     })
@@ -290,11 +297,10 @@ onMounted(() => {
   unsubscribeQuitBlocked = subscribeQuitBlocked(async (event) => {
     const labels = event.items.map((item) => `• ${item.label}`).join('\n')
     const confirmed = await interactions.confirm({
-      title: '退出并放弃未保存内容？',
-      content: `以下内容尚未保存：\n${labels}`,
-      impact:
-        '退出后这些本地编辑和未提交表单将丢失；后台 Operation 会先按关闭流程取消并持久化最终状态。',
-      positiveText: '放弃并退出',
+      title: locale.t('shell.quitTitle'),
+      content: locale.t('shell.quitContent', { items: labels }),
+      impact: locale.t('shell.quitImpact'),
+      positiveText: locale.t('shell.quitConfirm'),
       danger: true,
     })
     if (confirmed) await confirmApplicationQuit()
@@ -324,13 +330,13 @@ onUnmounted(() => {
             {{ theme.isDark ? locale.t('shell.lightTheme') : locale.t('shell.darkTheme') }}
           </NButton>
           <NDropdown :options="quickThemeOptions" trigger="click" @select="handleQuickThemeSelect">
-            <NButton size="small" secondary aria-label="快捷切换主题">
+            <NButton size="small" secondary :aria-label="locale.t('shell.quickTheme')">
               {{ currentPresetLabel }} ▾
             </NButton>
           </NDropdown>
           <NBadge :value="operations.activeCount" :show-zero="true" :max="99" type="info">
             <NButton size="small" quaternary @click="openStatusDrawer('operations')">
-              活动
+              {{ locale.t('shell.activityButton') }}
             </NButton>
           </NBadge>
         </NFlex>
@@ -375,7 +381,7 @@ onUnmounted(() => {
             />
           </NButton>
         </div>
-        <nav class="navigation" aria-label="主导航">
+        <nav class="navigation" :aria-label="locale.t('shell.mainNavigation')">
           <RouterLink
             v-for="entry in navigationEntries"
             :key="entry.path"
@@ -415,8 +421,10 @@ onUnmounted(() => {
         <NLayoutFooter v-if="layout.bottomBarVisible" bordered class="bottombar">
           <NFlex align="center" justify="space-between" :wrap="false" class="bottombar-content">
             <NFlex align="center" :wrap="false" class="bottombar-group">
-              <NText depth="3">当前页：{{ pageTitle }}</NText>
-              <NText depth="3">Operation：{{ operationSummary }}</NText>
+              <NText depth="3">{{ locale.t('shell.currentPage', { title: pageTitle }) }}</NText>
+              <NText depth="3">{{
+                locale.t('shell.operationSummary', { summary: operationSummary })
+              }}</NText>
             </NFlex>
             <NFlex align="center" :wrap="false" class="bottombar-group">
               <NBadge
@@ -431,7 +439,7 @@ onUnmounted(() => {
                   :type="alertNotifications.activeCount ? 'error' : 'default'"
                   @click="openStatusDrawer('alerts')"
                 >
-                  告警
+                  {{ locale.t('shell.alertsButton') }}
                 </NButton>
               </NBadge>
               <NBadge :value="errors.entries.length" :show-zero="true" :max="99" type="error">
@@ -441,7 +449,7 @@ onUnmounted(() => {
                   :type="errors.entries.length ? 'error' : 'default'"
                   @click="openStatusDrawer('errors')"
                 >
-                  错误
+                  {{ locale.t('shell.errorsButton') }}
                 </NButton>
               </NBadge>
               <NText v-if="operations.partialMessage" type="warning" depth="3">{{

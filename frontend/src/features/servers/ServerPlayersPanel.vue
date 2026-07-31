@@ -22,6 +22,7 @@ import type {
   PlayerOverview,
   PlayerSession,
 } from '../../../bindings/github.com/Cail-Gainey/MineOps/internal/model/models'
+import { hasMessage } from '../../locales/runtime'
 import AppDataTable from '../../shared/components/AppDataTable.vue'
 import { useInteractionStore } from '../../stores/interactions'
 import { useLocaleStore } from '../../stores/locale'
@@ -55,32 +56,45 @@ const drawerVisible = computed(() => store.selectedPlayerID !== null)
 const selected = computed(() => store.selectedPlayer)
 const qualityMessages = computed(() => {
   const messages = new Set<string>()
-  if (store.directoryError) messages.add(`目录同步：${store.directoryError}`)
+  if (store.directoryError)
+    messages.add(locale.t('players.directorySync', { message: store.directoryError }))
   const overallCollectorIssue = collectorStatusIssue(store.collectorStatus)
   if (overallCollectorIssue) messages.add(overallCollectorIssue)
   for (const player of store.players) {
-    if (player.directoryError) messages.add(`${player.name}：${player.directoryError}`)
-    if (player.accuracy === 'incomplete') messages.add(`${player.name} 的累计在线时长不完整`)
+    if (player.directoryError) {
+      messages.add(
+        locale.t('players.playerDirectoryError', {
+          name: player.name,
+          message: player.directoryError,
+        }),
+      )
+    }
+    if (player.accuracy === 'incomplete')
+      messages.add(locale.t('players.incompleteDuration', { name: player.name }))
   }
   return [...messages]
 })
-const filterOptions: Array<{ label: string; value: PlayerFilter }> = [
-  { label: '全部玩家', value: 'all' },
-  { label: '在线', value: 'online' },
-  { label: '白名单', value: 'whitelist' },
-  { label: 'OP', value: 'operator' },
-  { label: '封禁', value: 'banned' },
-]
-const sortOptions: Array<{ label: string; value: PlayerSort }> = [
-  { label: '玩家名称', value: 'name' },
-  { label: '当前在线时长', value: 'currentDuration' },
-  { label: '累计在线时长', value: 'totalDuration' },
-  { label: '最近活动', value: 'lastActivity' },
-]
-const directionOptions: Array<{ label: string; value: SortDirection }> = [
-  { label: '升序', value: 'asc' },
-  { label: '降序', value: 'desc' },
-]
+const playerFilters: PlayerFilter[] = ['all', 'online', 'whitelist', 'operator', 'banned']
+const playerSorts: PlayerSort[] = ['name', 'currentDuration', 'totalDuration', 'lastActivity']
+const sortDirections: SortDirection[] = ['asc', 'desc']
+const filterOptions = computed(() =>
+  playerFilters.map((value) => ({
+    label: locale.t(`players.filter.${value}` as Parameters<typeof locale.t>[0]),
+    value,
+  })),
+)
+const sortOptions = computed(() =>
+  playerSorts.map((value) => ({
+    label: locale.t(`players.sort.${value}` as Parameters<typeof locale.t>[0]),
+    value,
+  })),
+)
+const directionOptions = computed(() =>
+  sortDirections.map((value) => ({
+    label: locale.t(`players.direction.${value}` as Parameters<typeof locale.t>[0]),
+    value,
+  })),
+)
 
 let timerID = 0
 let searchTimerID = 0
@@ -89,7 +103,7 @@ const columns = computed<DataTableColumns<PlayerOverview>>(() => {
   const currentNow = nowMillis.value
   return [
     {
-      title: '玩家',
+      title: locale.t('players.column.player'),
       key: 'player',
       minWidth: 200,
       render: (row) =>
@@ -99,17 +113,31 @@ const columns = computed<DataTableColumns<PlayerOverview>>(() => {
             h(
               NTag,
               { size: 'small', type: row.online ? 'success' : 'default', bordered: false },
-              { default: () => (row.online ? '在线' : '离线') },
+              {
+                default: () =>
+                  row.online ? locale.t('players.online') : locale.t('players.offline'),
+              },
             ),
           ]),
           h(
             NText,
             { depth: 3, class: 'player-name-cell__identity' },
-            { default: () => (row.identityKind === 'uuid' ? '已验证玩家身份' : '昵称临时身份') },
+            {
+              default: () =>
+                row.identityKind === 'uuid'
+                  ? locale.t('players.identityVerified')
+                  : locale.t('players.identityTemporary'),
+            },
           ),
           h(NFlex, { size: 4, wrap: true, class: 'player-name-cell__permissions' }, () => [
             ...(row.whitelisted
-              ? [h(NTag, { size: 'small', bordered: false }, { default: () => '白名单' })]
+              ? [
+                  h(
+                    NTag,
+                    { size: 'small', bordered: false },
+                    { default: () => locale.t('players.whitelisted') },
+                  ),
+                ]
               : []),
             ...(row.operator
               ? [
@@ -125,18 +153,18 @@ const columns = computed<DataTableColumns<PlayerOverview>>(() => {
                   h(
                     NTag,
                     { size: 'small', type: 'error', bordered: false },
-                    { default: () => '封禁' },
+                    { default: () => locale.t('players.banned') },
                   ),
                 ]
               : []),
             ...(!row.whitelisted && !row.operator && !row.banned
-              ? [h(NText, { depth: 3 }, { default: () => '普通玩家' })]
+              ? [h(NText, { depth: 3 }, { default: () => locale.t('players.regular') })]
               : []),
           ]),
         ]),
     },
     {
-      title: '在线时长',
+      title: locale.t('players.column.duration'),
       key: 'duration',
       minWidth: 176,
       render: (row) =>
@@ -147,8 +175,10 @@ const columns = computed<DataTableColumns<PlayerOverview>>(() => {
             {
               default: () =>
                 row.online
-                  ? `当前 ${formatPlayerDuration(currentPlayerDurationSeconds(row, currentNow))}`
-                  : '当前离线',
+                  ? locale.t('players.currentDuration', {
+                      value: formatPlayerDuration(currentPlayerDurationSeconds(row, currentNow)),
+                    })
+                  : locale.t('players.currentOffline'),
             },
           ),
           h(
@@ -156,30 +186,39 @@ const columns = computed<DataTableColumns<PlayerOverview>>(() => {
             { depth: 3 },
             {
               default: () =>
-                `累计 ${formatPlayerDuration(totalPlayerDurationSeconds(row, currentNow))}`,
+                locale.t('players.totalDuration', {
+                  value: formatPlayerDuration(totalPlayerDurationSeconds(row, currentNow)),
+                }),
             },
           ),
         ]),
     },
     {
-      title: '最近活动',
+      title: locale.t('players.column.lastActivity'),
       key: 'lastActivity',
       minWidth: 164,
       render: (row) =>
         h('div', { class: 'player-stat-cell' }, [
           h(NText, null, { default: () => formatTimestamp(playerRecentActivityAt(row)) }),
-          h(NText, { depth: 3 }, { default: () => `已完成 ${row.completedSessionCount} 次会话` }),
+          h(
+            NText,
+            { depth: 3 },
+            {
+              default: () =>
+                locale.t('players.completedSessions', { count: row.completedSessionCount }),
+            },
+          ),
         ]),
     },
     {
-      title: '操作',
+      title: locale.t('common.actions'),
       key: 'actions',
       width: 72,
       render: (row) =>
         h(
           NButton,
           { size: 'small', quaternary: true, onClick: () => void openPlayer(row) },
-          { default: () => '详情' },
+          { default: () => locale.t('common.detail') },
         ),
     },
   ]
@@ -196,7 +235,7 @@ async function openPlayer(player: PlayerOverview): Promise<void> {
   try {
     await store.selectPlayer(player.identityID)
   } catch (error) {
-    notifyError('加载玩家详情失败', error)
+    notifyError(locale.t('players.detailLoadFailed'), error)
   }
 }
 
@@ -219,14 +258,15 @@ async function runAction(action: PlayerManagementAction, success: string): Promi
   if (!canManage.value || !selected.value) return
   if (action === 'kick' || action === 'ban') {
     const confirmed = await interactions.confirm({
-      title: action === 'kick' ? '踢出该玩家？' : '封禁该玩家？',
-      content:
-        action === 'kick'
-          ? '服务器将立即踢出该玩家，在线状态由后续离开事件更新。'
-          : '服务器将封禁该玩家，并同步封禁名单的最终状态。',
+      title: action === 'kick' ? locale.t('players.kickTitle') : locale.t('players.banTitle'),
+      content: action === 'kick' ? locale.t('players.kickContent') : locale.t('players.banContent'),
       objectLabel: selected.value.name,
-      impact: action === 'ban' ? banReason.value || '未填写封禁原因' : '玩家连接将被关闭',
-      positiveText: action === 'kick' ? '确认踢出' : '确认封禁',
+      impact:
+        action === 'ban'
+          ? banReason.value || locale.t('players.noBanReason')
+          : locale.t('players.kickImpact'),
+      positiveText:
+        action === 'kick' ? locale.t('players.kickConfirm') : locale.t('players.banConfirm'),
       danger: action === 'ban',
     })
     if (!confirmed) return
@@ -243,7 +283,7 @@ async function runAction(action: PlayerManagementAction, success: string): Promi
       dedupeKey: `player:${props.serverId}:${selected.value?.identityID}:${action}`,
     })
   } catch (error) {
-    notifyError('玩家管理操作失败', error)
+    notifyError(locale.t('players.actionFailed'), error)
   }
 }
 
@@ -255,7 +295,7 @@ async function refreshList(): Promise<void> {
   try {
     await store.refresh()
   } catch (error) {
-    notifyError('玩家列表刷新失败', error)
+    notifyError(locale.t('players.listRefreshFailed'), error)
   }
 }
 
@@ -266,9 +306,9 @@ async function refreshList(): Promise<void> {
 async function refreshDirectory(): Promise<void> {
   try {
     await store.refreshDirectory()
-    notifications.push({ kind: 'success', title: '玩家目录已同步', content: '' })
+    notifications.push({ kind: 'success', title: locale.t('players.directorySynced'), content: '' })
   } catch (error) {
-    notifyError('玩家目录同步失败', error)
+    notifyError(locale.t('players.directorySyncFailed'), error)
   }
 }
 
@@ -279,9 +319,9 @@ async function refreshDirectory(): Promise<void> {
 async function synchronizeActivity(): Promise<void> {
   try {
     await store.synchronizeActivity()
-    notifications.push({ kind: 'success', title: '玩家活动已同步', content: '' })
+    notifications.push({ kind: 'success', title: locale.t('players.activitySynced'), content: '' })
   } catch (error) {
-    notifyError('玩家活动同步失败', error)
+    notifyError(locale.t('players.activitySyncFailed'), error)
   }
 }
 
@@ -321,23 +361,18 @@ function sessionDuration(session: PlayerSession): string {
       Math.max(0, Math.floor((nowMillis.value - Date.parse(session.joinedAt)) / 1_000)),
     )
   }
-  return '0秒'
+  return locale.t('players.zeroSeconds')
 }
 
 /**
- * 把数据精确度标识映射成中文标签。
+ * 把数据精确度标识映射成本地化标签。
  * @param value - 精确度标识
- * @returns 中文标签
+ * @returns 本地化标签，未知取值回退为原值或“未知”
  */
 function accuracyLabel(value: string): string {
-  const labels: Record<string, string> = {
-    exact: '精确',
-    server_boundary: '边界结算',
-    estimated: '估算',
-    incomplete: '不完整',
-    reconstructed: '已重建',
-  }
-  return labels[value] ?? (value || '未知')
+  const key = `players.accuracy.${value}`
+  if (hasMessage(key)) return locale.t(key)
+  return value || locale.t('common.unknown')
 }
 
 /**
@@ -362,25 +397,21 @@ function accuracyTagType(value: string): 'default' | 'success' | 'warning' | 'er
 function collectorStatusIssue(status: unknown): string {
   if (!status) return ''
   if (typeof status === 'string') {
-    const labels: Record<string, string> = {
-      incomplete: '玩家活动采集存在缺失，累计在线时长可能不完整',
-      estimated: '玩家活动包含异常退出后的估算结算',
-      reconstructed: '玩家在线状态由当前启动周期证据重建',
-      pending: '玩家活动采集器尚未完成首次同步',
-    }
     if (['exact', 'server_boundary', 'running', 'healthy', 'ok'].includes(status)) return ''
-    return labels[status] ?? `玩家活动采集状态异常：${status}`
+    const key = `players.collector.${status}`
+    return hasMessage(key) ? locale.t(key) : locale.t('players.collectorUnknown', { state: status })
   }
   if (typeof status !== 'object') return ''
   const value = status as Record<string, unknown>
   if (typeof value.lastError === 'string' && value.lastError) return value.lastError
   const dropped = Number(value.droppedEvents ?? value.droppedRecords ?? value.droppedCount ?? 0)
-  if (Number.isFinite(dropped) && dropped > 0) return `Spool 已丢弃 ${dropped} 条事件`
+  if (Number.isFinite(dropped) && dropped > 0)
+    return locale.t('players.spoolDropped', { count: dropped })
   if (
     typeof value.state === 'string' &&
     !['exact', 'server_boundary', 'running', 'healthy', 'ok'].includes(value.state)
   ) {
-    return `玩家活动采集状态异常：${value.state}`
+    return locale.t('players.collectorUnknown', { state: value.state })
   }
   return ''
 }
@@ -435,15 +466,22 @@ onUnmounted(() => {
 
 <template>
   <NFlex vertical :size="16">
-    <NAlert v-if="serverState !== 'running'" type="info" title="服务器当前未运行">
-      玩家历史、累计在线时长和权限状态仍可查看；白名单、OP、封禁、解除封禁与踢出
-      操作仅在服务器运行时可用。
+    <NAlert
+      v-if="serverState !== 'running'"
+      type="info"
+      :title="locale.t('players.serverStoppedTitle')"
+    >
+      {{ locale.t('players.serverStoppedContent') }}
     </NAlert>
-    <NAlert v-if="qualityMessages.length" type="warning" title="玩家数据质量提示">
+    <NAlert v-if="qualityMessages.length" type="warning" :title="locale.t('players.qualityTitle')">
       <div v-for="message in qualityMessages" :key="message">{{ message }}</div>
     </NAlert>
     <NFlex align="center" wrap class="player-toolbar">
-      <NInput v-model:value="store.search" clearable placeholder="搜索玩家名称" />
+      <NInput
+        v-model:value="store.search"
+        clearable
+        :placeholder="locale.t('players.searchPlaceholder')"
+      />
       <NSelect v-model:value="store.filter" :options="filterOptions" class="toolbar-select" />
       <NSelect v-model:value="store.sort" :options="sortOptions" class="toolbar-select" />
       <NSelect
@@ -451,9 +489,15 @@ onUnmounted(() => {
         :options="directionOptions"
         class="direction-select"
       />
-      <NButton :loading="store.loading" @click="refreshList">刷新列表</NButton>
-      <NButton :loading="store.actionLoading" @click="synchronizeActivity">同步活动</NButton>
-      <NButton :loading="store.actionLoading" @click="refreshDirectory">同步目录</NButton>
+      <NButton :loading="store.loading" @click="refreshList">
+        {{ locale.t('players.refreshList') }}
+      </NButton>
+      <NButton :loading="store.actionLoading" @click="synchronizeActivity">
+        {{ locale.t('players.syncActivity') }}
+      </NButton>
+      <NButton :loading="store.actionLoading" @click="refreshDirectory">
+        {{ locale.t('players.syncDirectory') }}
+      </NButton>
     </NFlex>
 
     <AppDataTable
@@ -464,13 +508,13 @@ onUnmounted(() => {
       :partial-message="store.partialMessage"
       :row-key="(row) => row.identityID"
       class="player-table"
-      empty-description="当前筛选条件下没有玩家"
+      :empty-description="locale.t('players.empty')"
       @retry="refreshList"
       @open="openPlayer"
     />
 
     <NFlex justify="space-between" align="center" wrap>
-      <NText depth="3">共 {{ store.total }} 名玩家</NText>
+      <NText depth="3">{{ locale.t('players.total', { count: store.total }) }}</NText>
       <NPagination
         v-model:page="store.page"
         v-model:page-size="store.pageSize"
@@ -487,12 +531,12 @@ onUnmounted(() => {
     placement="right"
     @update:show="(show) => !show && closePlayer()"
   >
-    <NDrawerContent :title="selected?.name || '玩家详情'" closable>
+    <NDrawerContent :title="selected?.name || locale.t('players.detailTitle')" closable>
       <NSpin :show="store.detailLoading">
         <NAlert
           v-if="store.detailError"
           type="error"
-          title="玩家详情加载失败"
+          :title="locale.t('players.detailFailedTitle')"
           class="drawer-section"
         >
           {{
@@ -503,100 +547,114 @@ onUnmounted(() => {
         </NAlert>
         <template v-if="selected">
           <NDescriptions bordered :columns="2" label-placement="left" class="drawer-section">
-            <NDescriptionsItem label="UUID">{{ selected.uuid || '尚未解析' }}</NDescriptionsItem>
-            <NDescriptionsItem label="身份来源">{{
-              selected.identityKind === 'uuid' ? 'UUID 已验证' : '昵称临时身份'
+            <NDescriptionsItem label="UUID">{{
+              selected.uuid || locale.t('players.uuidUnresolved')
             }}</NDescriptionsItem>
-            <NDescriptionsItem label="首次活动">{{
+            <NDescriptionsItem :label="locale.t('players.identitySource')">{{
+              selected.identityKind === 'uuid'
+                ? locale.t('players.identityUUID')
+                : locale.t('players.identityTemporary')
+            }}</NDescriptionsItem>
+            <NDescriptionsItem :label="locale.t('players.firstActivity')">{{
               formatTimestamp(selected.firstActivityAt)
             }}</NDescriptionsItem>
-            <NDescriptionsItem label="最近活动">{{
+            <NDescriptionsItem :label="locale.t('players.lastActivity')">{{
               formatTimestamp(playerRecentActivityAt(selected))
             }}</NDescriptionsItem>
-            <NDescriptionsItem label="累计在线时长">{{
+            <NDescriptionsItem :label="locale.t('players.totalOnline')">{{
               formatPlayerDuration(totalPlayerDurationSeconds(selected, nowMillis))
             }}</NDescriptionsItem>
-            <NDescriptionsItem label="当前在线时长">
+            <NDescriptionsItem :label="locale.t('players.currentOnline')">
               {{
                 selected.online
                   ? formatPlayerDuration(currentPlayerDurationSeconds(selected, nowMillis))
                   : '—'
               }}
             </NDescriptionsItem>
-            <NDescriptionsItem label="最长会话">{{
+            <NDescriptionsItem :label="locale.t('players.longestSession')">{{
               formatPlayerDuration(selected.longestSessionSeconds)
             }}</NDescriptionsItem>
-            <NDescriptionsItem label="平均会话">{{
+            <NDescriptionsItem :label="locale.t('players.averageSession')">{{
               formatPlayerDuration(selected.averageSessionSeconds)
             }}</NDescriptionsItem>
-            <NDescriptionsItem label="完整会话">{{
+            <NDescriptionsItem :label="locale.t('players.completeSessions')">{{
               selected.completedSessionCount
             }}</NDescriptionsItem>
-            <NDescriptionsItem label="统计准确性">
+            <NDescriptionsItem :label="locale.t('players.accuracyLabel')">
               <NTag :type="accuracyTagType(selected.accuracy)" :bordered="false">{{
                 accuracyLabel(selected.accuracy)
               }}</NTag>
             </NDescriptionsItem>
-            <NDescriptionsItem label="封禁原因">{{ selected.banReason || '—' }}</NDescriptionsItem>
-            <NDescriptionsItem label="封禁来源">{{ selected.banSource || '—' }}</NDescriptionsItem>
-            <NDescriptionsItem label="封禁到期">{{
+            <NDescriptionsItem :label="locale.t('players.banReason')">{{
+              selected.banReason || '—'
+            }}</NDescriptionsItem>
+            <NDescriptionsItem :label="locale.t('players.banSource')">{{
+              selected.banSource || '—'
+            }}</NDescriptionsItem>
+            <NDescriptionsItem :label="locale.t('players.banExpires')">{{
               formatTimestamp(selected.banExpiresAt)
             }}</NDescriptionsItem>
-            <NDescriptionsItem label="目录同步错误">{{
-              selected.directoryError || '无'
+            <NDescriptionsItem :label="locale.t('players.directoryError')">{{
+              selected.directoryError || locale.t('common.none')
             }}</NDescriptionsItem>
           </NDescriptions>
 
           <NFlex vertical :size="8" class="drawer-section">
-            <NText strong>玩家管理</NText>
+            <NText strong>{{ locale.t('players.management') }}</NText>
             <NFlex>
               <NButton
                 v-if="!selected.whitelisted"
                 :disabled="!canManage"
                 :loading="store.actionLoading"
-                @click="runAction('addWhitelist', '玩家已加入白名单')"
-                >加入白名单</NButton
+                @click="runAction('addWhitelist', locale.t('players.addedWhitelist'))"
               >
+                {{ locale.t('players.addWhitelist') }}
+              </NButton>
               <NButton
                 v-else
                 :disabled="!canManage"
                 :loading="store.actionLoading"
-                @click="runAction('removeWhitelist', '玩家已移出白名单')"
-                >移出白名单</NButton
+                @click="runAction('removeWhitelist', locale.t('players.removedWhitelist'))"
               >
+                {{ locale.t('players.removeWhitelist') }}
+              </NButton>
               <NButton
                 v-if="!selected.operator"
                 :disabled="!canManage"
                 :loading="store.actionLoading"
-                @click="runAction('grantOperator', '玩家已设为 OP')"
-                >设为 OP</NButton
+                @click="runAction('grantOperator', locale.t('players.grantedOperator'))"
               >
+                {{ locale.t('players.grantOperator') }}
+              </NButton>
               <NButton
                 v-else
                 :disabled="!canManage"
                 :loading="store.actionLoading"
-                @click="runAction('revokeOperator', '玩家 OP 已取消')"
-                >取消 OP</NButton
+                @click="runAction('revokeOperator', locale.t('players.revokedOperator'))"
               >
+                {{ locale.t('players.revokeOperator') }}
+              </NButton>
               <NButton
                 type="warning"
                 :disabled="!canManage || !selected.online"
                 :loading="store.actionLoading"
-                @click="runAction('kick', '玩家已被踢出')"
-                >踢出</NButton
+                @click="runAction('kick', locale.t('players.kicked'))"
               >
+                {{ locale.t('players.kick') }}
+              </NButton>
               <NButton
                 v-if="selected.banned"
                 :disabled="!canManage"
                 :loading="store.actionLoading"
-                @click="runAction('pardon', '玩家封禁已取消')"
-                >解除封禁</NButton
+                @click="runAction('pardon', locale.t('players.pardoned'))"
               >
+                {{ locale.t('players.pardon') }}
+              </NButton>
             </NFlex>
             <NInput
               v-model:value="banReason"
               :disabled="!canManage || selected.banned"
-              placeholder="封禁原因（可选）"
+              :placeholder="locale.t('players.banReasonPlaceholder')"
             />
             <NDatePicker
               v-model:value="banExpiresAt"
@@ -606,7 +664,7 @@ onUnmounted(() => {
               :time-picker-props="{ format: 'HH:mm:ss' }"
               clearable
               :disabled="!canManage || selected.banned"
-              placeholder="选择封禁到期时间（可选）"
+              :placeholder="locale.t('players.banExpiresPlaceholder')"
               class="ban-expiration-picker"
             />
             <NButton
@@ -614,13 +672,14 @@ onUnmounted(() => {
               type="error"
               :disabled="!canManage"
               :loading="store.actionLoading"
-              @click="runAction('ban', '玩家已被封禁')"
-              >封禁</NButton
+              @click="runAction('ban', locale.t('players.bannedNotice'))"
             >
+              {{ locale.t('players.ban') }}
+            </NButton>
           </NFlex>
 
           <div class="drawer-section">
-            <NText strong>最近会话</NText>
+            <NText strong>{{ locale.t('players.recentSessions') }}</NText>
             <div v-if="store.sessions.length" class="session-list">
               <div v-for="session in store.sessions" :key="session.id" class="session-row">
                 <div>
@@ -642,7 +701,7 @@ onUnmounted(() => {
                 </div>
               </div>
             </div>
-            <NText v-else depth="3">暂无会话记录</NText>
+            <NText v-else depth="3">{{ locale.t('players.noSessions') }}</NText>
           </div>
         </template>
       </NSpin>

@@ -1,3 +1,5 @@
+import { translate } from '../../locales/runtime'
+
 export interface MetricDisplayScale {
   factor: number
   unit: string
@@ -58,7 +60,7 @@ export function metricDisplayScale(
       if (magnitude >= 60) return { factor: 60, unit: 'min' }
       return { factor: 1, unit: 's' }
     case 'count':
-      return { factor: 1, unit: '个' }
+      return { factor: 1, unit: translate('unit.count') }
     default:
       return { factor: 1, unit: '' }
   }

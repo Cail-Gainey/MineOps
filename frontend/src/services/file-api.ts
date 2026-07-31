@@ -21,6 +21,7 @@ import {
   SaveTextAs,
 } from '../../bindings/github.com/Cail-Gainey/MineOps/internal/desktop/services/fileservice'
 import { throwIfError } from './api-client'
+import { translate } from '../locales/runtime'
 
 export const fileDropEventName = 'mineops:file-drop'
 
@@ -38,7 +39,13 @@ export async function listRemoteDirectory(
 ): Promise<RemoteDirectory> {
   const result = await List(sshSessionID, path, currentDirectory)
   throwIfError(result.error)
-  if (!result.directory) throw new Error('FileService 未返回远程目录')
+  if (!result.directory)
+    throw new Error(
+      translate('service.missingField', {
+        service: 'FileService',
+        field: translate('serviceField.remoteDirectory'),
+      }),
+    )
   return result.directory
 }
 
@@ -56,7 +63,13 @@ export async function readRemoteText(
 ): Promise<RemoteTextDocument> {
   const result = await ReadText(sshSessionID, path, currentDirectory)
   throwIfError(result.error)
-  if (!result.document) throw new Error('FileService 未返回远程文本')
+  if (!result.document)
+    throw new Error(
+      translate('service.missingField', {
+        service: 'FileService',
+        field: translate('serviceField.remoteText'),
+      }),
+    )
   return result.document
 }
 
@@ -78,7 +91,13 @@ export async function saveRemoteText(
 ): Promise<RemoteTextDocument> {
   const result = await SaveText(sshSessionID, path, currentDirectory, content, expectedVersion)
   throwIfError(result.error)
-  if (!result.document) throw new Error('FileService 未返回保存后的远程文本')
+  if (!result.document)
+    throw new Error(
+      translate('service.missingField', {
+        service: 'FileService',
+        field: translate('serviceField.savedRemoteText'),
+      }),
+    )
   return result.document
 }
 
@@ -98,7 +117,13 @@ export async function saveRemoteTextAs(
 ): Promise<RemoteTextDocument> {
   const result = await SaveTextAs(sshSessionID, path, currentDirectory, content)
   throwIfError(result.error)
-  if (!result.document) throw new Error('FileService 未返回另存后的远程文本')
+  if (!result.document)
+    throw new Error(
+      translate('service.missingField', {
+        service: 'FileService',
+        field: translate('serviceField.savedAsRemoteText'),
+      }),
+    )
   return result.document
 }
 

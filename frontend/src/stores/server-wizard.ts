@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { computed, ref, watch } from 'vue'
+import { translate } from '../locales/runtime'
 
 import type {
   MinecraftServerInput,
@@ -174,7 +175,7 @@ export const useServerWizardStore = defineStore('server-wizard', () => {
    */
   async function testSelectedSSH(): Promise<void> {
     const id = selectedSSHSessionID.value
-    if (!id) throw new Error('请选择 SSH Session')
+    if (!id) throw new Error(translate('store.selectSSHSession'))
     const evidence = await testSSHSessionConnection(id)
     connectionEvidence.value = `${evidence.serverVersion} · ${evidence.remoteAddress} · ${evidence.connectDurationMs}ms`
   }
@@ -200,7 +201,7 @@ export const useServerWizardStore = defineStore('server-wizard', () => {
   async function next(): Promise<void> {
     if (currentStep.value === 1) {
       if (sshMode.value === 'new') await createAndTestSSH()
-      if (!selectedSSHSessionID.value) throw new Error('请选择 SSH Session')
+      if (!selectedSSHSessionID.value) throw new Error(translate('store.selectSSHSession'))
       server.value.sshSessionID = selectedSSHSessionID.value
       currentStep.value = 2
       return
@@ -217,7 +218,7 @@ export const useServerWizardStore = defineStore('server-wizard', () => {
    */
   async function submit(): Promise<void> {
     validateServerDraft()
-    if (!server.value.eulaAccepted) throw new Error('请先确认 Minecraft EULA 自动写入行为')
+    if (!server.value.eulaAccepted) throw new Error(translate('store.confirmEULA'))
     loading.value = true
     error.value = null
     try {
@@ -348,13 +349,13 @@ export const useServerWizardStore = defineStore('server-wizard', () => {
   function validateServerDraft(): void {
     const name = server.value.name.trim()
     if (!selectedSSHSessionID.value || !name || !server.value.type || !server.value.version) {
-      throw new Error('SSH、名称、服务端类型和版本不能为空')
+      throw new Error(translate('store.wizardRequiredFields'))
     }
     if (
       server.value.launchProfile.xmsMiB <= 0 ||
       server.value.launchProfile.xmsMiB > server.value.launchProfile.xmxMiB
     ) {
-      throw new Error('Xms 必须大于 0 且不能超过 Xmx')
+      throw new Error(translate('store.wizardMemoryRange'))
     }
     if (!server.value.remotePath) {
       const username = selectedSession.value?.username ?? 'minecraft'

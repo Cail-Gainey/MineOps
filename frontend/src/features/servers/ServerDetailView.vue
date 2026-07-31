@@ -33,7 +33,9 @@ import {
 } from '../../services/lifecycle-api'
 import { subscribeOperationProgress } from '../../services/operation-api'
 import AppIcon from '../../shared/components/AppIcon.vue'
+import { hasMessage } from '../../locales/runtime'
 import { useInteractionStore } from '../../stores/interactions'
+import { useLocaleStore } from '../../stores/locale'
 import { useNotificationStore } from '../../stores/notifications'
 import FilesView from '../files/FilesView.vue'
 import MonitoringView from '../monitoring/MonitoringView.vue'
@@ -48,6 +50,7 @@ const route = useRoute()
 const router = useRouter()
 const notifications = useNotificationStore()
 const interactions = useInteractionStore()
+const locale = useLocaleStore()
 const server = ref<MinecraftServer | null>(null)
 const serverList = ref<MinecraftServer[]>([])
 const actionLoading = ref(false)
@@ -72,7 +75,7 @@ const operationID = ref('')
 let unsubscribeOperation: (() => void) | null = null
 const serverOptions = computed(() =>
   serverList.value.map((item) => ({
-    label: `${item.name} · ${serverTypeLabels[item.type] ?? item.type} ${item.version}`,
+    label: `${item.name} · ${serverTypeLabel(item.type)} ${item.version}`,
     value: item.id,
   })),
 )
@@ -87,45 +90,24 @@ const nextServer = computed(() =>
     ? (serverList.value[currentServerIndex.value + 1] ?? null)
     : null,
 )
-const lifecycleStateLabels: Record<string, string> = {
-  creating: '创建中',
-  installing: '安装中',
-  ready: '就绪',
-  starting: '启动中',
-  running: '运行中',
-  stopping: '停止中',
-  stopped: '已停止',
-  updating: '更新中',
-  backing_up: '备份中',
-  deleted: '已删除',
-  failed: '失败',
+/**
+ * 把枚举值翻译成当前界面语言的标签。
+ * @param prefix - 文案键前缀
+ * @param value - 枚举值
+ * @returns 本地化标签，未登记的值原样返回
+ */
+function enumLabel(prefix: string, value: string): string {
+  const key = `${prefix}.${value}`
+  return hasMessage(key) ? locale.t(key) : value
 }
-const installationStatusLabels: Record<string, string> = {
-  consistent: '一致',
-  partial: '部分就绪',
-  untracked: '未纳入安装记录',
-  mismatch: '不一致',
-}
-const installationTaskStateLabels: Record<string, string> = {
-  waiting: '等待中',
-  running: '执行中',
-  succeeded: '已成功',
-  failed: '失败',
-  cancelled: '已取消',
-}
-const serverTypeLabels: Record<string, string> = {
-  vanilla: '原版（Vanilla）',
-  paper: 'Paper',
-  purpur: 'Purpur',
-  spigot: 'Spigot',
-  fabric: 'Fabric',
-  forge: 'Forge',
-  neoforge: 'NeoForge',
-  quilt: 'Quilt',
-  folia: 'Folia',
-  velocity: 'Velocity',
-  waterfall: 'Waterfall',
-  bungeecord: 'BungeeCord',
+
+/**
+ * 把服务端类型映射成本地化标签。
+ * @param type - 服务端类型标识
+ * @returns 本地化标签，未知类型原样返回
+ */
+function serverTypeLabel(type: string): string {
+  return enumLabel('serverDetail.type', type)
 }
 
 /**
@@ -139,30 +121,30 @@ function resolveDetailTab(tab: unknown): string {
 }
 
 /**
- * 把生命周期状态映射成中文标签。
+ * 把生命周期状态映射成本地化标签。
  * @param state - 生命周期状态标识
- * @returns 中文标签，未知状态原样返回
+ * @returns 本地化标签，未知状态原样返回
  */
 function lifecycleStateLabel(state: string): string {
-  return lifecycleStateLabels[state] ?? state
+  return enumLabel('serverDetail.lifecycle', state)
 }
 
 /**
- * 把安装完整性状态映射成中文标签。
+ * 把安装完整性状态映射成本地化标签。
  * @param state - 安装状态标识
- * @returns 中文标签，未知状态原样返回
+ * @returns 本地化标签，未知状态原样返回
  */
 function installationStatusLabel(state: string): string {
-  return installationStatusLabels[state] ?? state
+  return enumLabel('serverDetail.installStatus', state)
 }
 
 /**
- * 把安装任务状态映射成中文标签。
+ * 把安装任务状态映射成本地化标签。
  * @param state - 安装任务状态标识
- * @returns 中文标签，未知状态原样返回
+ * @returns 本地化标签，未知状态原样返回
  */
 function installationTaskStateLabel(state: string): string {
-  return installationTaskStateLabels[state] ?? state
+  return enumLabel('serverDetail.taskState', state)
 }
 
 /**
@@ -175,7 +157,7 @@ async function loadServerNavigation(): Promise<void> {
   } catch (error) {
     notifications.push({
       kind: 'warning',
-      title: '加载服务器快捷导航失败',
+      title: locale.t('serverDetail.navFailed'),
       content: error instanceof Error ? error.message : String(error),
       dedupeKey: 'server-detail:navigation:error',
     })
@@ -220,7 +202,7 @@ async function refresh(probeLifecycle = true): Promise<void> {
   } catch (error) {
     notifications.push({
       kind: 'error',
-      title: '加载服务器详情失败',
+      title: locale.t('serverDetail.loadFailed'),
       content: error instanceof Error ? error.message : String(error),
       dedupeKey: 'server-detail:error',
     })
@@ -269,14 +251,15 @@ async function start(): Promise<void> {
           !tmuxInstallConfirmed
         ) {
           const confirmed = await interactions.confirm({
-            title: '远程服务器未安装 tmux，是否自动安装？',
-            content: String(
-              error.details.intent ??
-                'MineOps 将安装 tmux，用于在 SSH 断开后保持服务器进程运行并提供实时日志。',
-            ),
-            objectLabel: `${error.details.os ?? 'Linux'} · ${error.details.packageManager ?? '系统包管理器'}`,
-            impact: `${error.details.needsSudo === true ? '需要 sudo 权限。' : ''}${error.details.command ? ` 将执行：${String(error.details.command)}` : ''}`,
-            positiveText: '安装 tmux 并继续',
+            title: locale.t('servers.tmuxTitle'),
+            content: String(error.details.intent ?? locale.t('servers.tmuxContent')),
+            objectLabel: `${error.details.os ?? 'Linux'} · ${error.details.packageManager ?? locale.t('servers.tmuxPackageManager')}`,
+            impact: `${error.details.needsSudo === true ? locale.t('servers.tmuxSudo') : ''}${
+              error.details.command
+                ? locale.t('servers.tmuxCommand', { command: String(error.details.command) })
+                : ''
+            }`,
+            positiveText: locale.t('servers.tmuxConfirmStart'),
           })
           if (!confirmed) return
           tmuxInstallConfirmed = true
@@ -288,11 +271,11 @@ async function start(): Promise<void> {
           !firewallConfirmed
         ) {
           const confirmed = await interactions.confirm({
-            title: '启动前放行防火墙端口？',
-            content: String(error.details.intent ?? '将幂等放行 Minecraft TCP 端口。'),
+            title: locale.t('servers.firewallTitle'),
+            content: String(error.details.intent ?? locale.t('servers.firewallContent')),
             objectLabel: `${error.details.backend ?? 'firewall'} · TCP ${error.details.port ?? ''}`,
-            impact: 'MineOps 会记录规则归属，仅在安全条件满足时回收旧端口。',
-            positiveText: '确认放行并启动',
+            impact: locale.t('servers.firewallImpact'),
+            positiveText: locale.t('servers.firewallConfirm'),
           })
           if (!confirmed) return
           firewallConfirmed = true
@@ -306,7 +289,7 @@ async function start(): Promise<void> {
     activeTab.value = 'console'
     lifecycleError.value = ''
   } catch (error) {
-    notifyActionError('启动服务器失败', error)
+    notifyActionError(locale.t('serverDetail.startFailed'), error)
   } finally {
     actionLoading.value = false
   }
@@ -321,10 +304,10 @@ async function stop(force = false): Promise<void> {
   if (!server.value) return
   if (force) {
     const confirmed = await interactions.confirm({
-      title: '强制停止服务器？',
-      content: '将跳过或升级优雅 stop，向受控进程组发送 TERM/KILL。可能造成世界数据未完整保存。',
+      title: locale.t('serverDetail.forceStopTitle'),
+      content: locale.t('serverDetail.forceStopContent'),
       objectLabel: server.value.name,
-      positiveText: '强制停止',
+      positiveText: locale.t('serverDetail.forceStopConfirm'),
       danger: true,
     })
     if (!confirmed) return
@@ -335,7 +318,10 @@ async function stop(force = false): Promise<void> {
     server.value.state = 'stopping'
     lifecycleError.value = ''
   } catch (error) {
-    notifyActionError(force ? '强制停止服务器失败' : '停止服务器失败', error)
+    notifyActionError(
+      force ? locale.t('serverDetail.forceStopFailed') : locale.t('serverDetail.stopFailed'),
+      error,
+    )
   } finally {
     actionLoading.value = false
   }
@@ -361,14 +347,15 @@ async function restart(): Promise<void> {
           !tmuxInstallConfirmed
         ) {
           const confirmed = await interactions.confirm({
-            title: '远程服务器未安装 tmux，是否自动安装？',
-            content: String(
-              error.details.intent ??
-                'MineOps 将安装 tmux，用于在 SSH 断开后保持服务器进程运行并提供实时日志。',
-            ),
-            objectLabel: `${error.details.os ?? 'Linux'} · ${error.details.packageManager ?? '系统包管理器'}`,
-            impact: `${error.details.needsSudo === true ? '需要 sudo 权限。' : ''}${error.details.command ? ` 将执行：${String(error.details.command)}` : ''}`,
-            positiveText: '安装 tmux 并重启',
+            title: locale.t('servers.tmuxTitle'),
+            content: String(error.details.intent ?? locale.t('servers.tmuxContent')),
+            objectLabel: `${error.details.os ?? 'Linux'} · ${error.details.packageManager ?? locale.t('servers.tmuxPackageManager')}`,
+            impact: `${error.details.needsSudo === true ? locale.t('servers.tmuxSudo') : ''}${
+              error.details.command
+                ? locale.t('servers.tmuxCommand', { command: String(error.details.command) })
+                : ''
+            }`,
+            positiveText: locale.t('servers.tmuxConfirmRestart'),
           })
           if (!confirmed) return
           tmuxInstallConfirmed = true
@@ -381,7 +368,7 @@ async function restart(): Promise<void> {
     activeTab.value = 'console'
     lifecycleError.value = ''
   } catch (error) {
-    notifyActionError('重启服务器失败', error)
+    notifyActionError(locale.t('serverDetail.restartFailed'), error)
   } finally {
     actionLoading.value = false
   }
@@ -471,10 +458,13 @@ watch(
 <template>
   <section class="server-detail-page">
     <NPageHeader
-      :title="server?.name ?? '服务器详情'"
+      :title="server?.name ?? locale.t('serverDetail.title')"
       :subtitle="
         server
-          ? `${serverTypeLabels[server.type] ?? server.type} · Minecraft ${server.version}`
+          ? locale.t('serverDetail.subtitle', {
+              type: serverTypeLabel(server.type),
+              version: server.version,
+            })
           : ''
       "
       @back="router.push({ name: 'servers' })"
@@ -485,7 +475,7 @@ watch(
             :value="server.id"
             :options="serverOptions"
             filterable
-            placeholder="快捷切换服务器"
+            :placeholder="locale.t('serverDetail.switchPlaceholder')"
             style="width: 300px"
             @update:value="navigateToServer"
           />
@@ -495,7 +485,9 @@ watch(
             :disabled="!previousServer"
             @click="navigateToServer(previousServer?.id ?? null)"
           >
-            <template #icon><AppIcon :icon="ChevronLeft" label="上一台服务器" /></template>
+            <template #icon>
+              <AppIcon :icon="ChevronLeft" :label="locale.t('serverDetail.previousServer')" />
+            </template>
           </NButton>
           <NButton
             quaternary
@@ -503,7 +495,9 @@ watch(
             :disabled="!nextServer"
             @click="navigateToServer(nextServer?.id ?? null)"
           >
-            <template #icon><AppIcon :icon="ChevronRight" label="下一台服务器" /></template>
+            <template #icon>
+              <AppIcon :icon="ChevronRight" :label="locale.t('serverDetail.nextServer')" />
+            </template>
           </NButton>
           <NButton
             type="primary"
@@ -511,20 +505,26 @@ watch(
             :disabled="!['stopped', 'ready', 'failed'].includes(server.state)"
             @click="start"
           >
-            <template #icon><AppIcon :icon="Play" label="启动" /></template>
-            启动
+            <template #icon>
+              <AppIcon :icon="Play" :label="locale.t('serverDetail.start')" />
+            </template>
+            {{ locale.t('serverDetail.start') }}
           </NButton>
           <NButton
             :loading="actionLoading"
             :disabled="!['running', 'starting', 'failed'].includes(server.state)"
             @click="stop(false)"
           >
-            <template #icon><AppIcon :icon="Square" label="停止" /></template>
-            停止
+            <template #icon>
+              <AppIcon :icon="Square" :label="locale.t('serverDetail.stop')" />
+            </template>
+            {{ locale.t('serverDetail.stop') }}
           </NButton>
           <NButton :loading="actionLoading" :disabled="server.state !== 'running'" @click="restart">
-            <template #icon><AppIcon :icon="RotateCw" label="重启" /></template>
-            重启
+            <template #icon>
+              <AppIcon :icon="RotateCw" :label="locale.t('serverDetail.restart')" />
+            </template>
+            {{ locale.t('serverDetail.restart') }}
           </NButton>
           <NButton
             type="error"
@@ -532,8 +532,9 @@ watch(
             :loading="actionLoading"
             :disabled="!['running', 'starting', 'stopping', 'failed'].includes(server.state)"
             @click="stop(true)"
-            >强制停止</NButton
           >
+            {{ locale.t('serverDetail.forceStop') }}
+          </NButton>
           <NTag
             :type="
               server.state === 'running'
@@ -561,26 +562,35 @@ watch(
       "
       :title="
         loadError instanceof ApplicationError && loadError.code.includes('permission_denied')
-          ? '权限不足'
-          : '服务器详情加载失败'
+          ? locale.t('table.permissionDenied')
+          : locale.t('serverDetail.detailLoadFailed')
       "
     >
       <NFlex align="center" justify="space-between">
         <span>{{ loadError instanceof Error ? loadError.message : String(loadError) }}</span>
-        <NButton size="small" @click="() => refresh()">重试</NButton>
+        <NButton size="small" @click="() => refresh()">{{ locale.t('common.retry') }}</NButton>
       </NFlex>
     </NAlert>
 
-    <NAlert v-if="lifecycleError" type="warning" title="远程状态探测失败">{{
-      lifecycleError
-    }}</NAlert>
-    <NAlert v-if="installationStatusError" type="warning" title="安装一致性检查失败">
+    <NAlert
+      v-if="lifecycleError"
+      type="warning"
+      :title="locale.t('serverDetail.lifecycleProbeFailed')"
+      >{{ lifecycleError }}</NAlert
+    >
+    <NAlert
+      v-if="installationStatusError"
+      type="warning"
+      :title="locale.t('serverDetail.installCheckFailed')"
+    >
       {{ installationStatusError }}
     </NAlert>
-    <NText v-if="operationID" depth="3">当前后台任务：{{ operationID }}</NText>
+    <NText v-if="operationID" depth="3">{{
+      locale.t('serverDetail.currentOperation', { id: operationID })
+    }}</NText>
 
     <NTabs v-if="server" v-model:value="activeTab" type="line" animated>
-      <NTabPane name="overview" tab="概览">
+      <NTabPane name="overview" :tab="locale.t('serverDetail.tab.overview')">
         <NAlert
           v-if="installationStatus"
           :type="
@@ -590,56 +600,84 @@ watch(
                 ? 'error'
                 : 'warning'
           "
-          :title="`安装一致性：${installationStatusLabel(installationStatus.state)}`"
+          :title="
+            locale.t('serverDetail.installConsistency', {
+              state: installationStatusLabel(installationStatus.state),
+            })
+          "
           class="installation-status"
         >
           <div v-if="installationStatus.issues.length">
-            问题：{{ installationStatus.issues.join('；') }}
+            {{
+              locale.t('serverDetail.issues', {
+                items: installationStatus.issues.join(locale.t('common.listSeparator')),
+              })
+            }}
           </div>
           <div v-if="installationStatus.warnings.length">
-            提示：{{ installationStatus.warnings.join('；') }}
+            {{
+              locale.t('serverDetail.warnings', {
+                items: installationStatus.warnings.join(locale.t('common.listSeparator')),
+              })
+            }}
           </div>
           <div v-if="!installationStatus.issues.length && !installationStatus.warnings.length">
-            远程启动文件、配置、适用的 EULA、Java 运行时和最近安装检查点一致。
+            {{ locale.t('serverDetail.consistentHint') }}
           </div>
         </NAlert>
         <NDescriptions bordered :columns="2" label-placement="left">
-          <NDescriptionsItem label="服务器 ID">{{ server.id }}</NDescriptionsItem>
-          <NDescriptionsItem label="SSH 会话 ID">{{ server.sshSessionID }}</NDescriptionsItem>
-          <NDescriptionsItem label="服务端类型">{{
-            serverTypeLabels[server.type] ?? server.type
+          <NDescriptionsItem :label="locale.t('serverDetail.serverID')">{{
+            server.id
           }}</NDescriptionsItem>
-          <NDescriptionsItem label="Minecraft 版本">{{ server.version }}</NDescriptionsItem>
-          <NDescriptionsItem label="Java 运行时 ID">{{
-            server.javaRuntimeID || '未绑定'
+          <NDescriptionsItem :label="locale.t('serverDetail.sshSessionID')">{{
+            server.sshSessionID
           }}</NDescriptionsItem>
-          <NDescriptionsItem label="远程目录">{{ server.remotePath }}</NDescriptionsItem>
-          <NDescriptionsItem label="内存配置"
-            >Xms {{ server.launchProfile.xmsMiB }} MiB / Xmx
-            {{ server.launchProfile.xmxMiB }} MiB</NDescriptionsItem
-          >
-          <NDescriptionsItem label="分组">{{ server.group || '未分组' }}</NDescriptionsItem>
-          <NDescriptionsItem label="标签">{{
-            server.tags.join(', ') || '无标签'
+          <NDescriptionsItem :label="locale.t('serverDetail.serverType')">{{
+            serverTypeLabel(server.type)
           }}</NDescriptionsItem>
-          <NDescriptionsItem v-if="installationStatus" label="启动文件">
-            {{ installationStatus.artifactPath }} ·
-            {{ (installationStatus.artifactSize / 1024 / 1024).toFixed(1) }} MiB
+          <NDescriptionsItem :label="locale.t('serverDetail.mcVersion')">{{
+            server.version
+          }}</NDescriptionsItem>
+          <NDescriptionsItem :label="locale.t('serverDetail.javaRuntimeID')">{{
+            server.javaRuntimeID || locale.t('serverDetail.javaUnbound')
+          }}</NDescriptionsItem>
+          <NDescriptionsItem :label="locale.t('serverDetail.remoteDir')">{{
+            server.remotePath
+          }}</NDescriptionsItem>
+          <NDescriptionsItem :label="locale.t('serverDetail.memory')">{{
+            locale.t('wizard.summaryMemoryValue', {
+              xms: server.launchProfile.xmsMiB,
+              xmx: server.launchProfile.xmxMiB,
+            })
+          }}</NDescriptionsItem>
+          <NDescriptionsItem :label="locale.t('serverDetail.group')">{{
+            server.group || locale.t('wizard.ungrouped')
+          }}</NDescriptionsItem>
+          <NDescriptionsItem :label="locale.t('serverDetail.tags')">{{
+            server.tags.join(', ') || locale.t('wizard.noTags')
+          }}</NDescriptionsItem>
+          <NDescriptionsItem v-if="installationStatus" :label="locale.t('serverDetail.artifact')">
+            {{
+              locale.t('serverDetail.artifactValue', {
+                path: installationStatus.artifactPath,
+                size: (installationStatus.artifactSize / 1024 / 1024).toFixed(1),
+              })
+            }}
           </NDescriptionsItem>
-          <NDescriptionsItem v-if="installationStatus" label="最近安装任务">
-            {{ installationStatus.latestTaskID || '远程导入/无记录' }}
+          <NDescriptionsItem v-if="installationStatus" :label="locale.t('serverDetail.latestTask')">
+            {{ installationStatus.latestTaskID || locale.t('serverDetail.noTaskRecord') }}
             {{ installationTaskStateLabel(installationStatus.latestTaskState || '') }}
           </NDescriptionsItem>
         </NDescriptions>
       </NTabPane>
-      <NTabPane name="console" tab="控制台">
+      <NTabPane name="console" :tab="locale.t('serverDetail.tab.console')">
         <ServerConsole
           :server-id="server.id"
           :server-state="server.state"
           :active="activeTab === 'console'"
         />
       </NTabPane>
-      <NTabPane name="players" tab="玩家">
+      <NTabPane name="players" :tab="locale.t('serverDetail.tab.players')">
         <ServerPlayersPanel
           v-if="activeTab === 'players'"
           :server-id="server.id"
@@ -647,7 +685,7 @@ watch(
           :active="activeTab === 'players'"
         />
       </NTabPane>
-      <NTabPane name="files" tab="文件">
+      <NTabPane name="files" :tab="locale.t('serverDetail.tab.files')">
         <FilesView
           v-if="activeTab === 'files'"
           :locked-session-id="server.sshSessionID"
@@ -655,27 +693,27 @@ watch(
           embedded
         />
       </NTabPane>
-      <NTabPane name="configuration" tab="配置">
+      <NTabPane name="configuration" :tab="locale.t('serverDetail.tab.configuration')">
         <ServerConfigurationPanel
           v-if="activeTab === 'configuration'"
           :server="server"
           :active="activeTab === 'configuration'"
         />
       </NTabPane>
-      <NTabPane name="monitoring" tab="监控">
+      <NTabPane name="monitoring" :tab="locale.t('serverDetail.tab.monitoring')">
         <MonitoringView v-if="activeTab === 'monitoring'" :locked-server-i-d="server.id" embedded />
       </NTabPane>
-      <NTabPane name="performance" tab="性能">
+      <NTabPane name="performance" :tab="locale.t('serverDetail.tab.performance')">
         <PerformanceView
           v-if="activeTab === 'performance'"
           :locked-server-i-d="server.id"
           embedded
         />
       </NTabPane>
-      <NTabPane name="install-history" tab="安装历史">
+      <NTabPane name="install-history" :tab="locale.t('serverDetail.tab.installHistory')">
         <ServerInstallationHistory v-if="activeTab === 'install-history'" :server-i-d="server.id" />
       </NTabPane>
-      <NTabPane name="backups" tab="备份">
+      <NTabPane name="backups" :tab="locale.t('serverDetail.tab.backups')">
         <ServerBackupsPanel v-if="activeTab === 'backups'" :server="server" />
       </NTabPane>
     </NTabs>

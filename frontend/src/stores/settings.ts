@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
+import { translate } from '../locales/runtime'
 
 import type { SettingsSnapshot } from '../../bindings/github.com/Cail-Gainey/MineOps/internal/model/models'
 import {
@@ -253,7 +254,7 @@ export const useSettingsStore = defineStore('settings', () => {
       error.value = null
       try {
         if (!committed.value) await load()
-        if (!committed.value) throw new Error('Settings Snapshot 尚未加载')
+        if (!committed.value) throw new Error(translate('store.settingsNotLoaded'))
 
         const currentSelection = { ...pendingThemeSelection }
         if (

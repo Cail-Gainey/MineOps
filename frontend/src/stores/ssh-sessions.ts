@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
+import { translate } from '../locales/runtime'
 
 import type { SSHSessionDTO } from '../../bindings/github.com/Cail-Gainey/MineOps/internal/desktop/services/models'
 import { deleteSSHSession, listSSHSessions, updateSSHSession } from '../services/ssh-session-api'
@@ -12,9 +13,7 @@ export const useSSHSessionsStore = defineStore('ssh-sessions', () => {
   const loading = ref(false)
   const error = ref<unknown>(null)
   const partialMessage = computed(() =>
-    error.value && sessions.value.length
-      ? 'SSH Sessions 刷新失败，继续展示上一次成功加载的结果。'
-      : '',
+    error.value && sessions.value.length ? translate('store.sshSessionsStale') : '',
   )
   const groups = computed(() =>
     [...new Set(sessions.value.map((session) => session.group).filter(Boolean))].sort(),

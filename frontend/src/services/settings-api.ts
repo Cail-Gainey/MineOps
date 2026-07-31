@@ -6,6 +6,7 @@ import type { SettingsChangedEvent } from '../../bindings/github.com/Cail-Gainey
 import { SettingsSnapshot } from '../../bindings/github.com/Cail-Gainey/MineOps/internal/model/models'
 import { Events } from '@wailsio/runtime'
 import { throwIfError } from './api-client'
+import { translate } from '../locales/runtime'
 
 /**
  * 抛出设置接口返回的错误并取出快照本体。
@@ -15,7 +16,12 @@ import { throwIfError } from './api-client'
 function unwrapSettings(result: SettingsResult): SettingsSnapshot {
   throwIfError(result.error)
   if (!result.settings) {
-    throw new Error('SettingsService 未返回 Settings Snapshot')
+    throw new Error(
+      translate('service.missingField', {
+        service: 'SettingsService',
+        field: 'Settings Snapshot',
+      }),
+    )
   }
   return SettingsSnapshot.createFrom(result.settings)
 }

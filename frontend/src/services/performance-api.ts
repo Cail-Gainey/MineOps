@@ -20,6 +20,7 @@ import {
   StartProfiler,
 } from '../../bindings/github.com/Cail-Gainey/MineOps/internal/desktop/services/performanceservice'
 import { throwIfError } from './api-client'
+import { translate } from '../locales/runtime'
 
 /**
  * 读取某台 Server 的性能总览。
@@ -29,7 +30,10 @@ import { throwIfError } from './api-client'
 export async function getPerformanceOverview(serverID: string): Promise<PerformanceOverview> {
   const result = await Overview(serverID)
   throwIfError(result.error)
-  if (!result.overview) throw new Error('PerformanceService 未返回 Overview')
+  if (!result.overview)
+    throw new Error(
+      translate('service.missingField', { service: 'PerformanceService', field: 'Overview' }),
+    )
   return result.overview
 }
 
@@ -41,7 +45,13 @@ export async function getPerformanceOverview(serverID: string): Promise<Performa
 export async function probeSpark(serverID: string): Promise<SparkCapability> {
   const result = await Probe(serverID)
   throwIfError(result.error)
-  if (!result.capability) throw new Error('PerformanceService 未返回 Spark Capability')
+  if (!result.capability)
+    throw new Error(
+      translate('service.missingField', {
+        service: 'PerformanceService',
+        field: 'Spark Capability',
+      }),
+    )
   return result.capability
 }
 
@@ -53,7 +63,13 @@ export async function probeSpark(serverID: string): Promise<SparkCapability> {
 export async function planSparkInstall(serverID: string): Promise<SparkInstallPlan> {
   const result = await PlanInstall(serverID)
   throwIfError(result.error)
-  if (!result.plan) throw new Error('PerformanceService 未返回 Spark Install Plan')
+  if (!result.plan)
+    throw new Error(
+      translate('service.missingField', {
+        service: 'PerformanceService',
+        field: 'Spark Install Plan',
+      }),
+    )
   return result.plan
 }
 
@@ -69,7 +85,13 @@ export async function installSpark(
 ): Promise<SparkInstallResult> {
   const result = await Install(serverID, planDigest, true)
   throwIfError(result.error)
-  if (!result.result) throw new Error('PerformanceService 未返回 Spark Install Result')
+  if (!result.result)
+    throw new Error(
+      translate('service.missingField', {
+        service: 'PerformanceService',
+        field: 'Spark Install Result',
+      }),
+    )
   return result.result
 }
 
@@ -81,7 +103,13 @@ export async function installSpark(
 export async function rollbackSpark(serverID: string): Promise<SparkCapability> {
   const result = await Rollback(serverID, true)
   throwIfError(result.error)
-  if (!result.capability) throw new Error('PerformanceService 未返回回滚后的 Spark Capability')
+  if (!result.capability)
+    throw new Error(
+      translate('service.missingField', {
+        service: 'PerformanceService',
+        field: translate('serviceField.rolledBackCapability'),
+      }),
+    )
   return result.capability
 }
 
@@ -93,7 +121,13 @@ export async function rollbackSpark(serverID: string): Promise<SparkCapability> 
 export async function collectSparkSnapshot(serverID: string): Promise<SparkSnapshot> {
   const result = await CollectSnapshot(serverID)
   throwIfError(result.error)
-  if (!result.snapshot) throw new Error('PerformanceService 未返回 Spark Snapshot')
+  if (!result.snapshot)
+    throw new Error(
+      translate('service.missingField', {
+        service: 'PerformanceService',
+        field: 'Spark Snapshot',
+      }),
+    )
   return result.snapshot
 }
 
@@ -109,7 +143,13 @@ export async function startSparkHealthReport(
 ): Promise<SparkReport> {
   const result = await StartHealthReport(serverID, privacyAcknowledged)
   throwIfError(result.error)
-  if (!result.report) throw new Error('PerformanceService 未返回 Spark Health Report')
+  if (!result.report)
+    throw new Error(
+      translate('service.missingField', {
+        service: 'PerformanceService',
+        field: 'Spark Health Report',
+      }),
+    )
   return result.report
 }
 
@@ -127,7 +167,13 @@ export async function startSparkProfiler(
 ): Promise<SparkReport> {
   const result = await StartProfiler(serverID, durationSeconds, privacyAcknowledged)
   throwIfError(result.error)
-  if (!result.report) throw new Error('PerformanceService 未返回 Spark Profiler Report')
+  if (!result.report)
+    throw new Error(
+      translate('service.missingField', {
+        service: 'PerformanceService',
+        field: 'Spark Profiler Report',
+      }),
+    )
   return result.report
 }
 

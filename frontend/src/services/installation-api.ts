@@ -17,6 +17,7 @@ import {
   Start,
 } from '../../bindings/github.com/Cail-Gainey/MineOps/internal/desktop/services/installationservice'
 import { throwIfError } from './api-client'
+import { translate } from '../locales/runtime'
 
 export interface InstallationStart {
   taskID: string
@@ -57,7 +58,13 @@ export async function resolveServerVersions(distribution: string): Promise<Serve
 export async function startInstallation(serverID: string): Promise<InstallationStart> {
   const result = await Start(serverID)
   throwIfError(result.error)
-  if (!result.taskID || !result.operationID) throw new Error('InstallationService 未返回任务标识')
+  if (!result.taskID || !result.operationID)
+    throw new Error(
+      translate('service.missingField', {
+        service: 'InstallationService',
+        field: translate('serviceField.taskIdentifiers'),
+      }),
+    )
   return { taskID: result.taskID, operationID: result.operationID }
 }
 
@@ -69,7 +76,13 @@ export async function startInstallation(serverID: string): Promise<InstallationS
 export async function getInstallation(taskID: string): Promise<InstallationAggregate> {
   const result = await Get(taskID)
   throwIfError(result.error)
-  if (!result.task) throw new Error('InstallationService 未返回 InstallationTask')
+  if (!result.task)
+    throw new Error(
+      translate('service.missingField', {
+        service: 'InstallationService',
+        field: 'InstallationTask',
+      }),
+    )
   return { task: result.task, steps: result.steps }
 }
 
@@ -109,7 +122,12 @@ export async function retryInstallation(taskID: string): Promise<InstallationSta
   const result = await Retry(taskID)
   throwIfError(result.error)
   if (!result.taskID || !result.operationID)
-    throw new Error('InstallationService 未返回重试任务标识')
+    throw new Error(
+      translate('service.missingField', {
+        service: 'InstallationService',
+        field: translate('serviceField.retryTaskIdentifiers'),
+      }),
+    )
   return { taskID: result.taskID, operationID: result.operationID }
 }
 
@@ -127,6 +145,12 @@ export async function resolveInstallationDirectoryConflict(
 ): Promise<InstallationStart> {
   const result = await ResolveDirectoryConflict(taskID, action, newName)
   throwIfError(result.error)
-  if (!result.taskID) throw new Error('InstallationService 未返回目录冲突任务标识')
+  if (!result.taskID)
+    throw new Error(
+      translate('service.missingField', {
+        service: 'InstallationService',
+        field: translate('serviceField.conflictTaskIdentifier'),
+      }),
+    )
   return { taskID: result.taskID, operationID: result.operationID ?? '' }
 }

@@ -67,7 +67,7 @@ const tableOptionalProps = computed(() => ({
  * @returns 错误文本
  */
 function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error ?? '数据加载失败')
+  return error instanceof Error ? error.message : String(error ?? locale.t('table.loadFailed'))
 }
 
 /**

@@ -46,6 +46,7 @@ import {
   pauseMonitoring,
   resumeMonitoring,
 } from '../../services/monitoring-api'
+import { hasMessage } from '../../locales/runtime'
 import { useInteractionStore } from '../../stores/interactions'
 import { useLocaleStore } from '../../stores/locale'
 import { useNotificationStore } from '../../stores/notifications'
@@ -134,7 +135,9 @@ const latestSnapshotSummary = computed(() => {
   if (!latest) return ''
   const previous = snapshots.value[1]
   if (!previous) {
-    return `最近采集 ${locale.formatDateTime(latest.collectedAt)} · 已加载 1 条 Snapshot`
+    return locale.t('performance.snapshotSummarySingle', {
+      time: locale.formatDateTime(latest.collectedAt),
+    })
   }
   const changed =
     latest.tps5Seconds !== previous.tps5Seconds ||
@@ -146,17 +149,24 @@ const latestSnapshotSummary = computed(() => {
     latest.msptAvailable !== previous.msptAvailable ||
     latest.msptMedian !== previous.msptMedian ||
     latest.msptP95 !== previous.msptP95
-  return `最近采集 ${locale.formatDateTime(latest.collectedAt)} · 已加载 ${snapshots.value.length} 条 Snapshot · ${changed ? '本次指标已变化' : '本次与上一采样数值相同'}`
+  return locale.t('performance.snapshotSummary', {
+    time: locale.formatDateTime(latest.collectedAt),
+    count: snapshots.value.length,
+    change: changed
+      ? locale.t('performance.snapshotChanged')
+      : locale.t('performance.snapshotUnchanged'),
+  })
 })
 
 const latestTPSCapped = computed(
   () => latestSnapshot.value?.tps5SecondsCapped || latestSnapshot.value?.tps1MinuteCapped,
 )
 const sparkCollectionStatus = computed(() => {
-  if (collectorPaused.value) return { type: 'warning' as const, label: '已暂停' }
+  if (collectorPaused.value)
+    return { type: 'warning' as const, label: locale.t('performance.collectionPaused') }
   if (selectedServer.value?.state === 'running')
-    return { type: 'success' as const, label: '采集已启用' }
-  return { type: 'default' as const, label: '服务器停止，采集已停止' }
+    return { type: 'success' as const, label: locale.t('performance.collectionEnabled') }
+  return { type: 'default' as const, label: locale.t('performance.collectionStopped') }
 })
 
 /**
@@ -339,7 +349,7 @@ function checksumLabel(algorithm: string): string {
  * @returns 带单位的体积文本
  */
 function formatArtifactSize(bytes: number): string {
-  if (bytes <= 0) return '未声明'
+  if (bytes <= 0) return locale.t('performance.sizeUndeclared')
   return `${(bytes / 1024 / 1024).toFixed(2)} MiB`
 }
 
@@ -364,7 +374,7 @@ async function refreshPerformance(): Promise<void> {
   } catch (reason) {
     notifications.push({
       kind: 'error',
-      title: '刷新 Performance 数据失败',
+      title: locale.t('performance.refreshFailed'),
       content: reason instanceof Error ? reason.message : String(reason),
       dedupeKey: 'performance:refresh:error',
     })
@@ -376,7 +386,7 @@ async function refreshPerformance(): Promise<void> {
  * @returns 探测完成后的 Promise
  */
 async function probeSparkCapability(): Promise<void> {
-  await runAction(() => performance.probe(), 'Spark 探测完成')
+  await runAction(() => performance.probe(), locale.t('performance.probeSucceeded'))
 }
 
 /**
@@ -384,7 +394,7 @@ async function probeSparkCapability(): Promise<void> {
  * @returns 采集完成后的 Promise
  */
 async function collectSnapshot(): Promise<void> {
-  await runAction(() => performance.collect(), 'Spark TPS/MSPT 已采集')
+  await runAction(() => performance.collect(), locale.t('performance.collected'))
 }
 
 /**
@@ -400,17 +410,19 @@ async function toggleSparkCollection(): Promise<void> {
     else await pauseMonitoring(selectedServerID.value)
     notifications.push({
       kind: 'success',
-      title: paused ? 'Spark 自动采集已恢复' : 'Spark 自动采集已暂停',
+      title: paused
+        ? locale.t('performance.collectionResumed')
+        : locale.t('performance.collectionPausedNotice'),
       content: paused
-        ? '运行中的服务器将在下一个周期重新部署远端采集守护进程。'
-        : '远端 Spark 与主机指标采集守护进程均已停止。',
+        ? locale.t('performance.collectionResumedContent')
+        : locale.t('performance.collectionPausedContent'),
       dedupeKey: `performance:collection:${paused ? 'resume' : 'pause'}`,
     })
     await performance.refresh()
   } catch (reason) {
     notifications.push({
       kind: 'error',
-      title: paused ? '恢复 Spark 自动采集失败' : '暂停 Spark 自动采集失败',
+      title: paused ? locale.t('performance.resumeFailed') : locale.t('performance.pauseFailed'),
       content: reason instanceof Error ? reason.message : String(reason),
       dedupeKey: `performance:collection:${paused ? 'resume' : 'pause'}:error`,
     })
@@ -426,13 +438,13 @@ async function toggleSparkCollection(): Promise<void> {
 async function clearSparkHistory(): Promise<void> {
   if (!selectedServer.value || collectionActionLoading.value) return
   const confirmed = await interactions.confirm({
-    title: '清空 Spark 与监控历史？',
-    content: '将永久删除该服务器的 Spark TPS/MSPT Snapshot、原始指标和聚合历史。',
+    title: locale.t('performance.clearTitle'),
+    content: locale.t('performance.clearContent'),
     objectLabel: selectedServer.value.name,
     impact: collectorPaused.value
-      ? '采集当前已暂停，清空后不会立即产生新数据。'
-      : '运行中的服务器会在下一个远端采集周期重新产生数据。',
-    positiveText: '确认清空',
+      ? locale.t('performance.clearImpactPaused')
+      : locale.t('performance.clearImpactRunning'),
+    positiveText: locale.t('performance.clearConfirm'),
     danger: true,
   })
   if (!confirmed) return
@@ -441,7 +453,7 @@ async function clearSparkHistory(): Promise<void> {
     await clearMonitoringHistory(selectedServer.value.id)
     notifications.push({
       kind: 'success',
-      title: 'Spark 与监控历史已清空',
+      title: locale.t('performance.cleared'),
       content: selectedServer.value.name,
       dedupeKey: `performance:clear:${selectedServer.value.id}`,
     })
@@ -449,7 +461,7 @@ async function clearSparkHistory(): Promise<void> {
   } catch (reason) {
     notifications.push({
       kind: 'error',
-      title: '清空 Spark 历史失败',
+      title: locale.t('performance.clearFailed'),
       content: reason instanceof Error ? reason.message : String(reason),
       dedupeKey: 'performance:clear:error',
     })
@@ -475,31 +487,54 @@ async function runAction(action: () => Promise<unknown>, title: string): Promise
         diagnostics.push(reason.details.stderr.trim())
       }
       if (Array.isArray(reason.details.sources)) {
-        diagnostics.push(`下载源：${reason.details.sources.join(', ')}`)
+        diagnostics.push(
+          locale.t('performance.diagnosticSources', {
+            items: reason.details.sources.join(', '),
+          }),
+        )
       }
       if (
         typeof reason.details.expectedChecksumAlgorithm === 'string' &&
         typeof reason.details.expectedChecksum === 'string'
       ) {
         diagnostics.push(
-          `预期 ${checksumLabel(reason.details.expectedChecksumAlgorithm)}：${reason.details.expectedChecksum}`,
+          locale.t('performance.diagnosticExpectedChecksum', {
+            algorithm: checksumLabel(reason.details.expectedChecksumAlgorithm),
+            checksum: reason.details.expectedChecksum,
+          }),
         )
       } else if (typeof reason.details.expectedSHA256 === 'string') {
-        diagnostics.push(`预期 SHA-256：${reason.details.expectedSHA256}`)
+        diagnostics.push(
+          locale.t('performance.diagnosticExpectedSHA256', {
+            checksum: reason.details.expectedSHA256,
+          }),
+        )
       }
       if (Array.isArray(reason.details.downloadErrors) && reason.details.downloadErrors.length) {
-        diagnostics.push(`下载异常：${reason.details.downloadErrors.join('; ')}`)
+        diagnostics.push(
+          locale.t('performance.diagnosticDownloadErrors', {
+            items: reason.details.downloadErrors.join('; '),
+          }),
+        )
       }
       if (Array.isArray(reason.details.rollbackErrors) && reason.details.rollbackErrors.length) {
-        diagnostics.push(`回滚异常：${reason.details.rollbackErrors.join('; ')}`)
+        diagnostics.push(
+          locale.t('performance.diagnosticRollbackErrors', {
+            items: reason.details.rollbackErrors.join('; '),
+          }),
+        )
       }
       if (typeof reason.details.rawResponse === 'string' && reason.details.rawResponse.trim()) {
-        diagnostics.push(`Spark 原始响应：\n${reason.details.rawResponse.trim()}`)
+        diagnostics.push(
+          locale.t('performance.diagnosticRawResponse', {
+            response: reason.details.rawResponse.trim(),
+          }),
+        )
       }
     }
     notifications.push({
       kind: 'error',
-      title: `${title}失败`,
+      title: locale.t('performance.actionFailed', { title }),
       content: `${reason instanceof Error ? reason.message : String(reason)}${diagnostics.length ? `\n${diagnostics.join('\n')}` : ''}`,
       dedupeKey: `performance:${title}:error`,
     })
@@ -511,7 +546,7 @@ async function runAction(action: () => Promise<unknown>, title: string): Promise
  * @returns 生成完成后的 Promise
  */
 async function prepareInstall(): Promise<void> {
-  await runAction(() => performance.planInstall(), 'Spark 安装计划已生成')
+  await runAction(() => performance.planInstall(), locale.t('performance.planGenerated'))
 }
 
 /**
@@ -527,14 +562,18 @@ async function confirmInstall(): Promise<void> {
     )
     .join('\n')
   const confirmed = await interactions.confirm({
-    title: capability.value?.installed ? '升级 Minecraft spark？' : '安装 Minecraft spark？',
+    title: capability.value?.installed
+      ? locale.t('performance.upgradeTitle')
+      : locale.t('performance.installTitle'),
     content: installPlan.value.impact,
     objectLabel: `${installPlan.value.serverName} · ${installPlan.value.targetVersion}`,
     impact: `${installPlan.value.targetPath}\n${checksumLabel(installPlan.value.checksumAlgorithm)}: ${installPlan.value.checksum}${dependencyImpact ? `\n${dependencyImpact}` : ''}`,
-    positiveText: capability.value?.installed ? '确认升级' : '确认安装',
+    positiveText: capability.value?.installed
+      ? locale.t('performance.upgradeConfirm')
+      : locale.t('performance.installConfirm'),
     danger: installPlan.value.restartRequired,
   })
-  if (confirmed) await runAction(() => performance.install(), 'Spark Artifact 已安装')
+  if (confirmed) await runAction(() => performance.install(), locale.t('performance.installed'))
 }
 
 /**
@@ -544,15 +583,14 @@ async function confirmInstall(): Promise<void> {
 async function confirmRollback(): Promise<void> {
   if (!capability.value?.backupPath || !selectedServer.value) return
   const confirmed = await interactions.confirm({
-    title: '回滚 Minecraft spark？',
-    content:
-      '当前 Artifact 会保留为失败副本，最近一次备份将恢复到原路径。Server 运行中时仍需重启。',
+    title: locale.t('performance.rollbackTitle'),
+    content: locale.t('performance.rollbackContent'),
     objectLabel: selectedServer.value.name,
     impact: capability.value.backupPath,
-    positiveText: '确认回滚',
+    positiveText: locale.t('performance.rollbackConfirm'),
     danger: true,
   })
-  if (confirmed) await runAction(() => performance.rollback(), 'Spark Artifact 已回滚')
+  if (confirmed) await runAction(() => performance.rollback(), locale.t('performance.rolledBack'))
 }
 
 /**
@@ -561,16 +599,17 @@ async function confirmRollback(): Promise<void> {
  */
 async function createHealthReport(): Promise<void> {
   if (!reportPrivacyConfirmation.value) {
-    await runAction(() => performance.healthReport(), 'Health Report Operation 已启动')
+    await runAction(() => performance.healthReport(), locale.t('performance.healthStarted'))
     return
   }
   const confirmed = await interactions.confirm({
-    title: '生成 Spark Health Report？',
-    content: '报告将上传到 spark.lucko.me，可能包含服务器版本、插件、主机性能和运行信息。',
+    title: locale.t('performance.healthTitle'),
+    content: locale.t('performance.healthContent'),
     objectLabel: selectedServer.value?.name ?? 'Minecraft Server',
-    positiveText: '确认并生成',
+    positiveText: locale.t('performance.healthConfirm'),
   })
-  if (confirmed) await runAction(() => performance.healthReport(), 'Health Report Operation 已启动')
+  if (confirmed)
+    await runAction(() => performance.healthReport(), locale.t('performance.healthStarted'))
 }
 
 /**
@@ -579,17 +618,20 @@ async function createHealthReport(): Promise<void> {
  */
 async function createProfiler(): Promise<void> {
   if (!reportPrivacyConfirmation.value) {
-    await runAction(() => performance.profiler(), 'Profiler Operation 已启动')
+    await runAction(() => performance.profiler(), locale.t('performance.profilerStarted'))
     return
   }
   const confirmed = await interactions.confirm({
-    title: '启动 Spark Profiler？',
-    content: `Profiler 将运行 ${profilerDurationMinutes.value} 分钟，完成后上传到 spark.lucko.me。`,
+    title: locale.t('performance.profilerTitle'),
+    content: locale.t('performance.profilerContent', {
+      minutes: profilerDurationMinutes.value,
+    }),
     objectLabel: selectedServer.value?.name ?? 'Minecraft Server',
-    impact: '报告可能包含线程、插件和服务器运行信息；可在 Operations 中取消。',
-    positiveText: '确认并启动',
+    impact: locale.t('performance.profilerImpact'),
+    positiveText: locale.t('performance.profilerConfirm'),
   })
-  if (confirmed) await runAction(() => performance.profiler(), 'Profiler Operation 已启动')
+  if (confirmed)
+    await runAction(() => performance.profiler(), locale.t('performance.profilerStarted'))
 }
 
 /**
@@ -604,11 +646,11 @@ async function openReport(report: SparkReport): Promise<void> {
     return
   }
   const confirmed = await interactions.confirm({
-    title: '打开外部 Spark Report？',
-    content: '该链接由 spark.lucko.me 托管，打开或分享可能暴露服务器运行信息。',
+    title: locale.t('performance.openReportTitle'),
+    content: locale.t('performance.openReportContent'),
     objectLabel: report.kind,
     impact: report.reportURL,
-    positiveText: '确认打开',
+    positiveText: locale.t('performance.openReportConfirm'),
   })
   if (confirmed) await openExternalReport(report.reportURL)
 }
@@ -624,7 +666,7 @@ async function openExternalReport(reportURL: string): Promise<void> {
   } catch (error) {
     notifications.push({
       kind: 'error',
-      title: 'Spark 报告打开失败',
+      title: locale.t('performance.openReportFailed'),
       content: error instanceof Error ? error.message : String(error),
       dedupeKey: `spark-report:open:${reportURL}`,
     })
@@ -632,28 +674,23 @@ async function openExternalReport(reportURL: string): Promise<void> {
 }
 
 /**
- * 把报告类型映射成中文标签。
+ * 把报告类型映射成本地化标签。
  * @param kind - 报告类型
- * @returns 中文标签，未知类型原样返回
+ * @returns 本地化标签，未知类型原样返回
  */
 function reportKindLabel(kind: string): string {
-  return kind === 'health' ? '健康报告' : kind === 'profiler' ? '性能分析' : kind
+  const key = `performance.reportKind.${kind}`
+  return hasMessage(key) ? locale.t(key) : kind
 }
 
 /**
- * 把报告状态映射成中文标签。
+ * 把报告状态映射成本地化标签。
  * @param state - 报告状态
- * @returns 中文标签，未知状态原样返回
+ * @returns 本地化标签，未知状态原样返回
  */
 function reportStateLabel(state: string): string {
-  const labels: Record<string, string> = {
-    pending: '等待中',
-    running: '运行中',
-    completed: '已完成',
-    failed: '失败',
-    cancelled: '已取消',
-  }
-  return labels[state] ?? state
+  const key = `performance.reportState.${state}`
+  return hasMessage(key) ? locale.t(key) : state
 }
 
 /**
@@ -663,17 +700,17 @@ function reportStateLabel(state: string): string {
  */
 async function deleteReport(report: SparkReport): Promise<void> {
   const confirmed = await interactions.confirm({
-    title: '删除 Spark 报告记录？',
-    content: '删除后将无法从 MineOps 报告历史中恢复，但不会删除 spark.lucko.me 上的外部数据。',
+    title: locale.t('performance.deleteReportTitle'),
+    content: locale.t('performance.deleteReportContent'),
     objectLabel: `${reportKindLabel(report.kind)} · ${locale.formatDateTime(report.createdAt)}`,
-    positiveText: '确认删除',
+    positiveText: locale.t('performance.deleteReportConfirm'),
     danger: true,
   })
   if (!confirmed) return
   await runAction(async () => {
     await deleteSparkReport(report.id)
     await performance.refresh()
-  }, '报告记录已删除')
+  }, locale.t('performance.reportDeleted'))
 }
 
 /**
@@ -688,7 +725,7 @@ async function loadPerformance(preferredServerID: string): Promise<void> {
   } catch (reason) {
     notifications.push({
       kind: 'error',
-      title: '加载 Performance Center 失败',
+      title: locale.t('performance.loadFailed'),
       content: reason instanceof Error ? reason.message : String(reason),
       dedupeKey: 'performance:load:error',
     })
@@ -727,25 +764,25 @@ watch(
               v-if="!embedded && !lockedServerID"
               v-model:value="selectedServerID"
               :options="serverOptions"
-              placeholder="选择 Server"
+              :placeholder="locale.t('performance.selectServer')"
               style="width: 280px"
               @update:value="changeServer"
             />
-            <NButton @click="refreshPerformance">刷新</NButton>
+            <NButton @click="refreshPerformance">{{ locale.t('common.refresh') }}</NButton>
             <NButton type="primary" @click="probeSparkCapability">
-              {{ capability ? '重新探测 Spark' : '探测 Spark' }}
+              {{ capability ? locale.t('performance.reprobe') : locale.t('performance.probe') }}
             </NButton>
           </NFlex>
         </NFlex>
       </NCard>
 
-      <NAlert v-if="error" type="error" title="Performance Center 加载失败">
+      <NAlert v-if="error" type="error" :title="locale.t('performance.loadFailedTitle')">
         {{ error instanceof Error ? error.message : String(error) }}
       </NAlert>
-      <NAlert v-if="partialMessage" type="warning" title="部分 Performance 数据不可用">
+      <NAlert v-if="partialMessage" type="warning" :title="locale.t('performance.partialTitle')">
         {{ partialMessage }}
       </NAlert>
-      <NEmpty v-if="servers.length === 0" description="请先创建 Minecraft Server" />
+      <NEmpty v-if="servers.length === 0" :description="locale.t('performance.noServers')" />
 
       <template v-if="selectedServer">
         <NCard title="Spark Capability">
@@ -755,17 +792,25 @@ watch(
                 <NTag :type="statusType(capability?.status)">{{
                   capability?.status ?? 'unknown'
                 }}</NTag>
-                <NText>{{ capability?.pluginVersion || '版本未确认' }}</NText>
+                <NText>{{
+                  capability?.pluginVersion || locale.t('performance.versionUnknown')
+                }}</NText>
                 <NText depth="3">{{ capability?.platform || selectedServer.type }}</NText>
                 <NText v-if="capability?.detectedAt" depth="3">
-                  最近探测 · {{ locale.formatDateTime(capability.detectedAt) }}
+                  {{
+                    locale.t('performance.lastProbe', {
+                      time: locale.formatDateTime(capability.detectedAt),
+                    })
+                  }}
                 </NText>
               </NFlex>
               <NFlex wrap>
                 <NTag :type="sparkCollectionStatus.type">{{ sparkCollectionStatus.label }}</NTag>
-                <NButton :loading="loading" @click="prepareInstall">生成安装/升级计划</NButton>
+                <NButton :loading="loading" @click="prepareInstall">
+                  {{ locale.t('performance.planButton') }}
+                </NButton>
                 <NButton v-if="capability?.backupPath" type="warning" @click="confirmRollback">
-                  回滚
+                  {{ locale.t('performance.rollback') }}
                 </NButton>
                 <NButton
                   type="primary"
@@ -777,14 +822,18 @@ watch(
                   "
                   @click="collectSnapshot"
                 >
-                  采集 TPS/MSPT
+                  {{ locale.t('performance.collectSnapshot') }}
                 </NButton>
                 <NButton
                   :type="collectorPaused ? 'primary' : 'warning'"
                   :loading="collectionActionLoading"
                   @click="toggleSparkCollection"
                 >
-                  {{ collectorPaused ? '恢复采集' : '暂停采集' }}
+                  {{
+                    collectorPaused
+                      ? locale.t('performance.resumeCollection')
+                      : locale.t('performance.pauseCollection')
+                  }}
                 </NButton>
                 <NButton
                   type="error"
@@ -792,7 +841,7 @@ watch(
                   :loading="collectionActionLoading"
                   @click="clearSparkHistory"
                 >
-                  清空历史
+                  {{ locale.t('performance.clearHistory') }}
                 </NButton>
               </NFlex>
             </NFlex>
@@ -804,31 +853,37 @@ watch(
                 capability?.collectionMethod || '—'
               }}</NDescriptionsItem>
               <NDescriptionsItem label="TPS">{{
-                capability?.tpsSupported ? '支持' : '不可用'
+                capability?.tpsSupported
+                  ? locale.t('performance.supported')
+                  : locale.t('performance.unavailable')
               }}</NDescriptionsItem>
               <NDescriptionsItem label="MSPT">{{
-                capability?.msptSupported ? '支持' : '不可用'
+                capability?.msptSupported
+                  ? locale.t('performance.supported')
+                  : locale.t('performance.unavailable')
               }}</NDescriptionsItem>
               <NDescriptionsItem label="Artifact">{{
-                capability?.artifactPath || '内置或未检测'
+                capability?.artifactPath || locale.t('performance.artifactBuiltIn')
               }}</NDescriptionsItem>
               <NDescriptionsItem label="Permission">{{
-                capability?.permissionGranted ? '已验证' : '待运行验证'
+                capability?.permissionGranted
+                  ? locale.t('performance.permissionVerified')
+                  : locale.t('performance.permissionPending')
               }}</NDescriptionsItem>
             </NDescriptions>
             <NAlert
               v-if="capability?.lastError"
               :type="capability.status === 'unsupported' ? 'error' : 'warning'"
-              :title="capability.lastErrorCode || 'Spark 状态'"
+              :title="capability.lastErrorCode || locale.t('performance.sparkStatus')"
             >
               {{ capability.lastError }}
             </NAlert>
           </NFlex>
         </NCard>
 
-        <NCard v-if="installPlan" title="官方安装计划">
+        <NCard v-if="installPlan" :title="locale.t('performance.planCard')">
           <NDescriptions bordered :columns="2" label-placement="left">
-            <NDescriptionsItem label="来源">
+            <NDescriptionsItem :label="locale.t('performance.planSource')">
               {{ installPlan.source }}
               {{
                 installPlan.releaseID
@@ -836,12 +891,18 @@ watch(
                   : `build ${installPlan.build}`
               }}
             </NDescriptionsItem>
-            <NDescriptionsItem label="版本">{{ installPlan.targetVersion }}</NDescriptionsItem>
-            <NDescriptionsItem label="文件大小">{{
+            <NDescriptionsItem :label="locale.t('performance.planVersion')">{{
+              installPlan.targetVersion
+            }}</NDescriptionsItem>
+            <NDescriptionsItem :label="locale.t('performance.planSize')">{{
               formatArtifactSize(installPlan.artifactSize)
             }}</NDescriptionsItem>
-            <NDescriptionsItem label="目标">{{ installPlan.targetPath }}</NDescriptionsItem>
-            <NDescriptionsItem label="备份">{{ installPlan.backupPath }}</NDescriptionsItem>
+            <NDescriptionsItem :label="locale.t('performance.planTarget')">{{
+              installPlan.targetPath
+            }}</NDescriptionsItem>
+            <NDescriptionsItem :label="locale.t('performance.planBackup')">{{
+              installPlan.backupPath
+            }}</NDescriptionsItem>
             <NDescriptionsItem :label="checksumLabel(installPlan.checksumAlgorithm)" :span="2">{{
               installPlan.checksum
             }}</NDescriptionsItem>
@@ -855,21 +916,26 @@ watch(
               {{ checksumLabel(dependency.checksumAlgorithm) }} {{ dependency.checksum }}
             </NDescriptionsItem>
           </NDescriptions>
-          <NAlert :type="installPlan.restartRequired ? 'warning' : 'info'" title="变更影响">
+          <NAlert
+            :type="installPlan.restartRequired ? 'warning' : 'info'"
+            :title="locale.t('performance.planImpact')"
+          >
             {{ installPlan.impact }}
           </NAlert>
           <NFlex justify="end">
-            <NButton type="primary" @click="confirmInstall">确认执行</NButton>
+            <NButton type="primary" @click="confirmInstall">
+              {{ locale.t('performance.planConfirm') }}
+            </NButton>
           </NFlex>
         </NCard>
 
-        <NAlert v-if="latestSnapshot" type="info" title="Spark Snapshot 持续采集中">
-          {{ latestSnapshotSummary }}。
-          {{
-            latestTPSCapped
-              ? 'Spark 官方已将高于目标值的 TPS 封顶显示为 20，动态负载请结合 MSPT 查看。'
-              : ''
-          }}
+        <NAlert
+          v-if="latestSnapshot"
+          type="info"
+          :title="locale.t('performance.snapshotAlertTitle')"
+        >
+          {{ latestSnapshotSummary }}
+          {{ latestTPSCapped ? locale.t('performance.tpsCappedHint') : '' }}
         </NAlert>
 
         <NGrid cols="1 620:2 1000:4" :x-gap="12" :y-gap="12">
@@ -894,7 +960,7 @@ watch(
                 :value="
                   latestSnapshot?.msptAvailable
                     ? formatMetric(latestSnapshot.msptMedian, 'ms')
-                    : '不可用'
+                    : locale.t('performance.unavailable')
                 "
             /></NCard>
           </NGridItem>
@@ -905,7 +971,7 @@ watch(
                 :value="
                   latestSnapshot?.msptAvailable
                     ? formatMetric(latestSnapshot.msptP95, 'ms')
-                    : '不可用'
+                    : locale.t('performance.unavailable')
                 "
             /></NCard>
           </NGridItem>
@@ -913,7 +979,7 @@ watch(
 
         <NGrid cols="1 900:2" :x-gap="12" :y-gap="12">
           <NGridItem>
-            <NCard title="TPS / MSPT 趋势">
+            <NCard :title="locale.t('performance.trendCard')">
               <VChart
                 v-if="snapshots.length"
                 class="trend-chart"
@@ -921,11 +987,11 @@ watch(
                 :init-options="chartInit"
                 autoresize
               />
-              <NEmpty v-else description="尚无 Spark Snapshot" />
+              <NEmpty v-else :description="locale.t('performance.noSnapshots')" />
             </NCard>
           </NGridItem>
           <NGridItem>
-            <NCard title="最新 Tick 分布">
+            <NCard :title="locale.t('performance.distributionCard')">
               <VChart
                 v-if="latestSnapshot?.msptAvailable"
                 class="trend-chart"
@@ -933,18 +999,18 @@ watch(
                 :init-options="chartInit"
                 autoresize
               />
-              <NEmpty v-else description="当前平台或响应没有 MSPT 分布" />
+              <NEmpty v-else :description="locale.t('performance.noDistribution')" />
             </NCard>
           </NGridItem>
         </NGrid>
 
-        <NCard title="健康报告与性能分析">
+        <NCard :title="locale.t('performance.reportsCard')">
           <NFlex align="center" justify="space-between" wrap>
-            <NText depth="3">生成和打开外部报告链接时均需要确认隐私风险。</NText>
+            <NText depth="3">{{ locale.t('performance.privacyHint') }}</NText>
             <NFlex align="center" wrap>
-              <NButton :disabled="capability?.status !== 'available'" @click="createHealthReport"
-                >生成健康报告</NButton
-              >
+              <NButton :disabled="capability?.status !== 'available'" @click="createHealthReport">
+                {{ locale.t('performance.createHealthReport') }}
+              </NButton>
               <NInputNumber
                 v-model:value="profilerDurationMinutes"
                 :min="1"
@@ -953,25 +1019,26 @@ watch(
                 :precision="0"
                 style="width: 130px"
               />
-              <NText depth="3">分钟</NText>
+              <NText depth="3">{{ locale.t('performance.minutes') }}</NText>
               <NButton
                 type="warning"
                 :disabled="capability?.status !== 'available'"
                 @click="createProfiler"
-                >启动性能分析</NButton
               >
+                {{ locale.t('performance.startProfiler') }}
+              </NButton>
             </NFlex>
           </NFlex>
           <NTable v-if="reports.length" size="small" striped>
             <thead>
               <tr>
-                <th>类型</th>
-                <th>状态</th>
-                <th>时间</th>
-                <th>任务 ID</th>
-                <th>报告</th>
-                <th>错误</th>
-                <th>操作</th>
+                <th>{{ locale.t('performance.column.kind') }}</th>
+                <th>{{ locale.t('performance.column.state') }}</th>
+                <th>{{ locale.t('performance.column.time') }}</th>
+                <th>{{ locale.t('performance.column.operation') }}</th>
+                <th>{{ locale.t('performance.column.report') }}</th>
+                <th>{{ locale.t('performance.column.error') }}</th>
+                <th>{{ locale.t('common.actions') }}</th>
               </tr>
             </thead>
             <tbody>
@@ -992,9 +1059,10 @@ watch(
                 <td>{{ locale.formatDateTime(report.createdAt) }}</td>
                 <td>{{ report.operationID || '—' }}</td>
                 <td>
-                  <NButton v-if="report.reportURL" text type="primary" @click="openReport(report)"
-                    >打开</NButton
-                  ><span v-else>—</span>
+                  <NButton v-if="report.reportURL" text type="primary" @click="openReport(report)">
+                    {{ locale.t('performance.openReport') }}
+                  </NButton>
+                  <span v-else>—</span>
                 </td>
                 <td>{{ report.errorMessage || '—' }}</td>
                 <td>
@@ -1003,13 +1071,14 @@ watch(
                     type="error"
                     :disabled="report.state === 'pending' || report.state === 'running'"
                     @click="deleteReport(report)"
-                    >删除</NButton
                   >
+                    {{ locale.t('common.delete') }}
+                  </NButton>
                 </td>
               </tr>
             </tbody>
           </NTable>
-          <NEmpty v-else description="尚无 Spark 报告历史" />
+          <NEmpty v-else :description="locale.t('performance.noReports')" />
         </NCard>
       </template>
     </NFlex>

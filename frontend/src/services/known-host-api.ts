@@ -9,6 +9,7 @@ import {
   TrustFirst,
 } from '../../bindings/github.com/Cail-Gainey/MineOps/internal/desktop/services/knownhostservice'
 import { throwIfError } from './api-client'
+import { translate } from '../locales/runtime'
 
 /**
  * 按关键字列出已信任的主机密钥。
@@ -39,7 +40,8 @@ export async function deleteKnownHost(id: string): Promise<void> {
 export async function trustFirstKnownHost(input: ObservedHostKeyInput): Promise<KnownHostDTO> {
   const result = await TrustFirst(input)
   throwIfError(result.error)
-  if (!result.knownHost) throw new Error('Known Host 首次信任响应为空')
+  if (!result.knownHost)
+    throw new Error(translate('service.emptyResponse', { subject: 'Known Host trust' }))
   return result.knownHost
 }
 
@@ -51,6 +53,7 @@ export async function trustFirstKnownHost(input: ObservedHostKeyInput): Promise<
 export async function replaceKnownHost(input: ObservedHostKeyInput): Promise<KnownHostDTO> {
   const result = await Replace(input)
   throwIfError(result.error)
-  if (!result.knownHost) throw new Error('Known Host 指纹替换响应为空')
+  if (!result.knownHost)
+    throw new Error(translate('service.emptyResponse', { subject: 'Known Host replacement' }))
   return result.knownHost
 }

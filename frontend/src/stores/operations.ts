@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
+import { translate } from '../locales/runtime'
 
 import type { Operation } from '../../bindings/github.com/Cail-Gainey/MineOps/internal/model/models'
 import {
@@ -24,9 +25,9 @@ export const useOperationsStore = defineStore('operations', () => {
   const error = computed(() => (activeError.value && historyError.value ? activeError.value : null))
   const partialMessage = computed(() => {
     if (activeError.value && !historyError.value)
-      return '活动 Operation 暂时不可用，历史记录仍可浏览。'
+      return translate('store.activeOperationsUnavailable')
     if (historyError.value && !activeError.value)
-      return 'Operation 历史暂时不可用，活动任务仍在实时更新。'
+      return translate('store.operationHistoryUnavailable')
     return ''
   })
   let unsubscribe: (() => void) | null = null
@@ -162,12 +163,12 @@ export const useOperationsStore = defineStore('operations', () => {
       operation.type !== 'install' ||
       (operation.state !== 'failed' && operation.state !== 'cancelled')
     ) {
-      throw new Error('当前 Operation 不支持安全重试')
+      throw new Error(translate('store.retryUnsupported'))
     }
     const tasks = await listServerInstallations(operation.targetID, 200)
     const task = tasks.find((item) => item.operationID === operation.id)
     if (!task) {
-      throw new Error('未找到该 Operation 对应的 Installation Task，可能已被后续重试替代')
+      throw new Error(translate('store.installationTaskMissing'))
     }
     const started = await retryInstallation(task.id)
     await refresh()

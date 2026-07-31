@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
+import { translate } from '../locales/runtime'
 
 import type {
   JavaRuntime,
@@ -88,8 +89,8 @@ export const useJavaRuntimesStore = defineStore('java-runtimes', () => {
    * @returns Started Operation ID
    */
   async function install(majorVersion: number, architecture: string): Promise<string> {
-    if (!sshSessionID.value) throw new Error('请先选择 SSH Session')
-    if (installing.value) throw new Error('已有 Java 安装 Operation 正在执行')
+    if (!sshSessionID.value) throw new Error(translate('store.selectSSHSessionFirst'))
+    if (installing.value) throw new Error(translate('store.javaInstallRunning'))
     installing.value = true
     installError.value = null
     installOperation.value = null
@@ -144,7 +145,7 @@ export const useJavaRuntimesStore = defineStore('java-runtimes', () => {
     installing.value = false
     if (operation.state === 'failed') {
       installError.value = new Error(
-        operation.message || operation.errorCode || 'Java 安装 Operation 执行失败',
+        operation.message || operation.errorCode || translate('store.javaInstallFailed'),
       )
     } else {
       installError.value = null

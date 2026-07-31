@@ -9,6 +9,7 @@ import {
   Open,
 } from '../../bindings/github.com/Cail-Gainey/MineOps/internal/desktop/services/consoleservice'
 import { throwIfError } from './api-client'
+import { translate } from '../locales/runtime'
 
 export const consoleEventName = 'mineops:console:event'
 
@@ -21,7 +22,13 @@ export const consoleEventName = 'mineops:console:event'
 export async function openServerConsole(serverID: string, offset = 0): Promise<ConsoleSession> {
   const result = await Open(serverID, offset)
   throwIfError(result.error)
-  if (!result.session) throw new Error('ConsoleService 未返回 Console Session')
+  if (!result.session)
+    throw new Error(
+      translate('service.missingField', {
+        service: 'ConsoleService',
+        field: 'Console Session',
+      }),
+    )
   return result.session
 }
 

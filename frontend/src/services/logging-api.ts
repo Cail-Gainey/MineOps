@@ -4,6 +4,7 @@ import {
 } from '../../bindings/github.com/Cail-Gainey/MineOps/internal/desktop/services'
 import type { LogStatus } from '../../bindings/github.com/Cail-Gainey/MineOps/internal/service/models'
 import { throwIfError } from './api-client'
+import { translate } from '../locales/runtime'
 
 /**
  * 抛出日志接口返回的错误并取出状态本体。
@@ -12,7 +13,13 @@ import { throwIfError } from './api-client'
  */
 function unwrapLogStatus(result: LogStatusResult): LogStatus {
   throwIfError(result.error)
-  if (!result.status) throw new Error('LoggingService 未返回日志状态')
+  if (!result.status)
+    throw new Error(
+      translate('service.missingField', {
+        service: 'LoggingService',
+        field: translate('serviceField.logStatus'),
+      }),
+    )
   return result.status
 }
 

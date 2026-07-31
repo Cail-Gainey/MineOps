@@ -94,17 +94,19 @@ let unsubscribeOperation: (() => void) | null = null
 let unsubscribeMetricRealtime: (() => void) | null = null
 let uptimeTimer: ReturnType<typeof setInterval> | null = null
 let tableResizeObserver: ResizeObserver | null = null
-const firewallPolicyOptions = [
-  { label: '自动管理', value: 'automatic' },
-  { label: '操作前确认', value: 'prompt' },
-  { label: '不管理', value: 'disabled' },
-]
-const stateOptions = [
-  { label: '全部状态', value: '' },
+const firewallPolicies = ['automatic', 'prompt', 'disabled']
+const firewallPolicyOptions = computed(() =>
+  firewallPolicies.map((value) => ({
+    label: locale.t(`servers.firewall.${value}` as Parameters<typeof locale.t>[0]),
+    value,
+  })),
+)
+const stateOptions = computed(() => [
+  { label: locale.t('servers.allStates'), value: '' },
   ...['creating', 'installing', 'ready', 'running', 'stopped', 'failed', 'deleted'].map(
     (value) => ({ label: value, value }),
   ),
-]
+])
 const serverTypeOptions = [
   'vanilla',
   'paper',
@@ -122,7 +124,7 @@ const serverTypeOptions = [
 
 type ServerColumn = DataTableColumns<MinecraftServer>[number]
 
-const serverColumn: ServerColumn = {
+const serverColumn = computed<ServerColumn>(() => ({
   title: 'Server',
   key: 'server',
   sorter: (left, right) => left.name.localeCompare(right.name),
@@ -141,12 +143,18 @@ const serverColumn: ServerColumn = {
               h(
                 NTag,
                 { size: 'small', type: 'warning', bordered: false },
-                { default: () => '收藏' },
+                { default: () => locale.t('servers.favourite') },
               ),
             ]
           : []),
         ...(row.deletedAt
-          ? [h(NTag, { size: 'small', bordered: false }, { default: () => '已删除' })]
+          ? [
+              h(
+                NTag,
+                { size: 'small', bordered: false },
+                { default: () => locale.t('servers.deleted') },
+              ),
+            ]
           : []),
       ]),
       ...(tableWidth.value < 680
@@ -166,10 +174,10 @@ const serverColumn: ServerColumn = {
         { default: () => row.remotePath },
       ),
     ]),
-}
+}))
 
-const runtimeColumn: ServerColumn = {
-  title: '运行配置',
+const runtimeColumn = computed<ServerColumn>(() => ({
+  title: locale.t('servers.column.runtime'),
   key: 'runtime',
   width: 190,
   render: (row) =>
@@ -181,14 +189,14 @@ const runtimeColumn: ServerColumn = {
         NText,
         { depth: 3, class: 'runtime-cell__jar' },
         {
-          default: () => row.launchProfile.jarPath || '未设置 Jar',
+          default: () => row.launchProfile.jarPath || locale.t('servers.noJar'),
         },
       ),
     ]),
-}
+}))
 
-const stateColumn: ServerColumn = {
-  title: '状态',
+const stateColumn = computed<ServerColumn>(() => ({
+  title: locale.t('servers.column.state'),
   key: 'state',
   width: 112,
   render: (row) =>
@@ -207,10 +215,10 @@ const stateColumn: ServerColumn = {
       },
       { default: () => row.state },
     ),
-}
+}))
 
-const actionsColumn: ServerColumn = {
-  title: '操作',
+const actionsColumn = computed<ServerColumn>(() => ({
+  title: locale.t('common.actions'),
   key: 'actions',
   render: (row) =>
     row.deletedAt
@@ -224,7 +232,9 @@ const actionsColumn: ServerColumn = {
             h(
               NButton,
               { quaternary: true, circle: true, size: 'small', onClick: () => void restore(row) },
-              { default: () => h(AppIcon, { icon: RotateCcw, label: '恢复' }) },
+              {
+                default: () => h(AppIcon, { icon: RotateCcw, label: locale.t('servers.restore') }),
+              },
             ),
             h(
               NButton,
@@ -235,7 +245,10 @@ const actionsColumn: ServerColumn = {
                 type: 'error',
                 onClick: () => openHardDelete(row),
               },
-              { default: () => h(AppIcon, { icon: Trash2, label: '永久删除远程目录' }) },
+              {
+                default: () =>
+                  h(AppIcon, { icon: Trash2, label: locale.t('servers.hardDeleteIcon') }),
+              },
             ),
           ],
         )
@@ -255,7 +268,9 @@ const actionsColumn: ServerColumn = {
                 onClick: () =>
                   void router.push({ name: 'server-detail', params: { serverID: row.id } }),
               },
-              { default: () => h(AppIcon, { icon: Eye, label: '打开 Server 详情' }) },
+              {
+                default: () => h(AppIcon, { icon: Eye, label: locale.t('servers.openDetail') }),
+              },
             ),
             ...(['stopped', 'ready', 'failed'].includes(row.state)
               ? [
@@ -270,7 +285,9 @@ const actionsColumn: ServerColumn = {
                       disabled: Boolean(lifecycleActions.value[row.id]),
                       onClick: () => void startLifecycle(row),
                     },
-                    { default: () => h(AppIcon, { icon: Play, label: '启动 Server' }) },
+                    {
+                      default: () => h(AppIcon, { icon: Play, label: locale.t('servers.start') }),
+                    },
                   ),
                 ]
               : []),
@@ -286,7 +303,9 @@ const actionsColumn: ServerColumn = {
                       disabled: Boolean(lifecycleActions.value[row.id]),
                       onClick: () => void stopLifecycle(row),
                     },
-                    { default: () => h(AppIcon, { icon: Square, label: '停止 Server' }) },
+                    {
+                      default: () => h(AppIcon, { icon: Square, label: locale.t('servers.stop') }),
+                    },
                   ),
                 ]
               : []),
@@ -302,7 +321,10 @@ const actionsColumn: ServerColumn = {
                       disabled: Boolean(lifecycleActions.value[row.id]),
                       onClick: () => void restartLifecycle(row),
                     },
-                    { default: () => h(AppIcon, { icon: RotateCw, label: '重启 Server' }) },
+                    {
+                      default: () =>
+                        h(AppIcon, { icon: RotateCw, label: locale.t('servers.restart') }),
+                    },
                   ),
                 ]
               : []),
@@ -315,7 +337,10 @@ const actionsColumn: ServerColumn = {
                 disabled: Boolean(lifecycleActions.value[row.id]),
                 onClick: () => openEdit(row),
               },
-              { default: () => h(AppIcon, { icon: Pencil, label: '编辑元数据' }) },
+              {
+                default: () =>
+                  h(AppIcon, { icon: Pencil, label: locale.t('servers.editMetadata') }),
+              },
             ),
             h(
               NButton,
@@ -327,11 +352,13 @@ const actionsColumn: ServerColumn = {
                 disabled: Boolean(lifecycleActions.value[row.id]),
                 onClick: () => void softDelete(row),
               },
-              { default: () => h(AppIcon, { icon: Trash2, label: '软删除' }) },
+              {
+                default: () => h(AppIcon, { icon: Trash2, label: locale.t('servers.softDelete') }),
+              },
             ),
           ],
         ),
-}
+}))
 
 /**
  * 统计该行可用操作数量，用于决定操作列宽度。
@@ -347,8 +374,8 @@ function serverActionCount(server: MinecraftServer): number {
   return count
 }
 
-const typeVersionColumn: ServerColumn = {
-  title: '类型 / 版本',
+const typeVersionColumn = computed<ServerColumn>(() => ({
+  title: locale.t('servers.column.typeVersion'),
   key: 'typeVersion',
   width: 118,
   sorter: (left, right) =>
@@ -360,10 +387,10 @@ const typeVersionColumn: ServerColumn = {
       h(NTag, { size: 'small', bordered: false }, { default: () => row.type }),
       h(NText, { depth: 3 }, { default: () => row.version }),
     ]),
-}
+}))
 
-const uptimeColumn: ServerColumn = {
-  title: '已运行时长',
+const uptimeColumn = computed<ServerColumn>(() => ({
+  title: locale.t('servers.column.uptime'),
   key: 'uptime',
   width: 140,
   sorter: (left, right) => uptimeSeconds(left) - uptimeSeconds(right),
@@ -373,10 +400,10 @@ const uptimeColumn: ServerColumn = {
       { depth: row.state === 'running' ? 1 : 3 },
       { default: () => formatServerUptime(row) },
     ),
-}
+}))
 
-const groupTagsColumn: ServerColumn = {
-  title: '分组 / 标签',
+const groupTagsColumn = computed<ServerColumn>(() => ({
+  title: locale.t('servers.column.groupTags'),
   key: 'groupTags',
   width: 170,
   render: (row) =>
@@ -407,59 +434,65 @@ const groupTagsColumn: ServerColumn = {
             : []),
         ])
       : h(NText, { depth: 3 }, { default: () => '—' }),
-}
+}))
 
-const updatedAtColumn: ServerColumn = {
-  title: '更新时间',
+const updatedAtColumn = computed<ServerColumn>(() => ({
+  title: locale.t('servers.column.updatedAt'),
   key: 'updatedAt',
   width: 170,
   sorter: (left, right) => left.updatedAt.localeCompare(right.updatedAt),
   render: (row) => locale.formatDateTime(row.updatedAt),
-}
+}))
 
 const columns = computed<DataTableColumns<MinecraftServer>>(() => {
   const responsiveActionsColumn = {
-    ...actionsColumn,
+    ...actionsColumn.value,
     width: Math.min(180, Math.max(96, Math.round(tableWidth.value * 0.14))),
   } as ServerColumn
 
   if (tableWidth.value >= 1280) {
     return [
-      serverColumn,
-      typeVersionColumn,
-      uptimeColumn,
-      groupTagsColumn,
-      runtimeColumn,
-      stateColumn,
-      updatedAtColumn,
+      serverColumn.value,
+      typeVersionColumn.value,
+      uptimeColumn.value,
+      groupTagsColumn.value,
+      runtimeColumn.value,
+      stateColumn.value,
+      updatedAtColumn.value,
       responsiveActionsColumn,
     ]
   }
   if (tableWidth.value >= 1050) {
     return [
-      serverColumn,
-      typeVersionColumn,
-      uptimeColumn,
-      runtimeColumn,
-      stateColumn,
-      updatedAtColumn,
+      serverColumn.value,
+      typeVersionColumn.value,
+      uptimeColumn.value,
+      runtimeColumn.value,
+      stateColumn.value,
+      updatedAtColumn.value,
       responsiveActionsColumn,
     ]
   }
   if (tableWidth.value >= 820) {
     return [
-      serverColumn,
-      typeVersionColumn,
-      uptimeColumn,
-      runtimeColumn,
-      stateColumn,
+      serverColumn.value,
+      typeVersionColumn.value,
+      uptimeColumn.value,
+      runtimeColumn.value,
+      stateColumn.value,
       responsiveActionsColumn,
     ]
   }
   if (tableWidth.value >= 680) {
-    return [serverColumn, typeVersionColumn, runtimeColumn, stateColumn, responsiveActionsColumn]
+    return [
+      serverColumn.value,
+      typeVersionColumn.value,
+      runtimeColumn.value,
+      stateColumn.value,
+      responsiveActionsColumn,
+    ]
   }
-  return [serverColumn, stateColumn, responsiveActionsColumn]
+  return [serverColumn.value, stateColumn.value, responsiveActionsColumn]
 })
 
 /**
@@ -483,15 +516,15 @@ function uptimeSeconds(server: MinecraftServer): number {
 function formatServerUptime(server: MinecraftServer): string {
   if (server.state !== 'running') return '—'
   const seconds = uptimeSeconds(server)
-  if (!serverUptimes.value[server.id]) return '采集中'
-  if (seconds < 60) return '< 1 分钟'
+  if (!serverUptimes.value[server.id]) return locale.t('servers.uptimeCollecting')
+  if (seconds < 60) return locale.t('servers.uptimeLessThanMinute')
   const totalMinutes = Math.floor(seconds / 60)
   const days = Math.floor(totalMinutes / 1440)
   const hours = Math.floor((totalMinutes % 1440) / 60)
   const minutes = totalMinutes % 60
-  if (days > 0) return `${days} 天 ${hours} 小时`
-  if (hours > 0) return `${hours} 小时 ${minutes} 分钟`
-  return `${minutes} 分钟`
+  if (days > 0) return locale.t('servers.uptimeDaysHours', { days, hours })
+  if (hours > 0) return locale.t('servers.uptimeHoursMinutes', { hours, minutes })
+  return locale.t('servers.uptimeMinutes', { minutes })
 }
 
 /**
@@ -546,7 +579,7 @@ async function refresh(): Promise<void> {
     await store.refresh()
     await loadServerUptimes()
   } catch (error) {
-    notifyError('加载 Minecraft Servers 失败', error)
+    notifyError(locale.t('servers.loadFailed'), error)
   }
 }
 
@@ -564,8 +597,8 @@ function notifyLifecycleOperation(
 ): void {
   notifications.push({
     kind: 'info',
-    title: `Server ${action} Operation 已启动`,
-    content: operationID || `${server.name} 的请求已处理`,
+    title: locale.t('servers.lifecycleStarted', { action }),
+    content: operationID || locale.t('servers.lifecycleHandled', { name: server.name }),
     dedupeKey: `server:lifecycle:${server.id}:${action}:${operationID}`,
   })
 }
@@ -591,14 +624,15 @@ async function startLifecycle(server: MinecraftServer): Promise<void> {
           !tmuxInstallConfirmed
         ) {
           const confirmed = await interactions.confirm({
-            title: '远程服务器未安装 tmux，是否自动安装？',
-            content: String(
-              error.details.intent ??
-                'MineOps 将安装 tmux，用于在 SSH 断开后保持服务器进程运行并提供实时日志。',
-            ),
-            objectLabel: `${error.details.os ?? 'Linux'} · ${error.details.packageManager ?? '系统包管理器'}`,
-            impact: `${error.details.needsSudo === true ? '需要 sudo 权限。' : ''}${error.details.command ? ` 将执行：${String(error.details.command)}` : ''}`,
-            positiveText: '安装 tmux 并继续',
+            title: locale.t('servers.tmuxTitle'),
+            content: String(error.details.intent ?? locale.t('servers.tmuxContent')),
+            objectLabel: `${error.details.os ?? 'Linux'} · ${error.details.packageManager ?? locale.t('servers.tmuxPackageManager')}`,
+            impact: `${error.details.needsSudo === true ? locale.t('servers.tmuxSudo') : ''}${
+              error.details.command
+                ? locale.t('servers.tmuxCommand', { command: String(error.details.command) })
+                : ''
+            }`,
+            positiveText: locale.t('servers.tmuxConfirmStart'),
           })
           if (!confirmed) return
           tmuxInstallConfirmed = true
@@ -610,11 +644,11 @@ async function startLifecycle(server: MinecraftServer): Promise<void> {
           !firewallConfirmed
         ) {
           const confirmed = await interactions.confirm({
-            title: '启动前放行防火墙端口？',
-            content: String(error.details.intent ?? '将幂等放行 Minecraft TCP 端口。'),
+            title: locale.t('servers.firewallTitle'),
+            content: String(error.details.intent ?? locale.t('servers.firewallContent')),
             objectLabel: `${error.details.backend ?? 'firewall'} · TCP ${error.details.port ?? ''}`,
-            impact: 'MineOps 会记录规则归属，仅在安全条件满足时回收旧端口。',
-            positiveText: '确认放行并启动',
+            impact: locale.t('servers.firewallImpact'),
+            positiveText: locale.t('servers.firewallConfirm'),
           })
           if (!confirmed) return
           firewallConfirmed = true
@@ -623,7 +657,7 @@ async function startLifecycle(server: MinecraftServer): Promise<void> {
         throw error
       }
     }
-    notifyLifecycleOperation(server, '启动', operationID)
+    notifyLifecycleOperation(server, locale.t('servers.action.start'), operationID)
     await refresh()
     await router.push({
       name: 'server-detail',
@@ -631,7 +665,7 @@ async function startLifecycle(server: MinecraftServer): Promise<void> {
       query: { tab: 'console' },
     })
   } catch (error) {
-    notifyError('启动 Server 失败', error)
+    notifyError(locale.t('servers.startFailed'), error)
   } finally {
     if (!operationID && lifecycleActions.value[server.id] === 'start')
       delete lifecycleActions.value[server.id]
@@ -648,10 +682,10 @@ async function stopLifecycle(server: MinecraftServer): Promise<void> {
   let operationID = ''
   try {
     operationID = await stopServer(server.id)
-    notifyLifecycleOperation(server, '停止', operationID)
+    notifyLifecycleOperation(server, locale.t('servers.action.stop'), operationID)
     await refresh()
   } catch (error) {
-    notifyError('停止 Server 失败', error)
+    notifyError(locale.t('servers.stopFailed'), error)
   } finally {
     if (!operationID && lifecycleActions.value[server.id] === 'stop')
       delete lifecycleActions.value[server.id]
@@ -675,14 +709,15 @@ async function restartLifecycle(server: MinecraftServer): Promise<void> {
         error.details.requiresTmuxInstallConfirmation === true
       ) {
         const confirmed = await interactions.confirm({
-          title: '远程服务器未安装 tmux，是否自动安装？',
-          content: String(
-            error.details.intent ??
-              'MineOps 将安装 tmux，用于在 SSH 断开后保持服务器进程运行并提供实时日志。',
-          ),
-          objectLabel: `${error.details.os ?? 'Linux'} · ${error.details.packageManager ?? '系统包管理器'}`,
-          impact: `${error.details.needsSudo === true ? '需要 sudo 权限。' : ''}${error.details.command ? ` 将执行：${String(error.details.command)}` : ''}`,
-          positiveText: '安装 tmux 并重启',
+          title: locale.t('servers.tmuxTitle'),
+          content: String(error.details.intent ?? locale.t('servers.tmuxContent')),
+          objectLabel: `${error.details.os ?? 'Linux'} · ${error.details.packageManager ?? locale.t('servers.tmuxPackageManager')}`,
+          impact: `${error.details.needsSudo === true ? locale.t('servers.tmuxSudo') : ''}${
+            error.details.command
+              ? locale.t('servers.tmuxCommand', { command: String(error.details.command) })
+              : ''
+          }`,
+          positiveText: locale.t('servers.tmuxConfirmRestart'),
         })
         if (!confirmed) return
         operationID = await restartServer(server.id, true)
@@ -690,7 +725,7 @@ async function restartLifecycle(server: MinecraftServer): Promise<void> {
         throw error
       }
     }
-    notifyLifecycleOperation(server, '重启', operationID)
+    notifyLifecycleOperation(server, locale.t('servers.action.restart'), operationID)
     await refresh()
     await router.push({
       name: 'server-detail',
@@ -698,7 +733,7 @@ async function restartLifecycle(server: MinecraftServer): Promise<void> {
       query: { tab: 'console' },
     })
   } catch (error) {
-    notifyError('重启 Server 失败', error)
+    notifyError(locale.t('servers.restartFailed'), error)
   } finally {
     if (!operationID && lifecycleActions.value[server.id] === 'restart')
       delete lifecycleActions.value[server.id]
@@ -712,18 +747,17 @@ async function restartLifecycle(server: MinecraftServer): Promise<void> {
  */
 async function softDelete(server: MinecraftServer): Promise<void> {
   const confirmed = await interactions.confirm({
-    title: '软删除 Minecraft Server？',
-    content:
-      '仅把 Server 标记为 Deleted，远程目录和文件会保留。运行中或存在活动 Operation 时会被拒绝。',
+    title: locale.t('servers.softDeleteTitle'),
+    content: locale.t('servers.softDeleteContent'),
     objectLabel: `${server.name} · ${server.remotePath}`,
-    positiveText: '软删除',
+    positiveText: locale.t('servers.softDelete'),
     danger: true,
   })
   if (!confirmed) return
   try {
     await store.softDelete(server.id)
   } catch (error) {
-    notifyError('软删除 Minecraft Server 失败', error)
+    notifyError(locale.t('servers.softDeleteFailed'), error)
   }
 }
 
@@ -736,7 +770,7 @@ async function restore(server: MinecraftServer): Promise<void> {
   try {
     await store.restore(server.id)
   } catch (error) {
-    notifyError('恢复 Minecraft Server 失败', error)
+    notifyError(locale.t('servers.restoreFailed'), error)
   }
 }
 
@@ -799,7 +833,7 @@ async function inspectImport(): Promise<void> {
     importVersion.value = inspection.value.suggestedVersion
     importJar.value = inspection.value.suggestedJar
   } catch (error) {
-    notifyError('检查远程 Server 失败', error)
+    notifyError(locale.t('servers.inspectFailed'), error)
   } finally {
     importLoading.value = false
   }
@@ -846,12 +880,12 @@ async function submitImport(): Promise<void> {
     await store.refresh()
     notifications.push({
       kind: 'success',
-      title: '远程 Server 已导入',
-      content: `${server.name} · 原目录未被修改`,
+      title: locale.t('servers.imported'),
+      content: locale.t('servers.importedContent', { name: server.name }),
       dedupeKey: `server:imported:${server.id}`,
     })
   } catch (error) {
-    notifyError('导入远程 Server 失败', error)
+    notifyError(locale.t('servers.importFailed'), error)
   } finally {
     importLoading.value = false
   }
@@ -900,12 +934,12 @@ async function submitEdit(): Promise<void> {
     editVisible.value = false
     notifications.push({
       kind: 'success',
-      title: 'Server 元数据已更新',
-      content: updated.name + ' · SSH Session 与远程目录保持不变',
+      title: locale.t('servers.metadataUpdated'),
+      content: locale.t('servers.metadataUpdatedContent', { name: updated.name }),
       dedupeKey: 'server:update:' + updated.id,
     })
   } catch (error) {
-    notifyError('更新 Minecraft Server 失败', error)
+    notifyError(locale.t('servers.updateFailed'), error)
   } finally {
     editLoading.value = false
   }
@@ -951,13 +985,13 @@ async function submitHardDelete(): Promise<void> {
     hardDeleteVisible.value = false
     notifications.push({
       kind: 'warning',
-      title: '永久删除 Operation 已启动',
+      title: locale.t('servers.hardDeleteStarted'),
       content: operationID,
       dedupeKey: `server:hard-delete:${operationID}`,
     })
   } catch (error) {
     pendingHardDeleteTargets.delete(targetID)
-    notifyError('启动远程硬删除失败', error)
+    notifyError(locale.t('servers.hardDeleteFailed'), error)
   } finally {
     hardDeleteLoading.value = false
   }
@@ -1022,7 +1056,7 @@ onMounted(async () => {
     store.refresh(),
   ])
   if (serverResult.status === 'rejected') {
-    notifyError('加载 Minecraft Servers 失败', serverResult.reason)
+    notifyError(locale.t('servers.loadFailed'), serverResult.reason)
   } else {
     await loadServerUptimes()
   }
@@ -1045,11 +1079,13 @@ watch(importSSHSessionID, () => {
   <NCard>
     <NFlex justify="end" wrap class="page-actions">
       <NButton type="primary" @click="wizardVisible = true">
-        <template #icon><AppIcon :icon="Plus" label="创建" /></template>
-        创建并安装 Server
+        <template #icon>
+          <AppIcon :icon="Plus" :label="locale.t('servers.createIcon')" />
+        </template>
+        {{ locale.t('servers.createInstall') }}
       </NButton>
       <NButton :disabled="!sshSessions.sessions.length" @click="openImport">
-        导入远程 Server
+        {{ locale.t('servers.importRemote') }}
       </NButton>
     </NFlex>
 
@@ -1058,13 +1094,13 @@ watch(importSSHSessionID, () => {
         v-model:value="store.search"
         class="toolbar-search"
         clearable
-        placeholder="搜索名称、路径或版本"
+        :placeholder="locale.t('servers.searchPlaceholder')"
         @keyup.enter="refresh"
       />
       <NSelect
         v-model:value="store.sshSessionID"
         clearable
-        placeholder="全部 SSH Sessions"
+        :placeholder="locale.t('servers.allSessions')"
         :options="
           sshSessions.sessions.map((session) => ({ label: session.name, value: session.id }))
         "
@@ -1076,9 +1112,11 @@ watch(importSSHSessionID, () => {
         class="include-deleted"
         @update:checked="refresh"
       >
-        包含已删除
+        {{ locale.t('servers.includeDeleted') }}
       </NCheckbox>
-      <NButton :loading="store.loading" @click="refresh">刷新</NButton>
+      <NButton :loading="store.loading" @click="refresh">
+        {{ locale.t('common.refresh') }}
+      </NButton>
     </div>
 
     <div ref="tableContainer" class="server-table">
@@ -1087,7 +1125,7 @@ watch(importSSHSessionID, () => {
         :data="store.servers"
         :loading="store.loading"
         :error="store.error"
-        empty-description="尚未创建 Minecraft Server"
+        :empty-description="locale.t('servers.empty')"
         @retry="refresh"
         @open="
           (server) =>
@@ -1103,26 +1141,32 @@ watch(importSSHSessionID, () => {
   <NModal
     v-model:show="editVisible"
     preset="card"
-    title="编辑 Server 元数据"
+    :title="locale.t('servers.editTitle')"
     style="width: min(760px, calc(100vw - 32px))"
   >
     <NForm v-if="editDraft && editTarget">
-      <NAlert type="info" title="SSH 绑定与远程目录保持不变">
-        {{ editTarget.sshSessionID }} · {{ editTarget.remotePath }}。LaunchProfile
-        变更将在下次启动时使用，不会移动现有文件。
+      <NAlert type="info" :title="locale.t('servers.editNoticeTitle')">
+        {{
+          locale.t('servers.editNoticeContent', {
+            session: editTarget.sshSessionID,
+            path: editTarget.remotePath,
+          })
+        }}
       </NAlert>
       <NFlex :wrap="false">
-        <NFormItem label="名称" style="flex: 2">
+        <NFormItem :label="locale.t('servers.form.name')" style="flex: 2">
           <NInput v-model:value="editDraft.name" />
         </NFormItem>
-        <NFormItem label="分组" style="flex: 1">
+        <NFormItem :label="locale.t('servers.form.group')" style="flex: 1">
           <NInput v-model:value="editDraft.group" />
         </NFormItem>
-        <NFormItem label="收藏">
-          <NCheckbox v-model:checked="editDraft.favourite">置顶</NCheckbox>
+        <NFormItem :label="locale.t('servers.form.favourite')">
+          <NCheckbox v-model:checked="editDraft.favourite">
+            {{ locale.t('servers.form.pin') }}
+          </NCheckbox>
         </NFormItem>
       </NFlex>
-      <NFormItem label="标签">
+      <NFormItem :label="locale.t('servers.form.tags')">
         <NDynamicTags v-model:value="editDraft.tags" />
       </NFormItem>
       <NFlex :wrap="false">
@@ -1135,21 +1179,21 @@ watch(importSSHSessionID, () => {
             :min="editDraft.launchProfile.xmsMiB"
           />
         </NFormItem>
-        <NFormItem label="启动 Jar" style="flex: 2">
+        <NFormItem :label="locale.t('servers.form.jar')" style="flex: 2">
           <NInput v-model:value="editDraft.launchProfile.jarPath" />
         </NFormItem>
       </NFlex>
-      <NFormItem label="JVM 参数">
+      <NFormItem :label="locale.t('servers.form.jvmArgs')">
         <NDynamicTags v-model:value="editDraft.launchProfile.jvmArguments" />
       </NFormItem>
-      <NFormItem label="Server 参数">
+      <NFormItem :label="locale.t('servers.form.serverArgs')">
         <NDynamicTags v-model:value="editDraft.launchProfile.serverArguments" />
       </NFormItem>
-      <NFormItem label="防火墙策略">
+      <NFormItem :label="locale.t('servers.form.firewall')">
         <NSelect v-model:value="editDraft.firewallPolicy" :options="firewallPolicyOptions" />
       </NFormItem>
       <NFlex justify="end">
-        <NButton @click="editVisible = false">取消</NButton>
+        <NButton @click="editVisible = false">{{ locale.t('common.cancel') }}</NButton>
         <NButton
           type="primary"
           :loading="editLoading"
@@ -1160,7 +1204,7 @@ watch(importSSHSessionID, () => {
           "
           @click="submitEdit"
         >
-          保存元数据
+          {{ locale.t('servers.saveMetadata') }}
         </NButton>
       </NFlex>
     </NForm>
@@ -1169,7 +1213,7 @@ watch(importSSHSessionID, () => {
   <NModal
     v-model:show="importVisible"
     preset="card"
-    title="导入现有远程 Server"
+    :title="locale.t('servers.importTitle')"
     style="width: min(760px, calc(100vw - 32px))"
   >
     <NForm>
@@ -1180,40 +1224,59 @@ watch(importSSHSessionID, () => {
             :options="sshSessions.sessions.map((item) => ({ label: item.name, value: item.id }))"
           />
         </NFormItem>
-        <NFormItem label="远程目录" style="flex: 2">
+        <NFormItem :label="locale.t('servers.form.remoteDir')" style="flex: 2">
           <NInput v-model:value="importPath" placeholder="/home/minecraft/server" />
         </NFormItem>
-        <NFormItem label="只读检查">
-          <NButton :loading="importLoading" @click="inspectImport">检查</NButton>
+        <NFormItem :label="locale.t('servers.form.inspect')">
+          <NButton :loading="importLoading" @click="inspectImport">
+            {{ locale.t('servers.inspectButton') }}
+          </NButton>
         </NFormItem>
       </NFlex>
       <template v-if="inspection">
         <NAlert
           :type="inspection.eulaAccepted && inspection.propertiesFound ? 'success' : 'warning'"
-          title="远程检查结果"
+          :title="locale.t('servers.inspectResult')"
         >
-          Jar {{ inspection.jars.length }} 个 · server.properties
-          {{ inspection.propertiesFound ? '存在' : '缺失' }} · EULA
-          {{ inspection.eulaAccepted ? '已接受' : '未接受' }}。导入不会修改原目录。
+          {{
+            locale.t('servers.inspectSummary', {
+              jars: inspection.jars.length,
+              properties: inspection.propertiesFound
+                ? locale.t('servers.present')
+                : locale.t('servers.missing'),
+              eula: inspection.eulaAccepted
+                ? locale.t('servers.eulaAccepted')
+                : locale.t('servers.eulaNotAccepted'),
+            })
+          }}
         </NAlert>
-        <NAlert v-if="inspection.warnings.length" type="warning" title="需要确认">
-          {{ inspection.warnings.join('；') }}
+        <NAlert
+          v-if="inspection.warnings.length"
+          type="warning"
+          :title="locale.t('servers.needsConfirm')"
+        >
+          {{ inspection.warnings.join(locale.t('common.listSeparator')) }}
         </NAlert>
         <NFlex :wrap="false">
-          <NFormItem label="名称" style="flex: 1"><NInput v-model:value="importName" /></NFormItem>
-          <NFormItem label="类型" style="flex: 1">
+          <NFormItem :label="locale.t('servers.form.name')" style="flex: 1">
+            <NInput v-model:value="importName" />
+          </NFormItem>
+          <NFormItem :label="locale.t('servers.form.type')" style="flex: 1">
             <NSelect v-model:value="importType" :options="serverTypeOptions" />
           </NFormItem>
-          <NFormItem label="版本" style="flex: 1"
-            ><NInput v-model:value="importVersion"
-          /></NFormItem>
+          <NFormItem :label="locale.t('servers.form.version')" style="flex: 1">
+            <NInput v-model:value="importVersion" />
+          </NFormItem>
         </NFlex>
-        <NFormItem label="启动 Jar">
+        <NFormItem :label="locale.t('servers.form.jar')">
           <NSelect
             v-model:value="importJar"
             :options="
               inspection.jars.map((jar) => ({
-                label: `${jar.name} · ${(jar.size / 1024 / 1024).toFixed(1)} MiB`,
+                label: locale.t('servers.jarOption', {
+                  name: jar.name,
+                  size: (jar.size / 1024 / 1024).toFixed(1),
+                }),
                 value: jar.name,
               }))
             "
@@ -1225,22 +1288,24 @@ watch(importSSHSessionID, () => {
             :loading="importJavaLoading"
             :options="
               importJavaRuntimes.map((runtime) => ({
-                label: `${runtime.vendor} Java ${runtime.majorVersion} · ${runtime.javaHome}${runtime.default ? ' · 默认' : ''}`,
+                label: `${runtime.vendor} Java ${runtime.majorVersion} · ${runtime.javaHome}${
+                  runtime.default ? locale.t('servers.javaOptionDefault') : ''
+                }`,
                 value: runtime.id,
               }))
             "
-            placeholder="选择同一 SSH Session 下的 Java Runtime"
+            :placeholder="locale.t('servers.selectJava')"
           />
         </NFormItem>
-        <NAlert v-if="importJavaError" type="warning" title="Java Runtime 列表不可用">
+        <NAlert v-if="importJavaError" type="warning" :title="locale.t('servers.javaUnavailable')">
           {{ importJavaError instanceof Error ? importJavaError.message : String(importJavaError) }}
         </NAlert>
         <NAlert
           v-else-if="!importJavaLoading && !importJavaRuntimes.length"
           type="warning"
-          title="需要 Java Runtime"
+          :title="locale.t('servers.javaRequired')"
         >
-          请先在 Java Runtime 页面为该 SSH Session 发现或导入 Java；远程 Server 注册后才能直接启动。
+          {{ locale.t('servers.javaRequiredContent') }}
         </NAlert>
         <NFlex :wrap="false">
           <NFormItem label="Xms MiB" style="flex: 1">
@@ -1252,7 +1317,7 @@ watch(importSSHSessionID, () => {
         </NFlex>
       </template>
       <NFlex justify="end">
-        <NButton @click="importVisible = false">取消</NButton>
+        <NButton @click="importVisible = false">{{ locale.t('common.cancel') }}</NButton>
         <NButton
           type="primary"
           :loading="importLoading"
@@ -1265,7 +1330,7 @@ watch(importSSHSessionID, () => {
           "
           @click="submitImport"
         >
-          注册且不修改远程目录
+          {{ locale.t('servers.importSubmit') }}
         </NButton>
       </NFlex>
     </NForm>
@@ -1274,24 +1339,26 @@ watch(importSSHSessionID, () => {
   <NModal
     v-model:show="hardDeleteVisible"
     preset="card"
-    title="永久删除远程 Server"
+    :title="locale.t('servers.hardDeleteTitle')"
     style="width: min(640px, calc(100vw - 32px))"
   >
-    <NAlert type="error" title="不可撤销">
-      MineOps 将重新检查根目录、Home、符号链接和挂载根，然后递归删除远程目录及数据库注册。
+    <NAlert type="error" :title="locale.t('servers.hardDeleteWarnTitle')">
+      {{ locale.t('servers.hardDeleteWarnContent') }}
     </NAlert>
     <NForm v-if="hardDeleteTarget">
       <NFlex justify="end">
-        <NButton @click="fillHardDeleteConfirmation">一键填充确认信息</NButton>
+        <NButton @click="fillHardDeleteConfirmation">
+          {{ locale.t('servers.fillConfirmation') }}
+        </NButton>
       </NFlex>
-      <NFormItem :label="`输入名称：${hardDeleteTarget.name}`">
+      <NFormItem :label="locale.t('servers.confirmName', { name: hardDeleteTarget.name })">
         <NInput v-model:value="confirmedDeleteName" />
       </NFormItem>
-      <NFormItem :label="`输入完整路径：${hardDeleteTarget.remotePath}`">
+      <NFormItem :label="locale.t('servers.confirmPath', { path: hardDeleteTarget.remotePath })">
         <NInput v-model:value="confirmedDeletePath" />
       </NFormItem>
       <NFlex justify="end">
-        <NButton @click="hardDeleteVisible = false">取消</NButton>
+        <NButton @click="hardDeleteVisible = false">{{ locale.t('common.cancel') }}</NButton>
         <NButton
           type="error"
           :loading="hardDeleteLoading"
@@ -1301,7 +1368,7 @@ watch(importSSHSessionID, () => {
           "
           @click="submitHardDelete"
         >
-          永久删除
+          {{ locale.t('servers.hardDeleteSubmit') }}
         </NButton>
       </NFlex>
     </NForm>

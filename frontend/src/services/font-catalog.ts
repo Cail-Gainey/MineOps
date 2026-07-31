@@ -1,3 +1,5 @@
+import { translate } from '../locales/runtime'
+
 const candidates = [
   'SFMono-Regular',
   'Menlo',
@@ -27,7 +29,7 @@ export function enumerateMonospaceFonts(): FontOption[] {
   const available = candidates.filter((font) => document.fonts.check(`13px "${font}"`))
   return [
     {
-      label: '系统等宽字体',
+      label: translate('font.systemMonospace'),
       value: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
     },
     ...available.map((font) => ({ label: font, value: `"${font}", monospace` })),

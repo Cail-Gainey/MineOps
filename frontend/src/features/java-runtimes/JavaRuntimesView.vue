@@ -23,11 +23,13 @@ import AppDataTable from '../../shared/components/AppDataTable.vue'
 import AppIcon from '../../shared/components/AppIcon.vue'
 import { useInteractionStore } from '../../stores/interactions'
 import { useJavaRuntimesStore } from '../../stores/java-runtimes'
+import { useLocaleStore } from '../../stores/locale'
 import { useNotificationStore } from '../../stores/notifications'
 import { useSSHSessionsStore } from '../../stores/ssh-sessions'
 
 const store = useJavaRuntimesStore()
 const router = useRouter()
+const locale = useLocaleStore()
 const sshSessions = useSSHSessionsStore()
 const interactions = useInteractionStore()
 const notifications = useNotificationStore()
@@ -43,15 +45,18 @@ const catalogError = ref<unknown>(null)
 const partialMessage = computed(() =>
   sessionError.value
     ? sshSessions.sessions.length
-      ? 'SSH Session 列表刷新失败，继续使用已加载连接。'
-      : 'SSH Session 列表不可用，暂时无法选择远程 Java 目标。'
+      ? locale.t('java.sessionRefreshFailed')
+      : locale.t('java.sessionUnavailable')
     : '',
 )
 
-const majorOptions = [
-  { label: '全部版本', value: 0 },
-  ...[8, 11, 16, 17, 21, 24, 25].map((value) => ({ label: `Java ${value}`, value })),
-]
+const majorOptions = computed(() => [
+  { label: locale.t('java.majorAll'), value: 0 },
+  ...[8, 11, 16, 17, 21, 24, 25].map((value) => ({
+    label: locale.t('java.majorVersion', { value }),
+    value,
+  })),
+])
 const serverTypeOptions = [
   'vanilla',
   'paper',
@@ -69,20 +74,26 @@ const architectureOptions = [
   { label: 'Linux ARM64', value: 'aarch64' },
 ]
 
-const runtimeColumns: DataTableColumns<JavaRuntime> = [
+const runtimeColumns = computed<DataTableColumns<JavaRuntime>>(() => [
   {
-    title: '默认',
+    title: locale.t('java.column.default'),
     key: 'default',
     width: 70,
     render: (row) =>
-      row.default ? h(NTag, { type: 'success', bordered: false }, { default: () => '默认' }) : null,
+      row.default
+        ? h(
+            NTag,
+            { type: 'success', bordered: false },
+            { default: () => locale.t('java.tagDefault') },
+          )
+        : null,
   },
-  { title: '版本', key: 'version', sorter: 'default', minWidth: 140 },
-  { title: '主版本', key: 'majorVersion', width: 90 },
+  { title: locale.t('java.column.version'), key: 'version', sorter: 'default', minWidth: 140 },
+  { title: locale.t('java.column.major'), key: 'majorVersion', width: 90 },
   { title: 'Vendor', key: 'vendor', minWidth: 160 },
-  { title: '架构', key: 'architecture', width: 110 },
+  { title: locale.t('java.column.architecture'), key: 'architecture', width: 110 },
   {
-    title: '来源',
+    title: locale.t('java.column.source'),
     key: 'source',
     width: 120,
     render: (row) =>
@@ -92,9 +103,14 @@ const runtimeColumns: DataTableColumns<JavaRuntime> = [
         { default: () => row.source },
       ),
   },
-  { title: '安装路径', key: 'installPath', minWidth: 260, ellipsis: { tooltip: true } },
   {
-    title: '操作',
+    title: locale.t('java.column.installPath'),
+    key: 'installPath',
+    minWidth: 260,
+    ellipsis: { tooltip: true },
+  },
+  {
+    title: locale.t('common.actions'),
     key: 'actions',
     width: 140,
     render: (row) =>
@@ -107,51 +123,73 @@ const runtimeColumns: DataTableColumns<JavaRuntime> = [
             disabled: row.default,
             onClick: () => void setDefault(row),
           },
-          { default: () => h(AppIcon, { icon: Star, label: '设为默认' }) },
+          { default: () => h(AppIcon, { icon: Star, label: locale.t('java.setDefault') }) },
         ),
         h(
           NButton,
           { quaternary: true, circle: true, type: 'error', onClick: () => void remove(row) },
-          { default: () => h(AppIcon, { icon: Trash2, label: '删除注册' }) },
+          {
+            default: () => h(AppIcon, { icon: Trash2, label: locale.t('java.removeRegistration') }),
+          },
         ),
       ]),
   },
-]
+])
 
-const candidateColumns: DataTableColumns<JavaCandidate> = [
-  { title: '版本', key: 'info.version', render: (row) => row.info.version, minWidth: 140 },
-  { title: '主版本', key: 'major', render: (row) => row.info.majorVersion, width: 90 },
-  { title: 'Vendor', key: 'vendor', render: (row) => row.info.vendor, minWidth: 160 },
-  { title: '架构', key: 'architecture', render: (row) => row.info.architecture, width: 110 },
-  { title: '来源', key: 'source', width: 120 },
-  { title: '可执行文件', key: 'executablePath', minWidth: 280, ellipsis: { tooltip: true } },
+const candidateColumns = computed<DataTableColumns<JavaCandidate>>(() => [
   {
-    title: '操作',
+    title: locale.t('java.column.version'),
+    key: 'info.version',
+    render: (row) => row.info.version,
+    minWidth: 140,
+  },
+  {
+    title: locale.t('java.column.major'),
+    key: 'major',
+    render: (row) => row.info.majorVersion,
+    width: 90,
+  },
+  { title: 'Vendor', key: 'vendor', render: (row) => row.info.vendor, minWidth: 160 },
+  {
+    title: locale.t('java.column.architecture'),
+    key: 'architecture',
+    render: (row) => row.info.architecture,
+    width: 110,
+  },
+  { title: locale.t('java.column.source'), key: 'source', width: 120 },
+  {
+    title: locale.t('java.column.executable'),
+    key: 'executablePath',
+    minWidth: 280,
+    ellipsis: { tooltip: true },
+  },
+  {
+    title: locale.t('common.actions'),
     key: 'actions',
     width: 100,
     render: (row) =>
       h(
         NButton,
         { size: 'small', type: 'primary', onClick: () => void importCandidate(row) },
-        { default: () => '注册' },
+        { default: () => locale.t('java.register') },
       ),
   },
-]
+])
 
-const artifactColumns: DataTableColumns<JDKArtifact> = [
-  { title: '版本', key: 'version', minWidth: 160 },
+const artifactColumns = computed<DataTableColumns<JDKArtifact>>(() => [
+  { title: locale.t('java.column.version'), key: 'version', minWidth: 160 },
   { title: 'Vendor', key: 'vendor', minWidth: 160 },
-  { title: '架构', key: 'architecture', width: 100 },
-  { title: '格式', key: 'archiveType', width: 90 },
+  { title: locale.t('java.column.architecture'), key: 'architecture', width: 100 },
+  { title: locale.t('java.column.format'), key: 'archiveType', width: 90 },
   {
-    title: '大小',
+    title: locale.t('java.column.size'),
     key: 'size',
     width: 110,
-    render: (row) => `${(row.size / 1024 / 1024).toFixed(1)} MiB`,
+    render: (row) => locale.t('java.sizeMiB', { value: (row.size / 1024 / 1024).toFixed(1) }),
   },
   { title: 'SHA-256', key: 'sha256', minWidth: 260, ellipsis: { tooltip: true } },
   {
-    title: '操作',
+    title: locale.t('common.actions'),
     key: 'actions',
     width: 110,
     render: (row) =>
@@ -165,12 +203,12 @@ const artifactColumns: DataTableColumns<JDKArtifact> = [
           onClick: () => void installArtifact(row),
         },
         {
-          icon: () => h(AppIcon, { icon: Download, label: '安装' }),
-          default: () => '安装',
+          icon: () => h(AppIcon, { icon: Download, label: locale.t('java.install') }),
+          default: () => locale.t('java.install'),
         },
       ),
   },
-]
+])
 
 /**
  * 重新加载当前 SSH Session 上的 Java 运行时列表。
@@ -180,7 +218,7 @@ async function refresh(): Promise<void> {
   try {
     await store.refresh()
   } catch (error) {
-    notifyError('加载 Java Runtimes 失败', error)
+    notifyError(locale.t('java.loadFailed'), error)
   }
 }
 
@@ -221,12 +259,12 @@ async function discover(): Promise<void> {
     await store.discover()
     notifications.push({
       kind: 'success',
-      title: 'Java 发现完成',
-      content: `已验证 ${store.candidates.length} 个候选`,
+      title: locale.t('java.discoverSucceeded'),
+      content: locale.t('java.discoverSucceededContent', { count: store.candidates.length }),
       dedupeKey: `java:discover:${store.sshSessionID}`,
     })
   } catch (error) {
-    notifyError('远程 Java 发现失败', error)
+    notifyError(locale.t('java.discoverFailed'), error)
   }
 }
 
@@ -240,12 +278,12 @@ async function importCandidate(candidate: JavaCandidate): Promise<void> {
     const runtime = await store.importPath(candidate.executablePath)
     notifications.push({
       kind: 'success',
-      title: 'Java Runtime 已注册',
+      title: locale.t('java.registered'),
       content: `${runtime.version} · ${runtime.installPath}`,
       dedupeKey: `java:import:${runtime.id}`,
     })
   } catch (error) {
-    notifyError('注册 Java Runtime 失败', error)
+    notifyError(locale.t('java.registerFailed'), error)
   }
 }
 
@@ -260,12 +298,12 @@ async function importManual(): Promise<void> {
     manualPath.value = ''
     notifications.push({
       kind: 'success',
-      title: 'Java Runtime 已注册',
+      title: locale.t('java.registered'),
       content: `${runtime.version} · ${runtime.installPath}`,
       dedupeKey: `java:import:${runtime.id}`,
     })
   } catch (error) {
-    notifyError('注册 Java Runtime 失败', error)
+    notifyError(locale.t('java.registerFailed'), error)
   }
 }
 
@@ -279,12 +317,12 @@ async function setDefault(runtime: JavaRuntime): Promise<void> {
     await store.setDefault(runtime.id)
     notifications.push({
       kind: 'success',
-      title: '默认 Java Runtime 已更新',
+      title: locale.t('java.defaultUpdated'),
       content: runtime.version,
       dedupeKey: `java:default:${runtime.id}`,
     })
   } catch (error) {
-    notifyError('设置默认 Java Runtime 失败', error)
+    notifyError(locale.t('java.defaultFailed'), error)
   }
 }
 
@@ -295,11 +333,10 @@ async function setDefault(runtime: JavaRuntime): Promise<void> {
  */
 async function remove(runtime: JavaRuntime): Promise<void> {
   const confirmed = await interactions.confirm({
-    title: '删除 Java Runtime 注册？',
-    content:
-      '仅删除 MineOps 中的注册记录，不会删除远程 Java 文件。存在 Server 引用时操作会被拒绝。',
+    title: locale.t('java.deleteTitle'),
+    content: locale.t('java.deleteContent'),
     objectLabel: `${runtime.version} · ${runtime.installPath}`,
-    positiveText: '删除注册',
+    positiveText: locale.t('java.removeRegistration'),
     danger: true,
   })
   if (!confirmed) return
@@ -307,11 +344,11 @@ async function remove(runtime: JavaRuntime): Promise<void> {
     await store.remove(runtime.id)
     notifications.push({
       kind: 'success',
-      title: 'Java Runtime 注册已删除',
+      title: locale.t('java.deleted'),
       dedupeKey: `java:deleted:${runtime.id}`,
     })
   } catch (error) {
-    notifyError('删除 Java Runtime 失败', error)
+    notifyError(locale.t('java.deleteFailed'), error)
   }
 }
 
@@ -327,7 +364,7 @@ async function recommend(): Promise<void> {
       minecraftVersion.value,
     )
     interactions.openDrawer({
-      title: 'Java Runtime 推荐结果',
+      title: locale.t('java.recommendTitle'),
       content: [
         `Server: ${serverType.value} ${minecraftVersion.value}`,
         `Java: ${runtime.version}`,
@@ -337,7 +374,7 @@ async function recommend(): Promise<void> {
       ].join('\n'),
     })
   } catch (error) {
-    notifyError('没有可推荐的 Java Runtime', error)
+    notifyError(locale.t('java.recommendFailed'), error)
   }
 }
 
@@ -352,7 +389,7 @@ async function loadArtifacts(): Promise<void> {
     artifacts.value = await listJDKArtifacts(catalogMajor.value, catalogArchitecture.value)
   } catch (error) {
     catalogError.value = error
-    notifyError('加载 JDK Catalog 失败', error)
+    notifyError(locale.t('java.catalogLoadFailed'), error)
   } finally {
     catalogLoading.value = false
   }
@@ -365,24 +402,23 @@ async function loadArtifacts(): Promise<void> {
  */
 async function installArtifact(artifact: JDKArtifact): Promise<void> {
   const confirmed = await interactions.confirm({
-    title: `安装 Java ${artifact.majorVersion}？`,
-    content:
-      'MineOps 将把经过批准的 JDK 归档下载到远程 ~/MineOps/Downloads，通过 SSH stdout 拉取归档并由本地 Go 代码执行路径、链接、体积和 SHA-256 安全检查，然后在远程 staging 目录解压并原子发布。',
+    title: locale.t('java.installTitle', { major: artifact.majorVersion }),
+    content: locale.t('java.installContent'),
     objectLabel: `${artifact.vendor} ${artifact.version} · Linux ${artifact.architecture}`,
-    impact: '安装成功后会自动验证 bin/java，并注册为当前 SSH Session 可复用的托管 Runtime。',
-    positiveText: '启动安装',
+    impact: locale.t('java.installImpact'),
+    positiveText: locale.t('java.installConfirm'),
   })
   if (!confirmed) return
   try {
     const operationID = await store.install(artifact.majorVersion, artifact.architecture)
     notifications.push({
       kind: 'info',
-      title: 'Java 安装 Operation 已启动',
+      title: locale.t('java.installStarted'),
       content: operationID,
       dedupeKey: `java:install:${operationID}`,
     })
   } catch (error) {
-    notifyError('启动 Java 安装失败', error)
+    notifyError(locale.t('java.installStartFailed'), error)
   }
 }
 
@@ -401,7 +437,7 @@ function notifyError(title: string, error: unknown): void {
   notifications.push({
     kind: 'error',
     title,
-    content: remoteError ? `${message}\n远程错误：${remoteError}` : message,
+    content: remoteError ? locale.t('java.remoteError', { message, detail: remoteError }) : message,
     dedupeKey: `java:error:${title}`,
   })
 }
@@ -429,26 +465,28 @@ onMounted(async () => {
       "
       :title="
         sessionError instanceof ApplicationError && sessionError.code.includes('permission_denied')
-          ? 'SSH Session 权限不足'
-          : 'SSH Session 加载失败'
+          ? locale.t('java.sessionPermission')
+          : locale.t('java.sessionLoadFailed')
       "
     >
       <NFlex align="center" justify="space-between">
         <span>{{
           sessionError instanceof Error ? sessionError.message : String(sessionError)
         }}</span>
-        <NButton size="small" :loading="sshSessions.loading" @click="refreshSessions">重试</NButton>
+        <NButton size="small" :loading="sshSessions.loading" @click="refreshSessions">
+          {{ locale.t('common.retry') }}
+        </NButton>
       </NFlex>
     </NAlert>
     <NAlert
       v-else-if="!sshSessions.sessions.length && !sshSessions.loading"
       type="info"
-      title="尚无 SSH Session"
+      :title="locale.t('java.noSessionTitle')"
     >
       <NFlex align="center" justify="space-between">
-        <span>Java Runtime 必须绑定一个已保存的 SSH Session 后才能发现、注册或安装。</span>
+        <span>{{ locale.t('java.noSessionContent') }}</span>
         <NButton size="small" type="primary" @click="router.push('/ssh-sessions')">
-          创建 SSH Session
+          {{ locale.t('java.createSession') }}
         </NButton>
       </NFlex>
     </NAlert>
@@ -457,7 +495,7 @@ onMounted(async () => {
         <NSelect
           :value="store.sshSessionID"
           :disabled="!sshSessions.sessions.length"
-          placeholder="选择 SSH Session"
+          :placeholder="locale.t('java.selectSession')"
           :options="
             sshSessions.sessions.map((session) => ({ label: session.name, value: session.id }))
           "
@@ -469,21 +507,25 @@ onMounted(async () => {
           style="width: 160px"
           @update:value="refresh"
         />
-        <NButton :loading="store.loading" @click="refresh">刷新</NButton>
+        <NButton :loading="store.loading" @click="refresh">
+          {{ locale.t('common.refresh') }}
+        </NButton>
         <NButton
           type="primary"
           :loading="store.discovering"
           :disabled="!store.sshSessionID"
           @click="discover"
         >
-          <template #icon><AppIcon :icon="Search" label="发现" /></template>
-          发现远程 Java
+          <template #icon>
+            <AppIcon :icon="Search" :label="locale.t('java.discoverIcon')" />
+          </template>
+          {{ locale.t('java.discoverButton') }}
         </NButton>
       </NFlex>
     </NCard>
 
-    <NCard title="已注册 Runtime">
-      <NAlert v-if="partialMessage" type="warning" title="部分连接状态不可用">{{
+    <NCard :title="locale.t('java.registeredCard')">
+      <NAlert v-if="partialMessage" type="warning" :title="locale.t('java.partialTitle')">{{
         partialMessage
       }}</NAlert>
       <AppDataTable
@@ -491,12 +533,15 @@ onMounted(async () => {
         :data="store.runtimes"
         :loading="store.loading"
         :error="store.runtimeError"
-        empty-description="当前 SSH Session 尚未注册 Java Runtime"
+        :empty-description="locale.t('java.emptyRuntimes')"
         @retry="refresh"
       />
     </NCard>
 
-    <NCard v-if="store.candidates.length || store.discoveryError" title="发现候选">
+    <NCard
+      v-if="store.candidates.length || store.discoveryError"
+      :title="locale.t('java.candidatesCard')"
+    >
       <AppDataTable
         :columns="candidateColumns"
         :data="store.candidates"
@@ -505,39 +550,45 @@ onMounted(async () => {
       />
     </NCard>
 
-    <NCard title="手动注册">
+    <NCard :title="locale.t('java.manualCard')">
       <NFlex :wrap="false">
         <NInput
           v-model:value="manualPath"
           :disabled="!store.sshSessionID"
-          placeholder="远程 Java 可执行文件绝对路径，例如 /usr/bin/java"
+          :placeholder="locale.t('java.manualPlaceholder')"
         />
         <NButton type="primary" :disabled="!store.sshSessionID" @click="importManual">
-          <template #icon><AppIcon :icon="Download" label="注册" /></template>
-          验证并注册
+          <template #icon>
+            <AppIcon :icon="Download" :label="locale.t('java.register')" />
+          </template>
+          {{ locale.t('java.manualSubmit') }}
         </NButton>
       </NFlex>
     </NCard>
 
-    <NCard title="兼容性推荐">
+    <NCard :title="locale.t('java.compatCard')">
       <NFlex :wrap="false">
         <NSelect v-model:value="serverType" :options="serverTypeOptions" />
-        <NInput v-model:value="minecraftVersion" placeholder="Minecraft 版本" />
+        <NInput v-model:value="minecraftVersion" :placeholder="locale.t('java.minecraftVersion')" />
         <NButton type="primary" :disabled="!store.sshSessionID" @click="recommend">
-          <template #icon><AppIcon :icon="CheckCircle2" label="推荐" /></template>
-          推荐 Runtime
+          <template #icon>
+            <AppIcon :icon="CheckCircle2" :label="locale.t('java.recommendIcon')" />
+          </template>
+          {{ locale.t('java.recommendButton') }}
         </NButton>
       </NFlex>
     </NCard>
 
-    <NCard title="OpenJDK Catalog">
+    <NCard :title="locale.t('java.catalogCard')">
       <NFlex :wrap="false" class="catalog-toolbar">
         <NSelect
           v-model:value="catalogMajor"
           :options="majorOptions.filter((option) => option.value !== 0 && option.value !== 16)"
         />
         <NSelect v-model:value="catalogArchitecture" :options="architectureOptions" />
-        <NButton :loading="catalogLoading" @click="loadArtifacts">查询 Eclipse Temurin</NButton>
+        <NButton :loading="catalogLoading" @click="loadArtifacts">
+          {{ locale.t('java.queryTemurin') }}
+        </NButton>
       </NFlex>
       <NAlert
         v-if="store.installOperationID"
@@ -550,7 +601,7 @@ onMounted(async () => {
                 ? 'warning'
                 : 'info'
         "
-        title="Java 安装 Operation"
+        :title="locale.t('java.installOperation')"
         class="catalog-operation"
       >
         <NFlex vertical :size="6">
@@ -561,18 +612,22 @@ onMounted(async () => {
             <NText>{{ store.installOperationID }}</NText>
           </NFlex>
           <NText>
-            {{ store.installOperation?.message || 'Operation 已创建，正在等待进度事件。' }}
+            {{ store.installOperation?.message || locale.t('java.installPending') }}
           </NText>
           <NText v-if="store.installOperation" depth="3">
-            阶段 {{ store.installOperation.stage || 'pending' }} ·
-            {{ Math.round(store.installOperation.progress * 100) }}%
+            {{
+              locale.t('java.installStage', {
+                stage: store.installOperation.stage || 'pending',
+                progress: Math.round(store.installOperation.progress * 100),
+              })
+            }}
           </NText>
         </NFlex>
       </NAlert>
       <NAlert
         v-else-if="store.installError"
         type="error"
-        title="Java 安装启动失败"
+        :title="locale.t('java.installFailedTitle')"
         class="catalog-operation"
       >
         {{
@@ -586,13 +641,10 @@ onMounted(async () => {
         :data="artifacts"
         :loading="catalogLoading"
         :error="catalogError"
-        empty-description="选择版本和架构后查询已批准的 JDK Artifact"
+        :empty-description="locale.t('java.emptyArtifacts')"
         @retry="loadArtifacts"
       />
-      <NText depth="3"
-        >Catalog 仅展示经过批准的 Artifact；下载、摘要校验和远程安装由 Java 安装 Operation
-        执行。</NText
-      >
+      <NText depth="3">{{ locale.t('java.catalogNote') }}</NText>
     </NCard>
   </NFlex>
 </template>

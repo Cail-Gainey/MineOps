@@ -12,6 +12,7 @@ import {
   UpdateRule,
 } from '../../bindings/github.com/Cail-Gainey/MineOps/internal/desktop/services/alertservice'
 import { throwIfError } from './api-client'
+import { translate } from '../locales/runtime'
 
 export const alertEventName = 'mineops:alert:event'
 
@@ -34,7 +35,13 @@ export async function listAlertRules(serverID: string): Promise<AlertRule[]> {
 export async function createAlertRule(rule: AlertRule): Promise<AlertRule> {
   const result = await CreateRule(rule)
   throwIfError(result.error)
-  if (!result.rule) throw new Error('AlertService 未返回新建规则')
+  if (!result.rule)
+    throw new Error(
+      translate('service.missingField', {
+        service: 'AlertService',
+        field: translate('serviceField.createdRule'),
+      }),
+    )
   return result.rule
 }
 
@@ -46,7 +53,13 @@ export async function createAlertRule(rule: AlertRule): Promise<AlertRule> {
 export async function updateAlertRule(rule: AlertRule): Promise<AlertRule> {
   const result = await UpdateRule(rule)
   throwIfError(result.error)
-  if (!result.rule) throw new Error('AlertService 未返回更新规则')
+  if (!result.rule)
+    throw new Error(
+      translate('service.missingField', {
+        service: 'AlertService',
+        field: translate('serviceField.updatedRule'),
+      }),
+    )
   return result.rule
 }
 
@@ -90,7 +103,13 @@ export async function listAlertEvents(serverID: string, state = ''): Promise<Ale
 export async function acknowledgeAlert(eventID: string): Promise<AlertEvent> {
   const result = await Acknowledge(eventID)
   throwIfError(result.error)
-  if (!result.event) throw new Error('AlertService 未返回确认后的事件')
+  if (!result.event)
+    throw new Error(
+      translate('service.missingField', {
+        service: 'AlertService',
+        field: translate('serviceField.acknowledgedEvent'),
+      }),
+    )
   return result.event
 }
 

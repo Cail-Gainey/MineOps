@@ -3,13 +3,21 @@ import { NCard, NEmpty, NText } from 'naive-ui'
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 
+import { useLocaleStore } from '../stores/locale'
+
 const route = useRoute()
-const title = computed(() => String(route.meta.title ?? '功能模块'))
+const locale = useLocaleStore()
+const title = computed(() => {
+  const titleKey = route.meta.titleKey
+  return typeof titleKey === 'string'
+    ? locale.t(titleKey as Parameters<typeof locale.t>[0])
+    : locale.t('placeholder.title')
+})
 </script>
 
 <template>
   <NCard :title="title">
-    <NEmpty description="模块入口已建立，后续阶段将在此接入完整业务流程。" />
-    <NText depth="3">当前路由：{{ route.fullPath }}</NText>
+    <NEmpty :description="locale.t('placeholder.description')" />
+    <NText depth="3">{{ locale.t('placeholder.currentRoute', { path: route.fullPath }) }}</NText>
   </NCard>
 </template>

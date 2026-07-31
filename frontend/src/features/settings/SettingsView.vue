@@ -22,7 +22,7 @@ import {
 } from 'naive-ui'
 import { Browser } from '@wailsio/runtime'
 import { storeToRefs } from 'pinia'
-import { onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 
 import { useUnsavedGuard } from '../../composables/use-unsaved-guard'
 import AppFormActions from '../../shared/components/AppFormActions.vue'
@@ -75,6 +75,7 @@ import {
   restartDesktopUpdate,
 } from '../../services/desktop-update-api'
 import { getUnsavedItems } from '../../services/exit-guard-api'
+import { hasMessage } from '../../locales/runtime'
 import { useInteractionStore } from '../../stores/interactions'
 import { useLocaleStore } from '../../stores/locale'
 import { useNotificationStore } from '../../stores/notifications'
@@ -107,7 +108,32 @@ const desktopUpdateLoading = ref(false)
 const auxiliaryError = ref('')
 const jumpHostOptions = ref<{ label: string; value: string }[]>([])
 
-useUnsavedGuard('settings', 'Settings 页面有未保存修改', dirty)
+useUnsavedGuard(
+  'settings',
+  computed(() => locale.t('settings.unsavedGuard')),
+  dirty,
+)
+
+/**
+ * 把枚举值翻译成当前界面语言的标签。
+ * @param prefix - 文案键前缀
+ * @param value - 枚举值
+ * @returns 本地化标签，未登记的值原样返回
+ */
+function enumLabel(prefix: string, value: string): string {
+  const key = `${prefix}.${value}`
+  return hasMessage(key) ? locale.t(key) : value
+}
+
+/**
+ * 按前缀把一组枚举值构造成本地化下拉选项。
+ * @param prefix - 文案键前缀
+ * @param values - 枚举值列表
+ * @returns 下拉选项数组
+ */
+function enumOptions(prefix: string, values: string[]): Array<{ label: string; value: string }> {
+  return values.map((value) => ({ label: enumLabel(prefix, value), value }))
+}
 
 watch(
   () => draft.value,
@@ -117,53 +143,38 @@ watch(
   { deep: true },
 )
 
-const languageOptions = [
-  { label: '简体中文', value: 'zh-CN' },
-  { label: 'English', value: 'en-US' },
+const settingsCategories = [
+  'general',
+  'theme',
+  'paths',
+  'mirrors',
+  'downloads',
+  'logging',
+  'monitoring',
+  'firewall',
+  'layout',
+  'ssh',
+  'terminal',
+  'storage',
 ]
-const themeOptions = [
-  { label: '跟随系统', value: 'system' },
-  { label: '浅色', value: 'light' },
-  { label: '深色', value: 'dark' },
-]
-const themePresetOptions = [
-  {
-    label: 'MineOps',
-    description: '清爽中性的默认界面',
-    value: 'mineops',
-    colours: ['#f4f6f8', '#ffffff', '#059669'],
-  },
-  {
-    label: '森林',
-    description: '高对比的深绿工作台',
-    value: 'forest',
-    colours: ['#e4f2e5', '#f7fff7', '#16a34a'],
-  },
-  {
-    label: '深海',
-    description: '清晰通透的蓝色空间',
-    value: 'ocean',
-    colours: ['#e3f2ff', '#f7fbff', '#0284c7'],
-  },
-  {
-    label: '紫晶',
-    description: '鲜明沉浸的紫色氛围',
-    value: 'amethyst',
-    colours: ['#f1e6ff', '#fcf8ff', '#7c3aed'],
-  },
-  {
-    label: '极光',
-    description: '通透鲜明的青绿冰蓝',
-    value: 'graphite',
-    colours: ['#dff8f5', '#f4fffd', '#0891b2'],
-  },
-  {
-    label: '暮光',
-    description: '温暖醒目的橙红界面',
-    value: 'sunset',
-    colours: ['#fff0e4', '#fffaf5', '#e11d48'],
-  },
-]
+const themePresetColours: Record<string, string[]> = {
+  mineops: ['#f4f6f8', '#ffffff', '#059669'],
+  forest: ['#e4f2e5', '#f7fff7', '#16a34a'],
+  ocean: ['#e3f2ff', '#f7fbff', '#0284c7'],
+  amethyst: ['#f1e6ff', '#fcf8ff', '#7c3aed'],
+  graphite: ['#dff8f5', '#f4fffd', '#0891b2'],
+  sunset: ['#fff0e4', '#fffaf5', '#e11d48'],
+}
+const languageOptions = computed(() => enumOptions('settings.language', ['zh-CN', 'en-US']))
+const themeOptions = computed(() => enumOptions('settings.themeMode', ['system', 'light', 'dark']))
+const themePresetOptions = computed(() =>
+  Object.entries(themePresetColours).map(([value, colours]) => ({
+    label: locale.t(`shell.themePreset.${value}` as Parameters<typeof locale.t>[0]),
+    description: locale.t(`settings.preset.${value}.description` as Parameters<typeof locale.t>[0]),
+    value,
+    colours,
+  })),
+)
 const accentOptions = [
   { label: 'Emerald', value: 'emerald' },
   { label: 'Amber', value: 'amber' },
@@ -171,51 +182,24 @@ const accentOptions = [
   { label: 'Violet', value: 'violet' },
   { label: 'Rose', value: 'rose' },
 ]
-const backgroundModeOptions = [
-  { label: '主题背景', value: 'theme' },
-  { label: '纯色', value: 'color' },
-  { label: '用户图片', value: 'image' },
-]
-const backgroundFitOptions = [
-  { label: '填充', value: 'cover' },
-  { label: '适应', value: 'contain' },
-  { label: '居中', value: 'center' },
-  { label: '平铺', value: 'tile' },
-]
-const closeBehaviorOptions = [
-  { label: '退出应用', value: 'quit' },
-  { label: '最小化到后台', value: 'minimize' },
-]
-const timeFormatOptions = [
-  { label: '24 小时', value: '24h' },
-  { label: '12 小时', value: '12h' },
-]
+const backgroundModeOptions = computed(() =>
+  enumOptions('settings.backgroundMode', ['theme', 'color', 'image']),
+)
+const backgroundFitOptions = computed(() =>
+  enumOptions('settings.backgroundFit', ['cover', 'contain', 'center', 'tile']),
+)
+const closeBehaviorOptions = computed(() =>
+  enumOptions('settings.closeBehavior', ['quit', 'minimize']),
+)
+const timeFormatOptions = computed(() => enumOptions('settings.timeFormat', ['24h', '12h']))
 const updateChannelOptions = [
   { label: 'Stable', value: 'stable' },
   { label: 'Beta', value: 'beta' },
 ]
-const updatePolicyOptions = [
-  { label: '仅通知', value: 'notify' },
-  { label: '自动下载', value: 'download' },
-  { label: '自动下载并提示重启', value: 'prompt_restart' },
-]
-const settingsSearchOptions = [
-  {
-    label: '通用 · 语言、开机启动、窗口关闭、时间格式、GPU 硬件加速、Desktop 更新',
-    value: 'general',
-  },
-  { label: '主题 · 套装、模式、强调色、图片显示、透明度、高对比度', value: 'theme' },
-  { label: '目录 · Server 目录、下载目录', value: 'paths' },
-  { label: '镜像 · Java、Minecraft、Spark', value: 'mirrors' },
-  { label: '下载与代理 · 下载源、HTTP、HTTPS、SOCKS5、缓存、限速', value: 'downloads' },
-  { label: '日志 · 等级、轮转、保留、容量、诊断包', value: 'logging' },
-  { label: '监控 · 采集、保留期、Spark、Profiler、告警、静默时段', value: 'monitoring' },
-  { label: '防火墙 · Provider、安装放行、端口同步、安全回收', value: 'firewall' },
-  { label: '布局 · TopBar、BottomBar、SideBar、宽度', value: 'layout' },
-  { label: 'SSH · 超时、KeepAlive、重连、认证、Known Hosts、Jump Host', value: 'ssh' },
-  { label: 'Terminal · 字体、字号、行高、滚动、光标、配色', value: 'terminal' },
-  { label: '存储与安全 · SQLCipher、备份、恢复、密钥轮换、存储整理、清空数据库', value: 'storage' },
-]
+const updatePolicyOptions = computed(() =>
+  enumOptions('settings.updatePolicy', ['notify', 'download', 'prompt_restart']),
+)
+const settingsSearchOptions = computed(() => enumOptions('settings.search', settingsCategories))
 
 /**
  * 选中主题套装并同步其推荐强调色。
@@ -229,58 +213,37 @@ function selectThemePreset(value: string): void {
   draft.value.theme.accent = themePresetAccents[preset]
 }
 
-const alertNotificationOptions = [
-  { label: '桌面通知', value: 'desktop' },
-  { label: '声音', value: 'sound' },
-]
+const alertNotificationOptions = computed(() =>
+  enumOptions('settings.alertNotification', ['desktop', 'sound']),
+)
 const logLevelOptions = ['debug', 'info', 'warn', 'error'].map((value) => ({
   label: value.toUpperCase(),
   value,
 }))
-const sshAuthOptions = [
-  { label: '私钥', value: 'private_key' },
-  { label: 'SSH Agent', value: 'agent' },
-  { label: '密码', value: 'password' },
-]
-const hostKeyPolicyOptions = [
-  { label: '严格校验', value: 'strict' },
-  { label: '首次确认后信任', value: 'trust_on_first_use' },
-]
-const firewallProviderOptions = [
-  { label: '自动检测远程主机', value: 'auto' },
-  { label: 'UFW', value: 'ufw' },
-  { label: 'firewalld', value: 'firewalld' },
-  { label: '禁用防火墙管理', value: 'disabled' },
-]
-const firewallPolicyOptions = [
-  { label: '自动管理', value: 'automatic' },
-  { label: '操作前确认', value: 'prompt' },
-  { label: '不管理', value: 'disabled' },
-]
-const terminalThemeOptions = [
-  { label: '跟随语义主题', value: 'semantic' },
-  { label: 'Nord', value: 'nord' },
-  { label: 'Solarized Dark', value: 'solarized' },
-  { label: '自定义', value: 'custom' },
-]
-const cursorStyleOptions = [
-  { label: '方块', value: 'block' },
-  { label: '下划线', value: 'underline' },
-  { label: '竖线', value: 'bar' },
-]
-const bellStyleOptions = [
-  { label: '关闭', value: 'none' },
-  { label: '声音', value: 'sound' },
-  { label: '视觉', value: 'visual' },
-  { label: '声音与视觉', value: 'both' },
-]
-const proxyModeOptions = [
-  { label: '不使用代理', value: 'none' },
-  { label: '跟随系统', value: 'system' },
-  { label: 'HTTP', value: 'http' },
-  { label: 'HTTPS', value: 'https' },
-  { label: 'SOCKS5', value: 'socks5' },
-]
+const sshAuthOptions = computed(() =>
+  enumOptions('settings.sshAuth', ['private_key', 'agent', 'password']),
+)
+const hostKeyPolicyOptions = computed(() =>
+  enumOptions('settings.hostKeyPolicy', ['strict', 'trust_on_first_use']),
+)
+const firewallProviderOptions = computed(() =>
+  enumOptions('settings.firewallProvider', ['auto', 'ufw', 'firewalld', 'disabled']),
+)
+const firewallPolicyOptions = computed(() =>
+  enumOptions('servers.firewall', ['automatic', 'prompt', 'disabled']),
+)
+const terminalThemeOptions = computed(() =>
+  enumOptions('settings.terminalTheme', ['semantic', 'nord', 'solarized', 'custom']),
+)
+const cursorStyleOptions = computed(() =>
+  enumOptions('settings.cursorStyle', ['block', 'underline', 'bar']),
+)
+const bellStyleOptions = computed(() =>
+  enumOptions('settings.bellStyle', ['none', 'sound', 'visual', 'both']),
+)
+const proxyModeOptions = computed(() =>
+  enumOptions('settings.proxyMode', ['none', 'system', 'http', 'https', 'socks5']),
+)
 const ansiLabels = [
   'Black',
   'Red',
@@ -323,7 +286,7 @@ async function refreshDesktopUpdateStatus(): Promise<void> {
   } catch (error) {
     notifications.push({
       kind: 'error',
-      title: '加载 Desktop 更新状态失败',
+      title: locale.t('settings.updateStatusFailed'),
       content: error instanceof Error ? error.message : String(error),
       dedupeKey: 'desktop-update:status-error',
     })
@@ -342,9 +305,11 @@ async function checkDesktopUpdate(): Promise<void> {
     desktopUpdateStatus.value = status
     notifications.push({
       kind: 'success',
-      title: status.updateAvailable ? '发现 Desktop 新版本' : '当前通道已是最新版本',
+      title: status.updateAvailable
+        ? locale.t('settings.updateFound')
+        : locale.t('settings.updateUpToDate'),
       content: status.updateAvailable
-        ? `${status.currentVersion} → ${status.latestVersion || '未知版本'}`
+        ? `${status.currentVersion} → ${status.latestVersion || locale.t('settings.updateUnknownVersion')}`
         : `${status.channel} · ${status.currentVersion}`,
       dedupeKey: 'desktop-update:checked',
     })
@@ -356,7 +321,7 @@ async function checkDesktopUpdate(): Promise<void> {
     }
     notifications.push({
       kind: 'error',
-      title: '检查 Desktop 更新失败',
+      title: locale.t('settings.updateCheckFailed'),
       content: error instanceof Error ? error.message : String(error),
       dedupeKey: 'desktop-update:check-error',
     })
@@ -376,7 +341,7 @@ async function prepareDesktopUpdate(): Promise<void> {
     desktopUpdateStatus.value = await downloadDesktopUpdate()
     notifications.push({
       kind: 'success',
-      title: 'Desktop 更新已准备完成',
+      title: locale.t('settings.updateReady'),
       content: `${desktopUpdateStatus.value.currentVersion} → ${desktopUpdateStatus.value.latestVersion}`,
       dedupeKey: 'desktop-update:ready',
     })
@@ -384,7 +349,7 @@ async function prepareDesktopUpdate(): Promise<void> {
     await refreshDesktopUpdateStatus()
     notifications.push({
       kind: 'error',
-      title: '准备 Desktop 更新失败',
+      title: locale.t('settings.updatePrepareFailed'),
       content: error instanceof Error ? error.message : String(error),
       dedupeKey: 'desktop-update:download-error',
     })
@@ -403,14 +368,14 @@ async function cancelDesktopUpdateDownload(): Promise<void> {
     desktopUpdateStatus.value = await cancelDesktopUpdate()
     notifications.push({
       kind: 'info',
-      title: '已请求取消 Desktop 更新下载',
-      content: '已完成验证的暂存更新不会被删除。',
+      title: locale.t('settings.updateCancelRequested'),
+      content: locale.t('settings.updateCancelContent'),
       dedupeKey: 'desktop-update:cancelled',
     })
   } catch (error) {
     notifications.push({
       kind: 'error',
-      title: '取消 Desktop 更新失败',
+      title: locale.t('settings.updateCancelFailed'),
       content: error instanceof Error ? error.message : String(error),
       dedupeKey: 'desktop-update:cancel-error',
     })
@@ -427,20 +392,22 @@ async function applyDesktopUpdate(): Promise<void> {
     if (unsavedItems.length > 0) {
       const labels = unsavedItems.map((item) => `• ${item.label}`).join('\n')
       const confirmed = await interactions.confirm({
-        title: '重启并安装 Desktop 更新？',
-        content: `以下内容尚未保存：\n${labels}`,
-        impact:
-          '确认后将放弃这些修改；活动 Operation 会先按正常关闭流程取消并持久化最终状态，然后 MineOps 将替换程序并重新启动。',
-        positiveText: '放弃并重启安装',
+        title: locale.t('settings.updateRestartTitle'),
+        content: locale.t('settings.updateRestartUnsaved', { items: labels }),
+        impact: locale.t('settings.updateRestartUnsavedImpact'),
+        positiveText: locale.t('settings.updateRestartUnsavedConfirm'),
         danger: true,
       })
       if (!confirmed) return
     } else {
       const confirmed = await interactions.confirm({
-        title: '重启并安装 Desktop 更新？',
-        content: `MineOps 将应用 ${desktopUpdateStatus.value?.latestVersion || '已准备版本'} 并重新启动。`,
-        impact: '活动 Operation 会先按正常关闭流程取消并持久化最终状态。',
-        positiveText: '重启并安装',
+        title: locale.t('settings.updateRestartTitle'),
+        content: locale.t('settings.updateRestartContent', {
+          version:
+            desktopUpdateStatus.value?.latestVersion || locale.t('settings.updatePreparedVersion'),
+        }),
+        impact: locale.t('settings.updateRestartImpact'),
+        positiveText: locale.t('settings.updateRestartConfirm'),
       })
       if (!confirmed) return
     }
@@ -448,7 +415,7 @@ async function applyDesktopUpdate(): Promise<void> {
   } catch (error) {
     notifications.push({
       kind: 'error',
-      title: '启动 Desktop 更新重启失败',
+      title: locale.t('settings.updateRestartFailed'),
       content: error instanceof Error ? error.message : String(error),
       dedupeKey: 'desktop-update:restart-error',
     })
@@ -470,18 +437,7 @@ async function openDesktopRelease(): Promise<void> {
  * @returns 中文标签，未知阶段原样返回
  */
 function desktopUpdatePhaseLabel(phase: string): string {
-  const labels: Record<string, string> = {
-    idle: '等待检查',
-    checking: '正在检查',
-    available: '发现新版本',
-    downloading: '正在下载',
-    verifying: '正在验证并准备',
-    ready: '等待重启安装',
-    restarting: '正在重启安装',
-    'up-to-date': '当前已是最新版本',
-    error: '更新失败',
-  }
-  return labels[phase] ?? phase
+  return enumLabel('settings.updatePhase', phase)
 }
 
 /**
@@ -490,7 +446,7 @@ function desktopUpdatePhaseLabel(phase: string): string {
  * @returns 本地时间文本，空值返回尚未检查
  */
 function formatDateTime(value?: string | null): string {
-  return value ? locale.formatDateTime(value) : '尚未检查'
+  return value ? locale.formatDateTime(value) : locale.t('settings.notChecked')
 }
 
 /**
@@ -567,7 +523,7 @@ async function refreshDownloadState(): Promise<void> {
   } catch (error) {
     notifications.push({
       kind: 'error',
-      title: '加载下载设置状态失败',
+      title: locale.t('settings.downloadStateFailed'),
       content: error instanceof Error ? error.message : String(error),
       dedupeKey: 'downloads:state-error',
     })
@@ -587,13 +543,13 @@ async function saveProxyAuth(): Promise<void> {
     proxyPassword.value = ''
     notifications.push({
       kind: 'success',
-      title: '代理凭据已写入加密数据库',
+      title: locale.t('settings.proxySaved'),
       dedupeKey: 'downloads:proxy-saved',
     })
   } catch (error) {
     notifications.push({
       kind: 'error',
-      title: '保存代理凭据失败',
+      title: locale.t('settings.proxySaveFailed'),
       content: error instanceof Error ? error.message : String(error),
       dedupeKey: 'downloads:proxy-error',
     })
@@ -618,7 +574,7 @@ async function removeProxyAuth(): Promise<void> {
   } catch (error) {
     notifications.push({
       kind: 'error',
-      title: '清除代理凭据失败',
+      title: locale.t('settings.proxyClearFailed'),
       content: error instanceof Error ? error.message : String(error),
       dedupeKey: 'downloads:proxy-clear-error',
     })
@@ -639,7 +595,7 @@ async function checkSources(): Promise<void> {
   } catch (error) {
     notifications.push({
       kind: 'error',
-      title: '下载源连通性检查失败',
+      title: locale.t('settings.sourceCheckFailed'),
       content: error instanceof Error ? error.message : String(error),
       dedupeKey: 'downloads:check-error',
     })
@@ -654,9 +610,9 @@ async function checkSources(): Promise<void> {
  */
 async function clearCache(): Promise<void> {
   const confirmed = await interactions.confirm({
-    title: '清理下载缓存？',
-    content: '将删除本地缓存 Artifact，不影响远程服务器或已安装文件。',
-    positiveText: '清理缓存',
+    title: locale.t('settings.cacheClearTitle'),
+    content: locale.t('settings.cacheClearContent'),
+    positiveText: locale.t('settings.cacheClearConfirm'),
     danger: true,
   })
   if (!confirmed) return
@@ -667,7 +623,7 @@ async function clearCache(): Promise<void> {
   } catch (error) {
     notifications.push({
       kind: 'error',
-      title: '清理下载缓存失败',
+      title: locale.t('settings.cacheClearFailed'),
       content: error instanceof Error ? error.message : String(error),
       dedupeKey: 'downloads:cache-error',
     })
@@ -697,7 +653,9 @@ function addDownloadMirror(): void {
   draft.value.downloads.sources.push({
     category: 'minecraft',
     provider: 'papermc',
-    name: `自定义镜像 ${draft.value.downloads.sources.length + 1}`,
+    name: locale.t('settings.customMirror', {
+      index: draft.value.downloads.sources.length + 1,
+    }),
     baseURL: 'https://',
     probeURL: 'https://',
     official: false,
@@ -723,11 +681,15 @@ function removeDownloadMirror(index: number): void {
 async function saveSettings(): Promise<void> {
   try {
     await settings.save()
-    notifications.push({ kind: 'success', title: '设置已保存', dedupeKey: 'settings:saved' })
+    notifications.push({
+      kind: 'success',
+      title: locale.t('settings.saved'),
+      dedupeKey: 'settings:saved',
+    })
   } catch (error) {
     notifications.push({
       kind: 'error',
-      title: '保存设置失败',
+      title: locale.t('settings.saveFailed'),
       content: error instanceof Error ? error.message : String(error),
       dedupeKey: 'settings:save-error',
     })
@@ -741,9 +703,9 @@ async function saveSettings(): Promise<void> {
 async function discardChanges(): Promise<void> {
   if (!dirty.value) return
   const confirmed = await interactions.confirm({
-    title: '放弃设置修改？',
-    content: '当前页面中尚未保存的设置将恢复为最近一次保存的值。',
-    positiveText: '放弃修改',
+    title: locale.t('settings.discardTitle'),
+    content: locale.t('settings.discardContent'),
+    positiveText: locale.t('settings.discardConfirm'),
     danger: true,
   })
   if (confirmed) settings.discard()
@@ -755,11 +717,11 @@ async function discardChanges(): Promise<void> {
  */
 async function resetCurrentCategory(): Promise<void> {
   const confirmed = await interactions.confirm({
-    title: '恢复当前分类默认值？',
-    content: '该分类会立即写入默认配置，原有值将被替换。',
+    title: locale.t('settings.resetTitle'),
+    content: locale.t('settings.resetContent'),
     objectLabel: activeCategory.value,
-    impact: '当前分类的自定义设置将丢失。',
-    positiveText: '恢复默认',
+    impact: locale.t('settings.resetImpact'),
+    positiveText: locale.t('settings.resetConfirm'),
     danger: true,
   })
   if (!confirmed) return
@@ -767,13 +729,13 @@ async function resetCurrentCategory(): Promise<void> {
     await settings.resetCategory(activeCategory.value)
     notifications.push({
       kind: 'success',
-      title: '已恢复当前分类',
+      title: locale.t('settings.resetSucceeded'),
       dedupeKey: `settings:reset:${activeCategory.value}`,
     })
   } catch (error) {
     notifications.push({
       kind: 'error',
-      title: '恢复默认设置失败',
+      title: locale.t('settings.resetFailed'),
       content: error instanceof Error ? error.message : String(error),
       dedupeKey: 'settings:reset-error',
     })
@@ -787,10 +749,12 @@ async function resetCurrentCategory(): Promise<void> {
 async function chooseBackgroundImage(): Promise<void> {
   if (!draft.value) return
   const selected = await selectFile({
-    title: '选择背景图片',
+    title: locale.t('settings.chooseBackgroundTitle'),
     directory: draft.value.paths.backgroundImage,
-    filters: [{ DisplayName: '图片', Pattern: '*.png;*.jpg;*.jpeg;*.webp' }],
-    buttonText: '选择图片',
+    filters: [
+      { DisplayName: locale.t('settings.imageFilter'), Pattern: '*.png;*.jpg;*.jpeg;*.webp' },
+    ],
+    buttonText: locale.t('settings.chooseImageButton'),
   })
   if (!selected) return
   backgroundActionLoading.value = true
@@ -801,13 +765,13 @@ async function chooseBackgroundImage(): Promise<void> {
     await settings.load()
     notifications.push({
       kind: 'success',
-      title: '背景图片已复制到受控数据目录',
+      title: locale.t('settings.backgroundImported'),
       dedupeKey: 'settings:background-imported',
     })
   } catch (error) {
     notifications.push({
       kind: 'error',
-      title: '导入背景图片失败',
+      title: locale.t('settings.backgroundImportFailed'),
       content: error instanceof Error ? error.message : String(error),
       dedupeKey: 'settings:background-error',
     })
@@ -829,7 +793,7 @@ async function resetBackground(): Promise<void> {
   } catch (error) {
     notifications.push({
       kind: 'error',
-      title: '恢复默认背景失败',
+      title: locale.t('settings.backgroundResetFailed'),
       content: error instanceof Error ? error.message : String(error),
       dedupeKey: 'settings:background-reset-error',
     })
@@ -844,9 +808,9 @@ async function resetBackground(): Promise<void> {
  */
 async function clearLogs(): Promise<void> {
   const confirmed = await interactions.confirm({
-    title: '立即清理历史日志？',
-    content: '当前进程正在写入的日志文件会保留，其他轮转日志将被删除。',
-    positiveText: '清理日志',
+    title: locale.t('settings.logClearTitle'),
+    content: locale.t('settings.logClearContent'),
+    positiveText: locale.t('settings.logClearConfirm'),
     danger: true,
   })
   if (!confirmed) return
@@ -856,7 +820,7 @@ async function clearLogs(): Promise<void> {
   } catch (error) {
     notifications.push({
       kind: 'error',
-      title: '清理日志失败',
+      title: locale.t('settings.logClearFailed'),
       content: error instanceof Error ? error.message : String(error),
       dedupeKey: 'settings:logs-clear-error',
     })
@@ -875,7 +839,7 @@ async function openLogs(): Promise<void> {
   } catch (error) {
     notifications.push({
       kind: 'error',
-      title: '打开日志目录失败',
+      title: locale.t('settings.logOpenFailed'),
       content: error instanceof Error ? error.message : String(error),
       dedupeKey: 'settings:logs-open-error',
     })
@@ -892,7 +856,7 @@ async function openData(): Promise<void> {
   } catch (error) {
     notifications.push({
       kind: 'error',
-      title: '打开数据目录失败',
+      title: locale.t('settings.dataOpenFailed'),
       content: error instanceof Error ? error.message : String(error),
       dedupeKey: 'settings:data-open-error',
     })
@@ -905,7 +869,7 @@ async function openData(): Promise<void> {
  */
 async function exportDiagnostics(): Promise<void> {
   const destination = await selectSavePath({
-    title: '导出 MineOps 诊断包',
+    title: locale.t('settings.diagnosticTitle'),
     filename: `mineops-diagnostic-${new Date().toISOString().slice(0, 10)}.mineops-diagnostic.zip`,
     filters: [{ DisplayName: 'MineOps Diagnostic', Pattern: '*.zip' }],
   })
@@ -917,14 +881,18 @@ async function exportDiagnostics(): Promise<void> {
     )
     notifications.push({
       kind: result.warnings.length ? 'warning' : 'success',
-      title: '诊断包已导出',
-      content: `${result.path} · ${formatBytes(result.sizeBytes)} · ${result.logFiles} 个日志文件`,
+      title: locale.t('settings.diagnosticExported'),
+      content: locale.t('settings.diagnosticContent', {
+        path: result.path,
+        size: formatBytes(result.sizeBytes),
+        files: result.logFiles,
+      }),
       dedupeKey: 'settings:diagnostic-exported',
     })
   } catch (error) {
     notifications.push({
       kind: 'error',
-      title: '导出诊断包失败',
+      title: locale.t('settings.diagnosticFailed'),
       content: error instanceof Error ? error.message : String(error),
       dedupeKey: 'settings:diagnostic-error',
     })
@@ -939,7 +907,7 @@ async function exportDiagnostics(): Promise<void> {
  */
 async function createBackup(): Promise<void> {
   const destination = await selectSavePath({
-    title: '创建 MineOps 备份',
+    title: locale.t('settings.backupTitle'),
     filename: `mineops-${new Date().toISOString().slice(0, 10)}.mineops-backup`,
     filters: [{ DisplayName: 'MineOps Backup', Pattern: '*.mineops-backup' }],
   })
@@ -951,7 +919,7 @@ async function createBackup(): Promise<void> {
     )
     notifications.push({
       kind: 'success',
-      title: '加密备份已创建',
+      title: locale.t('settings.backupCreated'),
       content: `${backup.path} · ${formatBytes(backup.bytes)}`,
       dedupeKey: 'settings:backup-created',
     })
@@ -959,7 +927,7 @@ async function createBackup(): Promise<void> {
   } catch (error) {
     notifications.push({
       kind: 'error',
-      title: '创建备份失败',
+      title: locale.t('settings.backupFailed'),
       content: error instanceof Error ? error.message : String(error),
       dedupeKey: 'settings:backup-error',
     })
@@ -974,15 +942,15 @@ async function createBackup(): Promise<void> {
  */
 async function scheduleRestore(): Promise<void> {
   const selected = await selectFile({
-    title: '选择 MineOps 备份',
+    title: locale.t('settings.restoreSelectTitle'),
     filters: [{ DisplayName: 'MineOps Backup', Pattern: '*.mineops-backup' }],
   })
   if (!selected) return
   const confirmed = await interactions.confirm({
-    title: '排队恢复数据库？',
-    content: '备份会先完成完整性校验并复制到受控目录。恢复将在下次启动、数据库打开前执行。',
-    impact: '当前数据库将在下次启动时被备份内容替换。',
-    positiveText: '校验并排队恢复',
+    title: locale.t('settings.restoreTitle'),
+    content: locale.t('settings.restoreContent'),
+    impact: locale.t('settings.restoreImpact'),
+    positiveText: locale.t('settings.restoreConfirm'),
     danger: true,
   })
   if (!confirmed) return
@@ -991,14 +959,14 @@ async function scheduleRestore(): Promise<void> {
     storageStatus.value = await schedulePortableRestore(selected)
     notifications.push({
       kind: 'warning',
-      title: '数据库恢复已排队',
-      content: '请正常退出并重新启动 MineOps。',
+      title: locale.t('settings.restoreScheduled'),
+      content: locale.t('settings.restartHint'),
       dedupeKey: 'settings:restore-scheduled',
     })
   } catch (error) {
     notifications.push({
       kind: 'error',
-      title: '排队恢复失败',
+      title: locale.t('settings.restoreFailed'),
       content: error instanceof Error ? error.message : String(error),
       dedupeKey: 'settings:restore-error',
     })
@@ -1013,9 +981,9 @@ async function scheduleRestore(): Promise<void> {
  */
 async function scheduleKeyRotation(): Promise<void> {
   const confirmed = await interactions.confirm({
-    title: '排队数据库密钥轮换？',
-    content: '密钥轮换将在下次启动、数据库打开前执行，并同步更新系统安全存储。',
-    positiveText: '排队轮换',
+    title: locale.t('settings.keyRotationTitle'),
+    content: locale.t('settings.keyRotationContent'),
+    positiveText: locale.t('settings.keyRotationConfirm'),
     danger: true,
   })
   if (!confirmed) return
@@ -1024,14 +992,14 @@ async function scheduleKeyRotation(): Promise<void> {
     storageStatus.value = await scheduleDatabaseKeyRotation()
     notifications.push({
       kind: 'warning',
-      title: '密钥轮换已排队',
-      content: '请正常退出并重新启动 MineOps。',
+      title: locale.t('settings.keyRotationScheduled'),
+      content: locale.t('settings.restartHint'),
       dedupeKey: 'settings:key-rotation-scheduled',
     })
   } catch (error) {
     notifications.push({
       kind: 'error',
-      title: '排队密钥轮换失败',
+      title: locale.t('settings.keyRotationFailed'),
       content: error instanceof Error ? error.message : String(error),
       dedupeKey: 'settings:key-rotation-error',
     })
@@ -1047,12 +1015,11 @@ async function scheduleKeyRotation(): Promise<void> {
 async function scheduleVacuum(): Promise<void> {
   const allocated = storageStatus.value?.databaseBytes ?? 0
   const confirmed = await interactions.confirm({
-    title: '排队存储整理（VACUUM）？',
-    content:
-      '整理会在下次启动、数据库打开前离线执行，把删除历史数据后留下的空闲页还给磁盘。执行期间应用不会响应，GB 级数据库可能耗时数分钟，并需要与数据库等大的临时磁盘空间。',
+    title: locale.t('settings.vacuumTitle'),
+    content: locale.t('settings.vacuumContent'),
     objectLabel: storageStatus.value?.databasePath ?? '',
-    impact: `当前数据库文件 ${formatBytes(allocated)}，整理期间需要额外约同等大小的可用空间。`,
-    positiveText: '排队整理',
+    impact: locale.t('settings.vacuumImpact', { size: formatBytes(allocated) }),
+    positiveText: locale.t('settings.vacuumConfirm'),
   })
   if (!confirmed) return
   runtimeActionLoading.value = true
@@ -1060,14 +1027,14 @@ async function scheduleVacuum(): Promise<void> {
     storageStatus.value = await scheduleDatabaseVacuum()
     notifications.push({
       kind: 'warning',
-      title: '存储整理已排队',
-      content: '请正常退出并重新启动 MineOps，启动过程会比平时慢。',
+      title: locale.t('settings.vacuumScheduled'),
+      content: locale.t('settings.vacuumRestartHint'),
       dedupeKey: 'settings:vacuum-scheduled',
     })
   } catch (error) {
     notifications.push({
       kind: 'error',
-      title: '排队存储整理失败',
+      title: locale.t('settings.vacuumFailed'),
       content: error instanceof Error ? error.message : String(error),
       dedupeKey: 'settings:vacuum-error',
     })
@@ -1083,20 +1050,20 @@ async function scheduleVacuum(): Promise<void> {
 async function resetDatabase(): Promise<void> {
   // 恢复出厂不可撤销，用两道确认：第一道说明范围，第二道逐条列出会永久消失的内容。
   const acknowledged = await interactions.confirm({
-    title: '重置',
+    title: locale.t('settings.resetDatabaseAckTitle'),
     content: '',
     objectLabel: storageStatus.value?.dataDirectory ?? '',
-    impact: '此操作不可撤销。建议先创建加密备份',
-    positiveText: '我已了解，继续',
+    impact: locale.t('settings.resetDatabaseAckImpact'),
+    positiveText: locale.t('settings.resetDatabaseAckConfirm'),
     danger: true,
   })
   if (!acknowledged) return
   const confirmed = await interactions.confirm({
-    title: '确认永久删除全部数据？',
-    content: '所有数据将清空。',
+    title: locale.t('settings.resetDatabaseTitle'),
+    content: locale.t('settings.resetDatabaseContent'),
     objectLabel: storageStatus.value?.databasePath ?? '',
-    impact: '排队后请正常退出并重新启动 MineOps；重启前可以随时取消排队任务。',
-    positiveText: '排队清空数据库',
+    impact: locale.t('settings.resetDatabaseImpact'),
+    positiveText: locale.t('settings.resetDatabaseConfirm'),
     danger: true,
   })
   if (!confirmed) return
@@ -1105,14 +1072,14 @@ async function resetDatabase(): Promise<void> {
     storageStatus.value = await scheduleDatabaseReset()
     notifications.push({
       kind: 'warning',
-      title: '清空数据库已排队',
-      content: '请正常退出并重新启动 MineOps，重启前可以取消排队任务。',
+      title: locale.t('settings.resetDatabaseScheduled'),
+      content: locale.t('settings.resetDatabaseRestartHint'),
       dedupeKey: 'settings:reset-scheduled',
     })
   } catch (error) {
     notifications.push({
       kind: 'error',
-      title: '排队清空数据库失败',
+      title: locale.t('settings.resetDatabaseFailed'),
       content: error instanceof Error ? error.message : String(error),
       dedupeKey: 'settings:reset-error',
     })
@@ -1132,7 +1099,7 @@ async function cancelPendingMaintenance(): Promise<void> {
   } catch (error) {
     notifications.push({
       kind: 'error',
-      title: '取消离线维护失败',
+      title: locale.t('settings.maintenanceCancelFailed'),
       content: error instanceof Error ? error.message : String(error),
       dedupeKey: 'settings:maintenance-cancel-error',
     })
@@ -1154,7 +1121,7 @@ async function cancelPendingMaintenance(): Promise<void> {
         >
           <template #before>
             <NButton type="warning" :loading="saving" @click="resetCurrentCategory">
-              恢复当前分类
+              {{ locale.t('settings.resetCategoryButton') }}
             </NButton>
           </template>
         </AppFormActions>
@@ -1165,65 +1132,68 @@ async function cancelPendingMaintenance(): Promise<void> {
         :options="settingsSearchOptions"
         filterable
         clearable
-        placeholder="搜索设置：代理、主题、SSH、告警、更新…"
+        :placeholder="locale.t('settings.searchPlaceholder')"
         @update:value="jumpToSettingsCategory"
       />
 
-      <NAlert v-if="settingsError && !draft" type="error" title="Settings 加载失败">
+      <NAlert v-if="settingsError && !draft" type="error" :title="locale.t('settings.loadFailed')">
         <NFlex align="center" justify="space-between">
           <span>{{ String(settingsError) }}</span>
-          <NButton size="small" @click="settings.load">重试</NButton>
+          <NButton size="small" @click="settings.load">{{ locale.t('common.retry') }}</NButton>
         </NFlex>
       </NAlert>
       <NAlert
         v-if="auxiliaryError"
         closable
         type="warning"
-        title="部分运行状态不可用"
+        :title="locale.t('settings.auxiliaryTitle')"
         @close="auxiliaryError = ''"
       >
         {{ auxiliaryError }}
       </NAlert>
 
       <NTabs v-if="draft" v-model:value="activeCategory" type="line" animated>
-        <NTabPane name="general" tab="通用">
+        <NTabPane name="general" :tab="locale.t('settings.tab.general')">
           <NForm label-placement="left" label-width="160">
-            <AppFormField label="语言">
+            <AppFormField :label="locale.t('settings.field.language')">
               <NSelect v-model:value="draft.general.language" :options="languageOptions" />
             </AppFormField>
-            <AppFormField label="开机启动">
-              <NCheckbox v-model:checked="draft.general.launchAtStartup"
-                >登录系统后自动启动 MineOps</NCheckbox
-              >
+            <AppFormField :label="locale.t('settings.field.launchAtStartup')">
+              <NCheckbox v-model:checked="draft.general.launchAtStartup">
+                {{ locale.t('settings.launchAtStartupHint') }}
+              </NCheckbox>
             </AppFormField>
-            <AppFormField label="窗口关闭行为">
+            <AppFormField :label="locale.t('settings.field.closeBehavior')">
               <NSelect
                 v-model:value="draft.general.closeBehavior"
                 :options="closeBehaviorOptions"
               />
             </AppFormField>
-            <AppFormField label="时间格式">
+            <AppFormField :label="locale.t('settings.field.timeFormat')">
               <NSelect v-model:value="draft.general.timeFormat" :options="timeFormatOptions" />
             </AppFormField>
-            <AppFormField label="GPU 硬件加速" help="重启生效">
-              <NCheckbox v-model:checked="draft.general.hardwareAcceleration"
-                >启用 GPU 硬件加速渲染</NCheckbox
-              >
+            <AppFormField
+              :label="locale.t('settings.field.hardwareAcceleration')"
+              :help="locale.t('settings.hardwareAccelerationHelp')"
+            >
+              <NCheckbox v-model:checked="draft.general.hardwareAcceleration">
+                {{ locale.t('settings.hardwareAccelerationHint') }}
+              </NCheckbox>
             </AppFormField>
-            <AppFormField label="更新通道">
+            <AppFormField :label="locale.t('settings.field.updateChannel')">
               <NSelect
                 v-model:value="draft.general.updateChannel"
                 :options="updateChannelOptions"
               />
             </AppFormField>
-            <AppFormField label="自动检查更新">
-              <NCheckbox v-model:checked="draft.general.autoCheckUpdates"
-                >启动后检查当前通道的新版本</NCheckbox
-              >
+            <AppFormField :label="locale.t('settings.field.autoCheckUpdates')">
+              <NCheckbox v-model:checked="draft.general.autoCheckUpdates">
+                {{ locale.t('settings.autoCheckUpdatesHint') }}
+              </NCheckbox>
             </AppFormField>
             <AppFormField
-              label="自动更新策略"
-              help="自动下载只会校验并准备更新；实际替换程序前始终需要确认重启。"
+              :label="locale.t('settings.field.updatePolicy')"
+              :help="locale.t('settings.updatePolicyHelp')"
             >
               <NSelect v-model:value="draft.general.updatePolicy" :options="updatePolicyOptions" />
             </AppFormField>
@@ -1237,35 +1207,48 @@ async function cancelPendingMaintenance(): Promise<void> {
                     : 'info'
               "
               :title="
-                desktopUpdateStatus.updateAvailable ? '发现可用 Desktop 更新' : 'Desktop 版本检查'
+                desktopUpdateStatus.updateAvailable
+                  ? locale.t('settings.updateAvailableTitle')
+                  : locale.t('settings.updateCheckTitle')
               "
             >
               <NFlex vertical :size="12">
                 <NDescriptions bordered :columns="1" label-placement="left">
-                  <NDescriptionsItem label="当前版本">
+                  <NDescriptionsItem :label="locale.t('settings.currentVersion')">
                     {{ desktopUpdateStatus.currentVersion }}
                   </NDescriptionsItem>
-                  <NDescriptionsItem label="更新通道">
+                  <NDescriptionsItem :label="locale.t('settings.field.updateChannel')">
                     {{ desktopUpdateStatus.channel }} ·
-                    {{ desktopUpdateStatus.enabled ? '自动检查已启用' : '自动检查已禁用' }}
+                    {{
+                      desktopUpdateStatus.enabled
+                        ? locale.t('settings.autoCheckEnabled')
+                        : locale.t('settings.autoCheckDisabled')
+                    }}
                   </NDescriptionsItem>
-                  <NDescriptionsItem label="当前状态">
+                  <NDescriptionsItem :label="locale.t('settings.currentPhase')">
                     {{ desktopUpdatePhaseLabel(desktopUpdateStatus.phase) }}
                   </NDescriptionsItem>
-                  <NDescriptionsItem label="运行平台">
+                  <NDescriptionsItem :label="locale.t('settings.platform')">
                     {{ desktopUpdateStatus.platform }}/{{ desktopUpdateStatus.architecture }} ·
-                    {{ desktopUpdateStatus.installSupported ? '支持自更新' : '仅支持手动更新' }}
+                    {{
+                      desktopUpdateStatus.installSupported
+                        ? locale.t('settings.selfUpdateSupported')
+                        : locale.t('settings.manualUpdateOnly')
+                    }}
                   </NDescriptionsItem>
-                  <NDescriptionsItem label="最新版本">
-                    {{ desktopUpdateStatus.latestVersion || '尚未检查' }}
+                  <NDescriptionsItem :label="locale.t('settings.latestVersion')">
+                    {{ desktopUpdateStatus.latestVersion || locale.t('settings.notChecked') }}
                     <NTag v-if="desktopUpdateStatus.updateAvailable" type="success" size="small">
-                      可更新
+                      {{ locale.t('settings.updatableTag') }}
                     </NTag>
                   </NDescriptionsItem>
-                  <NDescriptionsItem label="最近检查">
+                  <NDescriptionsItem :label="locale.t('settings.lastChecked')">
                     {{ formatDateTime(desktopUpdateStatus.lastCheckedAt) }}
                   </NDescriptionsItem>
-                  <NDescriptionsItem v-if="desktopUpdateStatus.publishedAt" label="发布时间">
+                  <NDescriptionsItem
+                    v-if="desktopUpdateStatus.publishedAt"
+                    :label="locale.t('settings.publishedAt')"
+                  >
                     {{ formatDateTime(desktopUpdateStatus.publishedAt) }}
                   </NDescriptionsItem>
                   <NDescriptionsItem v-if="desktopUpdateStatus.releaseURL" label="Release URL">
@@ -1299,7 +1282,7 @@ async function cancelPendingMaintenance(): Promise<void> {
                     {{
                       desktopUpdateStatus.totalBytes > 0
                         ? formatBytes(desktopUpdateStatus.totalBytes)
-                        : '未知大小'
+                        : locale.t('settings.unknownSize')
                     }}
                   </NText>
                 </NFlex>
@@ -1313,7 +1296,7 @@ async function cancelPendingMaintenance(): Promise<void> {
                     :disabled="desktopUpdateStatus.phase === 'downloading'"
                     @click="checkDesktopUpdate"
                   >
-                    立即检查
+                    {{ locale.t('settings.checkNow') }}
                   </NButton>
                   <NButton
                     v-if="
@@ -1324,7 +1307,7 @@ async function cancelPendingMaintenance(): Promise<void> {
                     :disabled="!desktopUpdateStatus.installSupported || desktopUpdateStatus.running"
                     @click="prepareDesktopUpdate"
                   >
-                    下载并准备安装
+                    {{ locale.t('settings.downloadAndPrepare') }}
                   </NButton>
                   <NButton
                     v-if="
@@ -1334,37 +1317,34 @@ async function cancelPendingMaintenance(): Promise<void> {
                     type="warning"
                     @click="cancelDesktopUpdateDownload"
                   >
-                    取消下载
+                    {{ locale.t('settings.cancelDownload') }}
                   </NButton>
                   <NButton
                     v-if="desktopUpdateStatus.readyToRestart"
                     type="primary"
                     @click="applyDesktopUpdate"
                   >
-                    重启并安装
+                    {{ locale.t('settings.restartAndInstall') }}
                   </NButton>
                   <NButton v-if="desktopUpdateStatus.releaseURL" @click="openDesktopRelease">
-                    打开 GitHub Release
+                    {{ locale.t('settings.openRelease') }}
                   </NButton>
                 </NFlex>
               </NFlex>
             </NAlert>
-            <NAlert type="default" title="全局快捷键">
+            <NAlert type="default" :title="locale.t('settings.shortcutsTitle')">
               <NText>
-                {{ shortcutModifier }} + , 打开 Settings · {{ shortcutModifier }} + Shift + O 打开
-                Operations · {{ shortcutModifier }} + Shift + T 切换主题套装 ·
-                {{ shortcutModifier }} + B 折叠或展开侧栏。输入框、编辑器和 Terminal
-                获得焦点时不会截获快捷键。
+                {{ locale.t('settings.shortcutsContent', { modifier: shortcutModifier }) }}
               </NText>
             </NAlert>
           </NForm>
         </NTabPane>
 
-        <NTabPane name="theme" tab="主题">
+        <NTabPane name="theme" :tab="locale.t('settings.tab.theme')">
           <NForm label-placement="left" label-width="160">
             <AppFormField
-              label="主题套装"
-              help="套装会统一调整页面底色、面板、边框、编辑器与终端的基础配色。"
+              :label="locale.t('settings.field.themePreset')"
+              :help="locale.t('settings.themePresetHelp')"
             >
               <div class="theme-preset-grid">
                 <button
@@ -1387,36 +1367,43 @@ async function cancelPendingMaintenance(): Promise<void> {
                 </button>
               </div>
             </AppFormField>
-            <AppFormField label="模式">
+            <AppFormField :label="locale.t('settings.field.themeMode')">
               <NSelect v-model:value="draft.theme.mode" :options="themeOptions" />
             </AppFormField>
-            <AppFormField label="强调色" help="强调色不会改变成功、警告和危险状态色。">
+            <AppFormField
+              :label="locale.t('settings.field.accent')"
+              :help="locale.t('settings.accentHelp')"
+            >
               <NSelect v-model:value="draft.theme.accent" :options="accentOptions" />
             </AppFormField>
-            <AppFormField label="背景模式">
+            <AppFormField :label="locale.t('settings.field.backgroundMode')">
               <NSelect
                 v-model:value="draft.theme.backgroundMode"
                 :options="backgroundModeOptions"
               />
             </AppFormField>
-            <AppFormField v-if="draft.theme.backgroundMode === 'color'" label="背景颜色">
+            <AppFormField
+              v-if="draft.theme.backgroundMode === 'color'"
+              :label="locale.t('settings.field.backgroundColor')"
+            >
               <NColorPicker v-model:value="draft.theme.backgroundColor" :show-alpha="false" />
             </AppFormField>
             <template v-if="draft.theme.backgroundMode === 'image'">
               <AppFormField
-                label="用户图片"
-                help="图片复制到受控数据目录；原始外部路径不会保存到 Settings。"
+                :label="locale.t('settings.field.backgroundImage')"
+                :help="locale.t('settings.backgroundImageHelp')"
               >
                 <NFlex align="center">
-                  <NButton :loading="backgroundActionLoading" @click="chooseBackgroundImage"
-                    >选择并复制图片…</NButton
-                  >
+                  <NButton :loading="backgroundActionLoading" @click="chooseBackgroundImage">
+                    {{ locale.t('settings.chooseAndCopyImage') }}
+                  </NButton>
                   <NButton
                     v-if="backgroundResource?.configured"
                     :loading="backgroundActionLoading"
                     @click="resetBackground"
-                    >恢复默认背景</NButton
                   >
+                    {{ locale.t('settings.resetBackground') }}
+                  </NButton>
                   <NTag v-if="backgroundResource?.available" type="success">{{
                     formatBytes(backgroundResource.bytes ?? 0)
                   }}</NTag>
@@ -1425,13 +1412,13 @@ async function cancelPendingMaintenance(): Promise<void> {
                   }}</NTag>
                 </NFlex>
               </AppFormField>
-              <AppFormField label="图片适配">
+              <AppFormField :label="locale.t('settings.field.backgroundFit')">
                 <NSelect
                   v-model:value="draft.theme.backgroundFit"
                   :options="backgroundFitOptions"
                 />
               </AppFormField>
-              <AppFormField label="背景透明度">
+              <AppFormField :label="locale.t('settings.field.backgroundOpacity')">
                 <NSlider
                   v-model:value="draft.theme.backgroundOpacity"
                   :min="0"
@@ -1439,7 +1426,7 @@ async function cancelPendingMaintenance(): Promise<void> {
                   :step="0.05"
                 />
               </AppFormField>
-              <AppFormField label="遮罩强度">
+              <AppFormField :label="locale.t('settings.field.overlayStrength')">
                 <NSlider
                   v-model:value="draft.theme.overlayStrength"
                   :min="0"
@@ -1447,11 +1434,14 @@ async function cancelPendingMaintenance(): Promise<void> {
                   :step="0.05"
                 />
               </AppFormField>
-              <AppFormField label="模糊度（px）">
+              <AppFormField :label="locale.t('settings.field.blurPixels')">
                 <NSlider v-model:value="draft.theme.blurPixels" :min="0" :max="40" :step="1" />
               </AppFormField>
             </template>
-            <AppFormField v-else-if="draft.theme.backgroundMode === 'color'" label="背景透明度">
+            <AppFormField
+              v-else-if="draft.theme.backgroundMode === 'color'"
+              :label="locale.t('settings.field.backgroundOpacity')"
+            >
               <NSlider
                 v-model:value="draft.theme.backgroundOpacity"
                 :min="0"
@@ -1459,46 +1449,42 @@ async function cancelPendingMaintenance(): Promise<void> {
                 :step="0.05"
               />
             </AppFormField>
-            <AppFormField label="面板透明度">
+            <AppFormField :label="locale.t('settings.field.panelOpacity')">
               <NSlider v-model:value="draft.theme.panelOpacity" :min="0.65" :max="1" :step="0.05" />
             </AppFormField>
-            <AppFormField label="高对比度">
-              <NCheckbox v-model:checked="draft.theme.highContrast">增强边框与焦点可见性</NCheckbox>
+            <AppFormField :label="locale.t('settings.field.highContrast')">
+              <NCheckbox v-model:checked="draft.theme.highContrast">
+                {{ locale.t('settings.highContrastHint') }}
+              </NCheckbox>
             </AppFormField>
           </NForm>
         </NTabPane>
 
-        <NTabPane name="paths" tab="目录">
+        <NTabPane name="paths" :tab="locale.t('settings.tab.paths')">
           <NForm label-placement="left" label-width="160">
             <AppFormField
-              label="服务器目录"
-              help="MineOps 数据目录下的受控相对路径，用作本地上传文件选择器的默认目录。"
+              :label="locale.t('settings.field.serversDirectory')"
+              :help="locale.t('settings.serversDirectoryHelp')"
             >
               <NInput v-model:value="draft.paths.serversDirectory" placeholder="MineOps/Servers" />
             </AppFormField>
             <AppFormField
-              label="下载目录"
-              help="MineOps 数据目录下的受控相对路径，用于 Artifact 缓存和远程文件下载默认位置。"
+              :label="locale.t('settings.field.downloadsDirectory')"
+              :help="locale.t('settings.downloadsDirectoryHelp')"
             >
               <NInput
                 v-model:value="draft.paths.downloadsDirectory"
                 placeholder="MineOps/Downloads"
               />
             </AppFormField>
-            <NAlert type="info">
-              两个目录均禁止绝对路径和 `..`。保存后由 MineOps
-              在受控数据目录内按需创建，不会写入外部配置文件。
-            </NAlert>
+            <NAlert type="info">{{ locale.t('settings.pathsNotice') }}</NAlert>
           </NForm>
         </NTabPane>
 
-        <NTabPane name="mirrors" tab="镜像">
+        <NTabPane name="mirrors" :tab="locale.t('settings.tab.mirrors')">
           <NForm label-placement="left" label-width="160">
-            <NAlert type="info" title="分类镜像覆盖规则">
-              Provider 专用下载源优先于这里的分类镜像。Java 和 Minecraft spark 使用填写的 HTTPS Base
-              URL；Minecraft 会按 Provider 追加
-              /mojang、/papermc、/purpur、/fabric、/quilt、/spigot、/bungeecord、/forge 或
-              /neoforge。
+            <NAlert type="info" :title="locale.t('settings.mirrorsNoticeTitle')">
+              {{ locale.t('settings.mirrorsNoticeContent') }}
             </NAlert>
             <AppFormField label="Java">
               <NInput
@@ -1521,51 +1507,57 @@ async function cancelPendingMaintenance(): Promise<void> {
           </NForm>
         </NTabPane>
 
-        <NTabPane name="downloads" tab="下载与代理">
+        <NTabPane name="downloads" :tab="locale.t('settings.tab.downloads')">
           <NForm label-placement="left" label-width="190">
-            <AppFormField label="请求超时（秒）">
+            <AppFormField :label="locale.t('settings.field.timeoutSeconds')">
               <NInputNumber v-model:value="draft.downloads.timeoutSeconds" :min="1" :max="3600" />
             </AppFormField>
-            <AppFormField label="整体超时（秒）">
+            <AppFormField :label="locale.t('settings.field.overallTimeoutSeconds')">
               <NInputNumber
                 v-model:value="draft.downloads.overallTimeoutSeconds"
                 :min="draft.downloads.timeoutSeconds"
                 :max="86400"
               />
             </AppFormField>
-            <AppFormField label="有限重试次数">
+            <AppFormField :label="locale.t('settings.field.retries')">
               <NInputNumber v-model:value="draft.downloads.retries" :min="0" :max="3" />
             </AppFormField>
-            <AppFormField label="重试退避（秒）">
+            <AppFormField :label="locale.t('settings.field.retryBackoffSeconds')">
               <NInputNumber
                 v-model:value="draft.downloads.retryBackoffSeconds"
                 :min="0"
                 :max="300"
               />
             </AppFormField>
-            <AppFormField label="下载并发">
+            <AppFormField :label="locale.t('settings.field.concurrency')">
               <NInputNumber v-model:value="draft.downloads.concurrency" :min="1" :max="16" />
             </AppFormField>
-            <AppFormField label="单 Artifact 上限 MiB" help="完整性校验不可关闭。">
+            <AppFormField
+              :label="locale.t('settings.field.maxArtifactMiB')"
+              :help="locale.t('settings.maxArtifactHelp')"
+            >
               <NInputNumber v-model:value="draft.downloads.maxArtifactMiB" :min="1" />
             </AppFormField>
-            <AppFormField label="缓存容量 MiB">
+            <AppFormField :label="locale.t('settings.field.cacheCapacityMiB')">
               <NInputNumber
                 v-model:value="draft.downloads.cacheCapacityMiB"
                 :min="draft.downloads.maxArtifactMiB"
               />
             </AppFormField>
-            <AppFormField label="带宽上限 KiB/s" help="0 表示不限制。">
+            <AppFormField
+              :label="locale.t('settings.field.bandwidthLimitKiB')"
+              :help="locale.t('settings.bandwidthLimitHelp')"
+            >
               <NInputNumber v-model:value="draft.downloads.bandwidthLimitKiB" :min="0" />
             </AppFormField>
-            <AppFormField label="自动清理">
-              <NCheckbox v-model:checked="draft.downloads.autoCleanup"
-                >超过容量时优先清理旧缓存</NCheckbox
-              >
+            <AppFormField :label="locale.t('settings.field.autoCleanup')">
+              <NCheckbox v-model:checked="draft.downloads.autoCleanup">
+                {{ locale.t('settings.autoCleanupHint') }}
+              </NCheckbox>
             </AppFormField>
 
             <NText tag="h3">Proxy</NText>
-            <AppFormField label="代理模式">
+            <AppFormField :label="locale.t('settings.field.proxyMode')">
               <NSelect v-model:value="draft.downloads.proxy.mode" :options="proxyModeOptions" />
             </AppFormField>
             <template v-if="['http', 'https', 'socks5'].includes(draft.downloads.proxy.mode)">
@@ -1576,17 +1568,17 @@ async function cancelPendingMaintenance(): Promise<void> {
                 ><NInputNumber v-model:value="draft.downloads.proxy.port" :min="1" :max="65535"
               /></AppFormField>
               <AppFormField
-                label="绕过列表"
-                help="支持精确 Host、.example.com、*.example.com 和 *。"
+                :label="locale.t('settings.field.proxyBypass')"
+                :help="locale.t('settings.proxyBypassHelp')"
               >
                 <NDynamicTags v-model:value="draft.downloads.proxy.bypass" />
               </AppFormField>
-              <AppFormField label="代理用户名"
-                ><NInput v-model:value="proxyUsername" autocomplete="off"
-              /></AppFormField>
+              <AppFormField :label="locale.t('settings.field.proxyUsername')">
+                <NInput v-model:value="proxyUsername" autocomplete="off" />
+              </AppFormField>
               <AppFormField
-                label="代理密码"
-                help="密码只写入 SQLCipher Credential 记录，不进入 Settings JSON。"
+                :label="locale.t('settings.field.proxyPassword')"
+                :help="locale.t('settings.proxyPasswordHelp')"
               >
                 <NFlex :wrap="false">
                   <NInput
@@ -1600,28 +1592,32 @@ async function cancelPendingMaintenance(): Promise<void> {
                     :loading="downloadActionLoading"
                     :disabled="!proxyUsername || !proxyPassword"
                     @click="saveProxyAuth"
-                    >保存凭据</NButton
                   >
+                    {{ locale.t('settings.saveCredential') }}
+                  </NButton>
                   <NButton
                     v-if="proxyCredential?.configured"
                     :loading="downloadActionLoading"
                     @click="removeProxyAuth"
-                    >清除</NButton
                   >
+                    {{ locale.t('settings.clearCredential') }}
+                  </NButton>
                 </NFlex>
               </AppFormField>
-              <NAlert v-if="proxyCredential?.configured" type="success"
-                >已配置加密代理凭据：{{ proxyCredential.username }}</NAlert
-              >
+              <NAlert v-if="proxyCredential?.configured" type="success">
+                {{
+                  locale.t('settings.proxyConfigured', { username: proxyCredential.username ?? '' })
+                }}
+              </NAlert>
             </template>
 
             <NFlex align="center" justify="space-between">
-              <NText tag="h3">下载源注册表</NText>
+              <NText tag="h3">{{ locale.t('settings.sourceRegistry') }}</NText>
               <NFlex>
-                <NButton @click="addDownloadMirror">添加镜像</NButton>
-                <NButton :loading="downloadActionLoading" @click="checkSources"
-                  >保存并检查全部启用源</NButton
-                >
+                <NButton @click="addDownloadMirror">{{ locale.t('settings.addMirror') }}</NButton>
+                <NButton :loading="downloadActionLoading" @click="checkSources">
+                  {{ locale.t('settings.checkSources') }}
+                </NButton>
               </NFlex>
             </NFlex>
             <div
@@ -1634,7 +1630,9 @@ async function cancelPendingMaintenance(): Promise<void> {
                   <NCheckbox v-model:checked="source.enabled" />
                   <NText strong>{{ source.name }}</NText>
                   <NTag :type="source.official ? 'success' : 'warning'" :bordered="false">{{
-                    source.official ? '官方源' : '镜像'
+                    source.official
+                      ? locale.t('settings.officialSource')
+                      : locale.t('settings.mirrorSource')
                   }}</NTag>
                   <NTag :bordered="false">{{ source.category }}</NTag>
                 </NFlex>
@@ -1650,8 +1648,9 @@ async function cancelPendingMaintenance(): Promise<void> {
                     type="error"
                     size="small"
                     @click="removeDownloadMirror(sourceIndex)"
-                    >删除</NButton
                   >
+                    {{ locale.t('common.delete') }}
+                  </NButton>
                 </NFlex>
               </NFlex>
               <template v-if="source.official">
@@ -1667,7 +1666,10 @@ async function cancelPendingMaintenance(): Promise<void> {
                     v-model:value="source.provider"
                     placeholder="Provider: mojang/papermc/purpur/fabric/quilt/adoptium"
                   />
-                  <NInput v-model:value="source.name" placeholder="镜像名称" />
+                  <NInput
+                    v-model:value="source.name"
+                    :placeholder="locale.t('settings.mirrorNamePlaceholder')"
+                  />
                 </NFlex>
                 <NInput v-model:value="source.baseURL" placeholder="Base URL" />
                 <NInput v-model:value="source.probeURL" placeholder="Probe URL" />
@@ -1680,8 +1682,10 @@ async function cancelPendingMaintenance(): Promise<void> {
                   :type="status.available ? 'success' : 'error'"
                   :title="
                     status.available
-                      ? `可用 · ${(status.latency / 1_000_000).toFixed(0)}ms`
-                      : (status.errorCode ?? '不可用')
+                      ? locale.t('settings.sourceAvailable', {
+                          latency: (status.latency / 1_000_000).toFixed(0),
+                        })
+                      : (status.errorCode ?? locale.t('settings.sourceUnavailable'))
                   "
                 >
                   {{ status.available ? status.url : status.errorMessage }}
@@ -1691,102 +1695,115 @@ async function cancelPendingMaintenance(): Promise<void> {
 
             <NFlex align="center" justify="space-between" class="cache-summary">
               <div>
-                <NText tag="h3">下载缓存</NText>
+                <NText tag="h3">{{ locale.t('settings.downloadCache') }}</NText>
                 <div v-if="cacheStatus">
-                  <NText depth="3"
-                    >{{ cacheStatus.directory }} · {{ cacheStatus.files }} 文件 ·
-                    {{ formatBytes(cacheStatus.bytes) }} /
-                    {{ formatBytes(cacheStatus.capacityBytes) }}</NText
-                  >
+                  <NText depth="3">
+                    {{
+                      locale.t('settings.cacheSummary', {
+                        directory: cacheStatus.directory,
+                        files: cacheStatus.files,
+                        used: formatBytes(cacheStatus.bytes),
+                        capacity: formatBytes(cacheStatus.capacityBytes),
+                      })
+                    }}
+                  </NText>
                 </div>
               </div>
-              <NButton type="warning" :loading="downloadActionLoading" @click="clearCache"
-                >清理缓存</NButton
-              >
+              <NButton type="warning" :loading="downloadActionLoading" @click="clearCache">
+                {{ locale.t('settings.clearCache') }}
+              </NButton>
             </NFlex>
           </NForm>
         </NTabPane>
 
-        <NTabPane name="logging" tab="日志">
+        <NTabPane name="logging" :tab="locale.t('settings.tab.logging')">
           <NForm label-placement="left" label-width="160">
-            <NAlert v-if="logStatus" type="info" title="当前运行日志">
-              {{ logStatus.runtimeMode }} · {{ logStatus.directory }} · {{ logStatus.files }} 个文件
-              · {{ formatBytes(logStatus.bytes) }}
+            <NAlert v-if="logStatus" type="info" :title="locale.t('settings.runtimeLogTitle')">
+              {{
+                locale.t('settings.logSummary', {
+                  mode: logStatus.runtimeMode,
+                  directory: logStatus.directory,
+                  files: logStatus.files,
+                  size: formatBytes(logStatus.bytes),
+                })
+              }}
             </NAlert>
-            <AppFormField label="等级">
+            <AppFormField :label="locale.t('settings.field.logLevel')">
               <NSelect v-model:value="draft.logging.level" :options="logLevelOptions" />
             </AppFormField>
-            <AppFormField label="单文件 MiB">
+            <AppFormField :label="locale.t('settings.field.maxFileMiB')">
               <NInputNumber v-model:value="draft.logging.maxFileMiB" :min="1" />
             </AppFormField>
-            <AppFormField label="保留天数">
+            <AppFormField :label="locale.t('settings.field.retentionDays')">
               <NInputNumber v-model:value="draft.logging.retentionDays" :min="1" />
             </AppFormField>
-            <AppFormField label="总容量 MiB">
+            <AppFormField :label="locale.t('settings.field.totalCapacityMiB')">
               <NInputNumber v-model:value="draft.logging.totalCapacityMiB" :min="1" />
             </AppFormField>
-            <AppFormField label="日志操作">
+            <AppFormField :label="locale.t('settings.field.logActions')">
               <NFlex>
-                <NButton :loading="runtimeActionLoading" @click="openLogs">打开日志目录</NButton>
-                <NButton type="warning" :loading="runtimeActionLoading" @click="clearLogs"
-                  >立即清理历史日志</NButton
-                >
-                <NButton type="primary" :loading="runtimeActionLoading" @click="exportDiagnostics"
-                  >导出脱敏诊断包</NButton
-                >
+                <NButton :loading="runtimeActionLoading" @click="openLogs">
+                  {{ locale.t('settings.openLogDirectory') }}
+                </NButton>
+                <NButton type="warning" :loading="runtimeActionLoading" @click="clearLogs">
+                  {{ locale.t('settings.clearArchivedLogs') }}
+                </NButton>
+                <NButton type="primary" :loading="runtimeActionLoading" @click="exportDiagnostics">
+                  {{ locale.t('settings.exportDiagnostics') }}
+                </NButton>
               </NFlex>
             </AppFormField>
           </NForm>
         </NTabPane>
 
-        <NTabPane name="monitoring" tab="监控">
+        <NTabPane name="monitoring" :tab="locale.t('settings.tab.monitoring')">
           <NForm label-placement="left" label-width="180">
-            <AppFormField label="采集间隔（秒）">
+            <AppFormField :label="locale.t('settings.field.intervalSeconds')">
               <NInputNumber v-model:value="draft.monitoring.intervalSeconds" :min="1" />
             </AppFormField>
-            <AppFormField label="实时推送节流（毫秒）">
+            <AppFormField :label="locale.t('settings.field.realtimeThrottleMillis')">
               <NInputNumber v-model:value="draft.monitoring.realtimeThrottleMillis" :min="100" />
             </AppFormField>
-            <AppFormField label="离线判定（秒）">
+            <AppFormField :label="locale.t('settings.field.offlineAfterSeconds')">
               <NInputNumber v-model:value="draft.monitoring.offlineAfterSeconds" :min="2" />
             </AppFormField>
-            <AppFormField label="原始数据保留（天）">
+            <AppFormField :label="locale.t('settings.field.rawRetentionDays')">
               <NInputNumber v-model:value="draft.monitoring.rawRetentionDays" :min="1" />
             </AppFormField>
-            <AppFormField label="分钟数据保留（天）">
+            <AppFormField :label="locale.t('settings.field.minuteRetentionDays')">
               <NInputNumber v-model:value="draft.monitoring.minuteRetentionDays" :min="1" />
             </AppFormField>
-            <AppFormField label="小时数据保留（天）">
+            <AppFormField :label="locale.t('settings.field.hourRetentionDays')">
               <NInputNumber v-model:value="draft.monitoring.hourRetentionDays" :min="1" />
             </AppFormField>
-            <AppFormField label="指标数据库容量（MiB）">
+            <AppFormField :label="locale.t('settings.field.databaseCapacityMiB')">
               <NInputNumber v-model:value="draft.monitoring.databaseCapacityMiB" :min="128" />
             </AppFormField>
-            <AppFormField label="最小磁盘余量（MiB）">
+            <AppFormField :label="locale.t('settings.field.minimumFreeDiskMiB')">
               <NInputNumber v-model:value="draft.monitoring.minimumFreeDiskMiB" :min="64" />
             </AppFormField>
-            <AppFormField label="后台维护周期（秒）">
+            <AppFormField :label="locale.t('settings.field.maintenanceIntervalSeconds')">
               <NInputNumber v-model:value="draft.monitoring.maintenanceIntervalSeconds" :min="30" />
             </AppFormField>
-            <AppFormField label="Spark 采集周期（秒）">
+            <AppFormField :label="locale.t('settings.field.sparkIntervalSeconds')">
               <NInputNumber v-model:value="draft.monitoring.sparkIntervalSeconds" :min="5" />
             </AppFormField>
-            <AppFormField label="Profiler 默认时长（秒）">
+            <AppFormField :label="locale.t('settings.field.profilerDefaultSeconds')">
               <NInputNumber
                 v-model:value="draft.monitoring.profilerDefaultSeconds"
                 :min="10"
                 :max="3600"
               />
             </AppFormField>
-            <AppFormField label="报告隐私确认">
-              <NCheckbox v-model:checked="draft.monitoring.reportPrivacyConfirmation"
-                >生成或打开 Spark 报告前始终确认</NCheckbox
-              >
+            <AppFormField :label="locale.t('settings.field.reportPrivacyConfirmation')">
+              <NCheckbox v-model:checked="draft.monitoring.reportPrivacyConfirmation">
+                {{ locale.t('settings.reportPrivacyHint') }}
+              </NCheckbox>
             </AppFormField>
-            <AppFormField label="告警冷却（秒）">
+            <AppFormField :label="locale.t('settings.field.alertCooldownSeconds')">
               <NInputNumber v-model:value="draft.monitoring.alertCooldownSeconds" :min="0" />
             </AppFormField>
-            <AppFormField label="告警通知">
+            <AppFormField :label="locale.t('settings.field.alertNotifications')">
               <NSelect
                 v-model:value="draft.monitoring.alertNotifications"
                 multiple
@@ -1794,142 +1811,158 @@ async function cancelPendingMaintenance(): Promise<void> {
               />
             </AppFormField>
             <AppFormField
-              label="静默开始"
-              help="开始和结束必须同时填写；按本地时间生效，并支持 22:00 → 07:00 跨午夜。"
+              :label="locale.t('settings.field.quietHoursStart')"
+              :help="locale.t('settings.quietHoursStartHelp')"
             >
               <NInput v-model:value="draft.monitoring.quietHoursStart" placeholder="22:00" />
             </AppFormField>
-            <AppFormField label="静默结束" help="开始和结束都留空时不启用静默时段。">
+            <AppFormField
+              :label="locale.t('settings.field.quietHoursEnd')"
+              :help="locale.t('settings.quietHoursEndHelp')"
+            >
               <NInput v-model:value="draft.monitoring.quietHoursEnd" placeholder="07:00" />
             </AppFormField>
           </NForm>
         </NTabPane>
 
-        <NTabPane name="firewall" tab="防火墙">
+        <NTabPane name="firewall" :tab="locale.t('settings.tab.firewall')">
           <NForm label-placement="left" label-width="180">
-            <NAlert type="info" title="远程防火墙规则安全边界">
-              MineOps 只会删除自身创建、没有其他 Server
-              引用且当前不再使用的规则。用户原有规则不会自动删除。
+            <NAlert type="info" :title="locale.t('settings.firewallNoticeTitle')">
+              {{ locale.t('settings.firewallNoticeContent') }}
             </NAlert>
-            <AppFormField
-              label="Provider"
-              help="auto 会优先选择远程主机上已启用的 UFW 或 firewalld。"
-            >
+            <AppFormField label="Provider" :help="locale.t('settings.firewallProviderHelp')">
               <NSelect v-model:value="draft.firewall.provider" :options="firewallProviderOptions" />
             </AppFormField>
-            <AppFormField label="新 Server 默认策略">
+            <AppFormField :label="locale.t('settings.field.defaultPolicy')">
               <NSelect
                 v-model:value="draft.firewall.defaultPolicy"
                 :options="firewallPolicyOptions"
               />
             </AppFormField>
-            <AppFormField label="安装阶段放行">
+            <AppFormField :label="locale.t('settings.field.autoOpenOnInstall')">
               <NCheckbox v-model:checked="draft.firewall.autoOpenOnInstall">
-                Server 文件安装完成后、首次启动初始化前自动放行默认端口
+                {{ locale.t('settings.autoOpenOnInstallHint') }}
               </NCheckbox>
             </AppFormField>
-            <AppFormField label="配置端口同步">
+            <AppFormField :label="locale.t('settings.field.syncOnPortChange')">
               <NCheckbox v-model:checked="draft.firewall.syncOnPortChange">
-                保存或恢复 server.properties 时先放行新端口
+                {{ locale.t('settings.syncOnPortChangeHint') }}
               </NCheckbox>
             </AppFormField>
-            <AppFormField label="回收原端口">
+            <AppFormField :label="locale.t('settings.field.removeOldPort')">
               <NCheckbox
                 v-model:checked="draft.firewall.removeOldPort"
                 :disabled="!draft.firewall.syncOnPortChange"
               >
-                新配置保存后安全移除 MineOps 管理的原端口规则
+                {{ locale.t('settings.removeOldPortHint') }}
               </NCheckbox>
             </AppFormField>
-            <AppFormField label="危险操作确认">
+            <AppFormField :label="locale.t('settings.field.requireDestructiveConfirm')">
               <NCheckbox v-model:checked="draft.firewall.requireDestructiveConfirm">
-                自动移除旧端口前必须确认端口切换计划
+                {{ locale.t('settings.requireDestructiveConfirmHint') }}
               </NCheckbox>
             </AppFormField>
           </NForm>
         </NTabPane>
 
-        <NTabPane name="layout" tab="布局">
+        <NTabPane name="layout" :tab="locale.t('settings.tab.layout')">
           <NForm label-placement="left" label-width="180">
-            <AppFormField label="侧栏可见">
-              <NCheckbox v-model:checked="draft.layout.sidebarVisible">显示主导航侧栏</NCheckbox>
+            <AppFormField :label="locale.t('settings.field.sidebarVisible')">
+              <NCheckbox v-model:checked="draft.layout.sidebarVisible">
+                {{ locale.t('settings.sidebarVisibleHint') }}
+              </NCheckbox>
             </AppFormField>
-            <AppFormField label="侧栏折叠">
-              <NCheckbox v-model:checked="draft.layout.sidebarCollapsed"
-                >默认使用紧凑侧栏</NCheckbox
-              >
+            <AppFormField :label="locale.t('settings.field.sidebarCollapsed')">
+              <NCheckbox v-model:checked="draft.layout.sidebarCollapsed">
+                {{ locale.t('settings.sidebarCollapsedHint') }}
+              </NCheckbox>
             </AppFormField>
-            <AppFormField label="侧栏宽度">
+            <AppFormField :label="locale.t('settings.field.sidebarWidth')">
               <NInputNumber v-model:value="draft.layout.sidebarWidth" :min="180" :max="360" />
             </AppFormField>
             <AppFormField label="TopBar">
-              <NCheckbox v-model:checked="draft.layout.topBarVisible">显示顶栏</NCheckbox>
+              <NCheckbox v-model:checked="draft.layout.topBarVisible">
+                {{ locale.t('settings.topBarHint') }}
+              </NCheckbox>
             </AppFormField>
             <AppFormField label="BottomBar">
-              <NCheckbox v-model:checked="draft.layout.bottomBarVisible">显示底栏</NCheckbox>
+              <NCheckbox v-model:checked="draft.layout.bottomBarVisible">
+                {{ locale.t('settings.bottomBarHint') }}
+              </NCheckbox>
             </AppFormField>
           </NForm>
         </NTabPane>
 
-        <NTabPane name="ssh" tab="SSH">
+        <NTabPane name="ssh" :tab="locale.t('settings.tab.ssh')">
           <NForm label-placement="left" label-width="190">
-            <AppFormField label="默认端口">
+            <AppFormField :label="locale.t('settings.field.defaultPort')">
               <NInputNumber v-model:value="draft.ssh.defaultPort" :min="1" :max="65535" />
             </AppFormField>
-            <AppFormField label="连接超时（秒）">
+            <AppFormField :label="locale.t('settings.field.connectTimeoutSec')">
               <NInputNumber v-model:value="draft.ssh.connectTimeoutSec" :min="1" :max="300" />
             </AppFormField>
-            <AppFormField label="握手超时（秒）">
+            <AppFormField :label="locale.t('settings.field.handshakeTimeoutSec')">
               <NInputNumber v-model:value="draft.ssh.handshakeTimeoutSec" :min="1" :max="300" />
             </AppFormField>
-            <AppFormField label="KeepAlive（秒）" help="设为 0 表示关闭主动 KeepAlive。">
+            <AppFormField
+              :label="locale.t('settings.field.keepAliveSec')"
+              :help="locale.t('settings.keepAliveHelp')"
+            >
               <NInputNumber v-model:value="draft.ssh.keepAliveSec" :min="0" :max="3600" />
             </AppFormField>
-            <AppFormField label="最大连续失败次数">
+            <AppFormField :label="locale.t('settings.field.maxFailures')">
               <NInputNumber v-model:value="draft.ssh.maxFailures" :min="1" :max="100" />
             </AppFormField>
-            <AppFormField label="自动重连">
-              <NCheckbox v-model:checked="draft.ssh.autoReconnect"
-                >连接中断后按退避策略重连</NCheckbox
-              >
+            <AppFormField :label="locale.t('settings.field.autoReconnect')">
+              <NCheckbox v-model:checked="draft.ssh.autoReconnect">
+                {{ locale.t('settings.autoReconnectHint') }}
+              </NCheckbox>
             </AppFormField>
-            <AppFormField label="重连次数">
+            <AppFormField :label="locale.t('settings.field.reconnectAttempts')">
               <NInputNumber v-model:value="draft.ssh.reconnectAttempts" :min="0" :max="20" />
             </AppFormField>
-            <AppFormField label="重连退避（秒）">
+            <AppFormField :label="locale.t('settings.field.reconnectBackoffSec')">
               <NInputNumber v-model:value="draft.ssh.reconnectBackoffSec" :min="0" :max="300" />
             </AppFormField>
-            <AppFormField label="认证优先级" help="依次尝试私钥、Agent 和密码；不允许重复。">
+            <AppFormField
+              :label="locale.t('settings.field.authPriority')"
+              :help="locale.t('settings.authPriorityHelp')"
+            >
               <NSelect v-model:value="draft.ssh.authPriority" multiple :options="sshAuthOptions" />
             </AppFormField>
-            <AppFormField label="默认主机密钥策略" help="不提供全局忽略全部指纹的选项。">
+            <AppFormField
+              :label="locale.t('settings.field.defaultHostKeyPolicy')"
+              :help="locale.t('settings.defaultHostKeyPolicyHelp')"
+            >
               <NSelect
                 v-model:value="draft.ssh.defaultHostKeyPolicy"
                 :options="hostKeyPolicyOptions"
               />
             </AppFormField>
-            <AppFormField label="SSH 压缩">
-              <NCheckbox v-model:checked="draft.ssh.compression">默认启用压缩</NCheckbox>
+            <AppFormField :label="locale.t('settings.field.sshCompression')">
+              <NCheckbox v-model:checked="draft.ssh.compression">
+                {{ locale.t('settings.sshCompressionHint') }}
+              </NCheckbox>
             </AppFormField>
             <AppFormField label="PTY Terminal Type">
               <NInput v-model:value="draft.ssh.ptyTerminalType" placeholder="xterm-256color" />
             </AppFormField>
-            <AppFormField label="默认字符编码">
+            <AppFormField :label="locale.t('settings.field.defaultEncoding')">
               <NSelect
                 v-model:value="draft.ssh.defaultEncoding"
                 :options="[{ label: 'UTF-8', value: 'UTF-8' }]"
               />
             </AppFormField>
             <AppFormField
-              label="默认 Jump Host"
-              help="通过已保存 SSH Session 建立 ProxyJump；目标连接仍独立执行主机密钥校验。"
+              :label="locale.t('settings.field.defaultJumpHost')"
+              :help="locale.t('settings.defaultJumpHostHelp')"
             >
               <NSelect
                 :value="draft.ssh.defaultJumpHostID ?? null"
                 clearable
                 filterable
                 :options="jumpHostOptions"
-                placeholder="不使用 Jump Host"
+                :placeholder="locale.t('settings.noJumpHost')"
                 @update:value="draft.ssh.defaultJumpHostID = $event ?? undefined"
               />
             </AppFormField>
@@ -1937,11 +1970,11 @@ async function cancelPendingMaintenance(): Promise<void> {
           <KnownHostsPanel />
         </NTabPane>
 
-        <NTabPane name="terminal" tab="Terminal">
+        <NTabPane name="terminal" :tab="locale.t('settings.tab.terminal')">
           <NForm label-placement="left" label-width="190">
             <AppFormField
-              label="等宽字体"
-              help="仅显示浏览器确认可用的字体，并始终保留系统回退链。"
+              :label="locale.t('settings.field.fontFamily')"
+              :help="locale.t('settings.fontFamilyHelp')"
             >
               <NSelect
                 v-model:value="draft.terminal.fontFamily"
@@ -1950,13 +1983,13 @@ async function cancelPendingMaintenance(): Promise<void> {
                 :options="fontOptions"
               />
             </AppFormField>
-            <AppFormField label="字号">
+            <AppFormField :label="locale.t('settings.field.fontSize')">
               <NInputNumber v-model:value="draft.terminal.fontSize" :min="8" :max="40" />
             </AppFormField>
-            <AppFormField label="字间距">
+            <AppFormField :label="locale.t('settings.field.letterSpacing')">
               <NInputNumber v-model:value="draft.terminal.letterSpacing" :min="-2" :max="10" />
             </AppFormField>
-            <AppFormField label="行高">
+            <AppFormField :label="locale.t('settings.field.lineHeight')">
               <NInputNumber
                 v-model:value="draft.terminal.lineHeight"
                 :min="1"
@@ -1965,8 +1998,8 @@ async function cancelPendingMaintenance(): Promise<void> {
               />
             </AppFormField>
             <AppFormField
-              label="保存行数"
-              help="范围 100–200000；数值越大，长时间会话占用的前端内存越多。"
+              :label="locale.t('settings.field.scrollback')"
+              :help="locale.t('settings.scrollbackHelp')"
             >
               <NInputNumber
                 v-model:value="draft.terminal.scrollback"
@@ -1975,32 +2008,34 @@ async function cancelPendingMaintenance(): Promise<void> {
                 :step="1000"
               />
             </AppFormField>
-            <AppFormField label="光标样式">
+            <AppFormField :label="locale.t('settings.field.cursorStyle')">
               <NSelect v-model:value="draft.terminal.cursorStyle" :options="cursorStyleOptions" />
             </AppFormField>
-            <AppFormField label="光标宽度">
+            <AppFormField :label="locale.t('settings.field.cursorWidth')">
               <NInputNumber v-model:value="draft.terminal.cursorWidth" :min="1" :max="5" />
             </AppFormField>
-            <AppFormField label="光标闪烁">
-              <NCheckbox v-model:checked="draft.terminal.cursorBlink">启用光标闪烁</NCheckbox>
+            <AppFormField :label="locale.t('settings.field.cursorBlink')">
+              <NCheckbox v-model:checked="draft.terminal.cursorBlink">
+                {{ locale.t('settings.cursorBlinkHint') }}
+              </NCheckbox>
             </AppFormField>
-            <AppFormField label="配色预设">
+            <AppFormField :label="locale.t('settings.field.themePresetTerminal')">
               <NSelect v-model:value="draft.terminal.themePreset" :options="terminalThemeOptions" />
             </AppFormField>
             <template v-if="draft.terminal.themePreset === 'custom'">
-              <AppFormField label="前景色">
+              <AppFormField :label="locale.t('settings.field.foreground')">
                 <NColorPicker v-model:value="draft.terminal.foreground" :show-alpha="false" />
               </AppFormField>
-              <AppFormField label="背景色">
+              <AppFormField :label="locale.t('settings.field.background')">
                 <NColorPicker v-model:value="draft.terminal.background" :show-alpha="false" />
               </AppFormField>
-              <AppFormField label="光标色">
+              <AppFormField :label="locale.t('settings.field.cursorColour')">
                 <NColorPicker v-model:value="draft.terminal.cursor" :show-alpha="false" />
               </AppFormField>
-              <AppFormField label="选择区域">
+              <AppFormField :label="locale.t('settings.field.selection')">
                 <NColorPicker v-model:value="draft.terminal.selection" :show-alpha="false" />
               </AppFormField>
-              <AppFormField label="ANSI 16 色">
+              <AppFormField :label="locale.t('settings.field.ansiColours')">
                 <div class="ansi-grid">
                   <label v-for="(label, index) in ansiLabels" :key="label" class="ansi-colour">
                     <NText depth="3">{{ label }}</NText>
@@ -2013,15 +2048,15 @@ async function cancelPendingMaintenance(): Promise<void> {
                 </div>
               </AppFormField>
             </template>
-            <AppFormField label="复制行为">
-              <NCheckbox v-model:checked="draft.terminal.copyOnSelect"
-                >选择文本后自动复制</NCheckbox
-              >
+            <AppFormField :label="locale.t('settings.field.copyOnSelect')">
+              <NCheckbox v-model:checked="draft.terminal.copyOnSelect">
+                {{ locale.t('settings.copyOnSelectHint') }}
+              </NCheckbox>
             </AppFormField>
-            <AppFormField label="自动聚焦">
-              <NCheckbox v-model:checked="draft.terminal.autoFocus"
-                >切换标签时聚焦 Terminal</NCheckbox
-              >
+            <AppFormField :label="locale.t('settings.field.autoFocus')">
+              <NCheckbox v-model:checked="draft.terminal.autoFocus">
+                {{ locale.t('settings.autoFocusHint') }}
+              </NCheckbox>
             </AppFormField>
             <AppFormField label="Bell">
               <NSelect v-model:value="draft.terminal.bellStyle" :options="bellStyleOptions" />
@@ -2029,62 +2064,75 @@ async function cancelPendingMaintenance(): Promise<void> {
           </NForm>
         </NTabPane>
 
-        <NTabPane name="storage" tab="存储与安全">
+        <NTabPane name="storage" :tab="locale.t('settings.tab.storage')">
           <NForm label-placement="left" label-width="190">
-            <AppFormField label="数据库路径">
-              <NInput :value="storageStatus?.databasePath ?? '正在读取…'" readonly />
+            <AppFormField :label="locale.t('settings.field.databasePath')">
+              <NInput
+                :value="storageStatus?.databasePath ?? locale.t('settings.databaseLoading')"
+                readonly
+              />
             </AppFormField>
-            <AppFormField label="默认备份目录">
+            <AppFormField :label="locale.t('settings.field.backupDirectory')">
               <NInput v-model:value="draft.storage.backupDirectory" />
             </AppFormField>
-            <AppFormField label="备份完整性校验">
-              <NCheckbox v-model:checked="draft.storage.verifyBackupAfterCreate"
-                >创建后保持完整性校验</NCheckbox
-              >
+            <AppFormField :label="locale.t('settings.field.verifyBackup')">
+              <NCheckbox v-model:checked="draft.storage.verifyBackupAfterCreate">
+                {{ locale.t('settings.verifyBackupHint') }}
+              </NCheckbox>
             </AppFormField>
-            <AppFormField label="危险操作确认">
+            <AppFormField :label="locale.t('settings.field.requireDestructiveConfirm')">
               <NFlex vertical>
-                <NCheckbox v-model:checked="draft.storage.requireRestoreConfirm"
-                  >恢复前必须二次确认</NCheckbox
-                >
-                <NCheckbox v-model:checked="draft.storage.requireKeyRotateConfirm"
-                  >密钥轮换前必须二次确认</NCheckbox
-                >
+                <NCheckbox v-model:checked="draft.storage.requireRestoreConfirm">
+                  {{ locale.t('settings.requireRestoreConfirmHint') }}
+                </NCheckbox>
+                <NCheckbox v-model:checked="draft.storage.requireKeyRotateConfirm">
+                  {{ locale.t('settings.requireKeyRotateConfirmHint') }}
+                </NCheckbox>
               </NFlex>
             </AppFormField>
-            <AppFormField label="数据目录">
-              <NButton :loading="runtimeActionLoading" @click="openData">打开数据目录</NButton>
+            <AppFormField :label="locale.t('settings.field.dataDirectory')">
+              <NButton :loading="runtimeActionLoading" @click="openData">
+                {{ locale.t('settings.openDataDirectory') }}
+              </NButton>
             </AppFormField>
-            <AppFormField label="备份与恢复">
+            <AppFormField :label="locale.t('settings.field.backupRestore')">
               <NFlex>
-                <NButton type="primary" :loading="runtimeActionLoading" @click="createBackup"
-                  >创建加密备份…</NButton
+                <NButton type="primary" :loading="runtimeActionLoading" @click="createBackup">
+                  {{ locale.t('settings.createBackup') }}
+                </NButton>
+                <NButton type="warning" :loading="runtimeActionLoading" @click="scheduleRestore">
+                  {{ locale.t('settings.scheduleRestore') }}
+                </NButton>
+                <NButton
+                  type="warning"
+                  :loading="runtimeActionLoading"
+                  @click="scheduleKeyRotation"
                 >
-                <NButton type="warning" :loading="runtimeActionLoading" @click="scheduleRestore"
-                  >校验并排队恢复…</NButton
-                >
-                <NButton type="warning" :loading="runtimeActionLoading" @click="scheduleKeyRotation"
-                  >排队密钥轮换</NButton
-                >
+                  {{ locale.t('settings.scheduleKeyRotation') }}
+                </NButton>
               </NFlex>
             </AppFormField>
             <AppFormField
-              label="存储整理"
-              help="删除监控历史或缩短保留期后，SQLite 的空闲页不会自动还给磁盘，文件会一直停在历史最大体积。整理会在下次启动、数据库打开前离线执行 VACUUM。"
+              :label="locale.t('settings.field.vacuum')"
+              :help="locale.t('settings.vacuumHelp')"
             >
               <NFlex align="center" wrap>
-                <NButton type="warning" :loading="runtimeActionLoading" @click="scheduleVacuum"
-                  >排队存储整理…</NButton
-                >
+                <NButton type="warning" :loading="runtimeActionLoading" @click="scheduleVacuum">
+                  {{ locale.t('settings.scheduleVacuum') }}
+                </NButton>
                 <NText depth="3">
-                  当前文件 {{ formatBytes(storageStatus?.databaseBytes ?? 0) }}
+                  {{
+                    locale.t('settings.currentDatabaseFile', {
+                      size: formatBytes(storageStatus?.databaseBytes ?? 0),
+                    })
+                  }}
                 </NText>
               </NFlex>
             </AppFormField>
-            <AppFormField label="清空数据库">
-              <NButton type="error" :loading="runtimeActionLoading" @click="resetDatabase"
-                >清空数据</NButton
-              >
+            <AppFormField :label="locale.t('settings.field.resetDatabase')">
+              <NButton type="error" :loading="runtimeActionLoading" @click="resetDatabase">
+                {{ locale.t('settings.resetDatabaseButton') }}
+              </NButton>
             </AppFormField>
             <NAlert
               v-if="
@@ -2094,18 +2142,30 @@ async function cancelPendingMaintenance(): Promise<void> {
                 storageStatus?.pendingMaintenance.resetPending
               "
               :type="storageStatus.pendingMaintenance.resetPending ? 'error' : 'warning'"
-              title="存在下次启动维护任务"
+              :title="locale.t('settings.pendingMaintenanceTitle')"
             >
-              恢复：{{ storageStatus.pendingMaintenance.restorePending ? '已排队' : '无' }} ·
-              密钥轮换：{{
-                storageStatus.pendingMaintenance.keyRotationPending ? '已排队' : '无'
+              {{
+                locale.t('settings.pendingMaintenanceSummary', {
+                  restore: storageStatus.pendingMaintenance.restorePending
+                    ? locale.t('settings.queued')
+                    : locale.t('common.none'),
+                  keyRotation: storageStatus.pendingMaintenance.keyRotationPending
+                    ? locale.t('settings.queued')
+                    : locale.t('common.none'),
+                  vacuum: storageStatus.pendingMaintenance.vacuumPending
+                    ? locale.t('settings.queued')
+                    : locale.t('common.none'),
+                  reset: storageStatus.pendingMaintenance.resetPending
+                    ? locale.t('settings.queued')
+                    : locale.t('common.none'),
+                })
               }}
-              · 存储整理：{{ storageStatus.pendingMaintenance.vacuumPending ? '已排队' : '无' }} ·
-              清空数据库：{{ storageStatus.pendingMaintenance.resetPending ? '已排队' : '无' }}
               <NText v-if="storageStatus.pendingMaintenance.resetPending" type="error">
-                清空数据库会取消同时排队的其他维护任务。
+                {{ locale.t('settings.resetCancelsOthers') }}
               </NText>
-              <NButton size="small" @click="cancelPendingMaintenance">取消排队任务</NButton>
+              <NButton size="small" @click="cancelPendingMaintenance">
+                {{ locale.t('settings.cancelPendingMaintenance') }}
+              </NButton>
             </NAlert>
           </NForm>
         </NTabPane>

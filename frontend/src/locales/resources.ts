@@ -1,54 +1,72 @@
-export type LocaleName = 'zh-CN' | 'en-US'
+import { backendErrorMessages } from './messages/backend-errors'
+import { commonMessages } from './messages/common'
+import { dashboardMessages } from './messages/dashboard'
+import { filesMessages } from './messages/files'
+import { javaMessages } from './messages/java'
+import { metricMessages } from './messages/metrics'
+import { monitoringMessages } from './messages/monitoring'
+import { navMessages } from './messages/nav'
+import { operationsMessages } from './messages/operations'
+import { performanceMessages } from './messages/performance'
+import { playersMessages } from './messages/players'
+import { serverDetailMessages } from './messages/server-detail'
+import { serverPanelMessages } from './messages/server-panels'
+import { serversMessages } from './messages/servers'
+import { settingsMessages } from './messages/settings'
+import { shellMessages } from './messages/shell'
+import { sshMessages } from './messages/ssh'
+import { systemMessages } from './messages/system'
 
+export type { LocaleName } from './define'
+
+/**
+ * 全量界面文案表。各语言模块通过 defineMessages 在编译期保证键集合一致，
+ * 因此这里只需按模块聚合，无需再做运行时校验。
+ *
+ * 本文件由 scripts/generate-resources.py 依据 src/locales/messages 目录生成。
+ */
 export const resources = {
   'zh-CN': {
-    'app.name': 'MineOps',
-    'nav.dashboard': '概览',
-    'nav.servers': 'MC 服务器',
-    'nav.sshSessions': 'SSH 会话',
-    'nav.files': '文件',
-    'nav.javaRuntimes': 'Java 运行时',
-    'nav.operations': '任务中心',
-    'nav.monitoring': '监控',
-    'nav.performance': '性能中心',
-    'nav.settings': '设置',
-    'nav.spikes': '阶段 0 技术基线',
-    'nav.terminal': 'SSH Terminal',
-    'shell.toggleSidebar': '切换侧栏',
-    'shell.lightTheme': '浅色',
-    'shell.darkTheme': '深色',
-    'shell.activeOperations': '活动任务 {count}',
-    'table.permissionDenied': '权限不足',
-    'table.permissionReadMessage': '当前身份没有读取此数据所需的权限。',
-    'table.loadFailed': '数据加载失败',
-    'table.partialUnavailable': '部分数据不可用',
-    'table.empty': '暂无数据',
-    'common.retry': '重试',
+    ...backendErrorMessages['zh-CN'],
+    ...commonMessages['zh-CN'],
+    ...dashboardMessages['zh-CN'],
+    ...filesMessages['zh-CN'],
+    ...javaMessages['zh-CN'],
+    ...metricMessages['zh-CN'],
+    ...monitoringMessages['zh-CN'],
+    ...navMessages['zh-CN'],
+    ...operationsMessages['zh-CN'],
+    ...performanceMessages['zh-CN'],
+    ...playersMessages['zh-CN'],
+    ...serverDetailMessages['zh-CN'],
+    ...serverPanelMessages['zh-CN'],
+    ...serversMessages['zh-CN'],
+    ...settingsMessages['zh-CN'],
+    ...shellMessages['zh-CN'],
+    ...sshMessages['zh-CN'],
+    ...systemMessages['zh-CN'],
   },
   'en-US': {
-    'app.name': 'MineOps',
-    'nav.dashboard': 'Overview',
-    'nav.servers': 'MC Servers',
-    'nav.sshSessions': 'SSH Sessions',
-    'nav.files': 'Files',
-    'nav.javaRuntimes': 'Java Runtimes',
-    'nav.operations': 'Operations',
-    'nav.monitoring': 'Monitoring',
-    'nav.performance': 'Performance Center',
-    'nav.settings': 'Settings',
-    'nav.spikes': 'Stage 0 Baseline',
-    'nav.terminal': 'SSH Terminal',
-    'shell.toggleSidebar': 'Toggle sidebar',
-    'shell.lightTheme': 'Light',
-    'shell.darkTheme': 'Dark',
-    'shell.activeOperations': '{count} active operations',
-    'table.permissionDenied': 'Permission denied',
-    'table.permissionReadMessage': 'The current identity cannot read this data.',
-    'table.loadFailed': 'Failed to load data',
-    'table.partialUnavailable': 'Some data is unavailable',
-    'table.empty': 'No data',
-    'common.retry': 'Retry',
+    ...backendErrorMessages['en-US'],
+    ...commonMessages['en-US'],
+    ...dashboardMessages['en-US'],
+    ...filesMessages['en-US'],
+    ...javaMessages['en-US'],
+    ...metricMessages['en-US'],
+    ...monitoringMessages['en-US'],
+    ...navMessages['en-US'],
+    ...operationsMessages['en-US'],
+    ...performanceMessages['en-US'],
+    ...playersMessages['en-US'],
+    ...serverDetailMessages['en-US'],
+    ...serverPanelMessages['en-US'],
+    ...serversMessages['en-US'],
+    ...settingsMessages['en-US'],
+    ...shellMessages['en-US'],
+    ...sshMessages['en-US'],
+    ...systemMessages['en-US'],
   },
-} as const
+}
 
+/** 全量文案键，供 t() 与需要持有键名的模块使用。 */
 export type ResourceKey = keyof (typeof resources)['zh-CN']

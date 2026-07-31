@@ -87,11 +87,11 @@ function stateType(state: string): 'default' | 'info' | 'success' | 'warning' | 
  */
 async function cancelOperation(operation: Operation): Promise<void> {
   const confirmed = await interactions.confirm({
-    title: '取消后台任务？',
-    content: '取消请求会发送给正在运行的 Operation，已完成步骤不会自动回滚。',
+    title: locale.t('statusDrawer.cancelOperationTitle'),
+    content: locale.t('statusDrawer.cancelOperationContent'),
     objectLabel: `${operation.type} · ${operation.id}`,
     impact: operation.message || operation.stage,
-    positiveText: '确认取消',
+    positiveText: locale.t('statusDrawer.cancelOperationConfirm'),
     danger: true,
   })
   if (!confirmed) return
@@ -100,7 +100,7 @@ async function cancelOperation(operation: Operation): Promise<void> {
   } catch (reason) {
     notifications.push({
       kind: 'error',
-      title: '取消 Operation 失败',
+      title: locale.t('statusDrawer.cancelOperationFailed'),
       content: reason instanceof Error ? reason.message : String(reason),
       dedupeKey: `status-drawer:cancel:${operation.id}`,
     })
@@ -127,7 +127,7 @@ async function acknowledgeAlertEvent(event: AlertEvent): Promise<void> {
   } catch (reason) {
     notifications.push({
       kind: 'error',
-      title: '确认告警失败',
+      title: locale.t('statusDrawer.alertAcknowledgeFailed'),
       content: reason instanceof Error ? reason.message : String(reason),
       dedupeKey: `status-drawer:alert:acknowledge:${event.id}`,
     })
@@ -141,11 +141,14 @@ async function acknowledgeAlertEvent(event: AlertEvent): Promise<void> {
  */
 async function removeAlertEvent(event: AlertEvent): Promise<void> {
   const confirmed = await interactions.confirm({
-    title: '删除活动告警？',
-    content: '告警记录将永久删除；阈值规则保持启用，条件持续满足时可能再次触发。',
+    title: locale.t('statusDrawer.alertDeleteTitle'),
+    content: locale.t('statusDrawer.alertDeleteContent'),
     objectLabel: formatMetricLabel(event.metric),
-    impact: `当前值 ${event.latestValue.toFixed(2)} / 阈值 ${event.threshold.toFixed(2)}`,
-    positiveText: '删除告警',
+    impact: locale.t('statusDrawer.alertValueSummary', {
+      value: event.latestValue.toFixed(2),
+      threshold: event.threshold.toFixed(2),
+    }),
+    positiveText: locale.t('statusDrawer.alertDeleteConfirm'),
     danger: true,
   })
   if (!confirmed) return
@@ -153,13 +156,13 @@ async function removeAlertEvent(event: AlertEvent): Promise<void> {
     await alerts.remove(event.id)
     notifications.push({
       kind: 'success',
-      title: '活动告警已删除',
+      title: locale.t('statusDrawer.alertDeleted'),
       dedupeKey: `status-drawer:alert:delete:${event.id}`,
     })
   } catch (reason) {
     notifications.push({
       kind: 'error',
-      title: '删除活动告警失败',
+      title: locale.t('statusDrawer.alertDeleteFailed'),
       content: reason instanceof Error ? reason.message : String(reason),
       dedupeKey: `status-drawer:alert:delete:error:${event.id}`,
     })
@@ -196,9 +199,9 @@ async function openAlertMetric(event: AlertEvent): Promise<void> {
 async function clearErrors(): Promise<void> {
   if (!errors.entries.length) return
   const confirmed = await interactions.confirm({
-    title: '清空错误列表？',
-    content: `将清除当前会话记录的 ${errors.entries.length} 条客户端错误。`,
-    positiveText: '清空错误',
+    title: locale.t('statusDrawer.errorsClearTitle'),
+    content: locale.t('statusDrawer.errorsClearContent', { count: errors.entries.length }),
+    positiveText: locale.t('statusDrawer.errorsClearConfirm'),
     danger: true,
   })
   if (confirmed) {
@@ -216,9 +219,11 @@ function errorDetails(entry: ErrorEntry): string {
   const error = entry.error
   if (error instanceof ApplicationError) {
     return [
-      `错误码: ${error.code}`,
-      `技术信息: ${error.technicalMessage}`,
-      `可重试: ${error.retryable ? '是' : '否'}`,
+      locale.t('statusDrawer.errorCode', { code: error.code }),
+      locale.t('statusDrawer.errorTechnical', { message: error.technicalMessage }),
+      locale.t('statusDrawer.errorRetryable', {
+        value: error.retryable ? locale.t('common.yes') : locale.t('common.no'),
+      }),
       `Details: ${JSON.stringify(error.details, null, 2)}`,
       error.stack ? `Stack:\n${error.stack}` : '',
     ]
@@ -241,11 +246,18 @@ function errorDetails(entry: ErrorEntry): string {
     placement="right"
     @update:show="(visible) => !visible && (expandedErrorID = null)"
   >
-    <NDrawerContent title="状态中心" closable>
+    <NDrawerContent :title="locale.t('statusDrawer.title')" closable>
       <NTabs v-model:value="activeTab" type="line" animated>
-        <NTabPane :tab="`活动任务 (${operations.active.length})`" name="operations">
+        <NTabPane
+          :tab="locale.t('statusDrawer.tabOperations', { count: operations.active.length })"
+          name="operations"
+        >
           <NFlex vertical :size="12">
-            <NAlert v-if="operations.activeError" type="error" title="活动任务加载失败">
+            <NAlert
+              v-if="operations.activeError"
+              type="error"
+              :title="locale.t('statusDrawer.operationsLoadFailed')"
+            >
               {{
                 operations.activeError instanceof Error
                   ? operations.activeError.message
@@ -268,34 +280,51 @@ function errorDetails(entry: ErrorEntry): string {
                   </template>
                   <template #header-extra>
                     <NButton size="small" type="warning" @click="cancelOperation(operation)">
-                      取消
+                      {{ locale.t('common.cancel') }}
                     </NButton>
                   </template>
                   <NFlex vertical :size="6">
                     <NText depth="3">
-                      {{ operation.targetType }} · {{ operation.stage || '等待阶段' }}
+                      {{ operation.targetType }} ·
+                      {{ operation.stage || locale.t('statusDrawer.operationPendingStage') }}
                     </NText>
                     <NProgress
                       :percentage="Math.round(operation.progress * 100)"
                       :show-indicator="true"
                       processing
                     />
-                    <NText>{{ operation.message || '等待进度更新…' }}</NText>
+                    <NText>{{
+                      operation.message || locale.t('statusDrawer.operationPendingProgress')
+                    }}</NText>
                   </NFlex>
                 </NThing>
               </NListItem>
             </NList>
-            <NEmpty v-else-if="!operations.loading" description="当前没有活动任务" />
+            <NEmpty
+              v-else-if="!operations.loading"
+              :description="locale.t('statusDrawer.operationsEmpty')"
+            />
             <NFlex justify="end">
-              <NButton :loading="operations.loading" @click="operations.refresh">刷新</NButton>
-              <NButton type="primary" @click="openOperationsPage">前往任务中心</NButton>
+              <NButton :loading="operations.loading" @click="operations.refresh">
+                {{ locale.t('common.refresh') }}
+              </NButton>
+              <NButton type="primary" @click="openOperationsPage">
+                {{ locale.t('statusDrawer.openOperations') }}
+              </NButton>
             </NFlex>
           </NFlex>
         </NTabPane>
 
-        <NTabPane :tab="`告警 (${alerts.activeCount})`" name="alerts">
+        <NTabPane
+          :tab="locale.t('statusDrawer.tabAlerts', { count: alerts.activeCount })"
+          name="alerts"
+        >
           <NFlex vertical :size="12">
-            <NAlert v-if="alerts.error" type="error" title="活动告警加载失败">
+            <NAlert
+              v-if="alerts.error"
+              type="error"
+              :title="locale.t('statusDrawer.alertsLoadFailed')"
+            >
               {{ alerts.error instanceof Error ? alerts.error.message : String(alerts.error) }}
             </NAlert>
             <NList v-if="alerts.activeEvents.length" bordered hoverable>
@@ -305,7 +334,11 @@ function errorDetails(entry: ErrorEntry): string {
                     <NFlex align="center" :wrap="false">
                       <NText type="error" strong>{{ formatMetricLabel(event.metric) }}</NText>
                       <NTag size="small" :type="event.acknowledgedAt ? 'default' : 'error'">
-                        {{ event.acknowledgedAt ? '已确认' : '未确认' }}
+                        {{
+                          event.acknowledgedAt
+                            ? locale.t('statusDrawer.alertAcknowledged')
+                            : locale.t('statusDrawer.alertUnacknowledged')
+                        }}
                       </NTag>
                     </NFlex>
                   </template>
@@ -317,33 +350,55 @@ function errorDetails(entry: ErrorEntry): string {
                         type="primary"
                         @click="acknowledgeAlertEvent(event)"
                       >
-                        确认
+                        {{ locale.t('common.confirm') }}
                       </NButton>
-                      <NButton size="tiny" @click="openAlertMetric(event)">查看指标</NButton>
+                      <NButton size="tiny" @click="openAlertMetric(event)">
+                        {{ locale.t('statusDrawer.alertViewMetric') }}
+                      </NButton>
                       <NButton size="tiny" type="error" quaternary @click="removeAlertEvent(event)">
-                        删除
+                        {{ locale.t('common.delete') }}
                       </NButton>
                     </NFlex>
                   </template>
                   <NFlex vertical :size="6">
                     <NText>
-                      当前值 {{ event.latestValue.toFixed(2) }} / 阈值
-                      {{ event.threshold.toFixed(2) }}
+                      {{
+                        locale.t('statusDrawer.alertValueSummary', {
+                          value: event.latestValue.toFixed(2),
+                          threshold: event.threshold.toFixed(2),
+                        })
+                      }}
                     </NText>
-                    <NText depth="3">服务器：{{ event.serverID }}</NText>
-                    <NText depth="3">触发：{{ locale.formatDateTime(event.triggeredAt) }}</NText>
+                    <NText depth="3">
+                      {{ locale.t('statusDrawer.alertServer', { server: event.serverID }) }}
+                    </NText>
+                    <NText depth="3">
+                      {{
+                        locale.t('statusDrawer.alertTriggeredAt', {
+                          time: locale.formatDateTime(event.triggeredAt),
+                        })
+                      }}
+                    </NText>
                   </NFlex>
                 </NThing>
               </NListItem>
             </NList>
-            <NEmpty v-else-if="!alerts.loading" description="当前没有活动告警" />
+            <NEmpty
+              v-else-if="!alerts.loading"
+              :description="locale.t('statusDrawer.alertsEmpty')"
+            />
             <NFlex justify="end">
-              <NButton :loading="alerts.loading" @click="refreshAlerts">刷新</NButton>
+              <NButton :loading="alerts.loading" @click="refreshAlerts">
+                {{ locale.t('common.refresh') }}
+              </NButton>
             </NFlex>
           </NFlex>
         </NTabPane>
 
-        <NTabPane :tab="`错误 (${errors.entries.length})`" name="errors">
+        <NTabPane
+          :tab="locale.t('statusDrawer.tabErrors', { count: errors.entries.length })"
+          name="errors"
+        >
           <NFlex vertical :size="12">
             <NFlex justify="end">
               <NButton
@@ -352,7 +407,7 @@ function errorDetails(entry: ErrorEntry): string {
                 :disabled="!errors.entries.length"
                 @click="clearErrors"
               >
-                清空全部
+                {{ locale.t('statusDrawer.errorsClear') }}
               </NButton>
             </NFlex>
             <NList v-if="errors.entries.length" bordered hoverable>
@@ -367,10 +422,14 @@ function errorDetails(entry: ErrorEntry): string {
                         size="tiny"
                         @click="expandedErrorID = expandedErrorID === entry.id ? null : entry.id"
                       >
-                        {{ expandedErrorID === entry.id ? '收起' : '详情' }}
+                        {{
+                          expandedErrorID === entry.id
+                            ? locale.t('statusDrawer.errorCollapse')
+                            : locale.t('common.detail')
+                        }}
                       </NButton>
                       <NButton size="tiny" quaternary @click="errors.dismiss(entry.id)">
-                        忽略
+                        {{ locale.t('statusDrawer.errorDismiss') }}
                       </NButton>
                     </NFlex>
                   </template>
@@ -384,7 +443,7 @@ function errorDetails(entry: ErrorEntry): string {
                 </NThing>
               </NListItem>
             </NList>
-            <NEmpty v-else description="当前没有错误" />
+            <NEmpty v-else :description="locale.t('statusDrawer.errorsEmpty')" />
           </NFlex>
         </NTabPane>
       </NTabs>

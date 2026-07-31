@@ -1,5 +1,7 @@
 import { Dialogs } from '@wailsio/runtime'
 
+import { translate } from '../locales/runtime'
+
 export interface NativeFileDialogOptions {
   title: string
   message?: string
@@ -64,8 +66,8 @@ export async function selectSavePath(
 export async function nativeConfirm(
   options: Dialogs.MessageDialogOptions & { confirmLabel?: string; cancelLabel?: string },
 ): Promise<boolean> {
-  const confirmLabel = options.confirmLabel ?? '确认'
-  const cancelLabel = options.cancelLabel ?? '取消'
+  const confirmLabel = options.confirmLabel ?? translate('common.confirm')
+  const cancelLabel = options.cancelLabel ?? translate('common.cancel')
   const selected = await Dialogs.Question({
     ...options,
     Buttons: [

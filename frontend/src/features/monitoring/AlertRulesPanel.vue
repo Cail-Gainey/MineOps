@@ -24,6 +24,7 @@ import { useRouter } from 'vue-router'
 
 import { AlertRule } from '../../../bindings/github.com/Cail-Gainey/MineOps/internal/model/models'
 import type { AlertEvent } from '../../../bindings/github.com/Cail-Gainey/MineOps/internal/model/models'
+import { hasMessage } from '../../locales/runtime'
 import { useAlertsStore } from '../../stores/alerts'
 import { useInteractionStore } from '../../stores/interactions'
 import { useLocaleStore } from '../../stores/locale'
@@ -52,7 +53,7 @@ const draft = reactive({
   enabled: true,
 })
 
-const metricOptions = [
+const metricNames = [
   'host.cpu',
   'host.memory',
   'host.disk.used',
@@ -60,23 +61,27 @@ const metricOptions = [
   'process.rss',
   'minecraft.tps',
   'minecraft.mspt',
-].map((value) => ({
-  label: formatMetricLabel(value),
-  value,
-}))
-const comparisonLabels: Record<string, string> = {
-  greater_than: '大于',
-  greater_than_or_equal: '大于等于',
-  less_than: '小于',
-  less_than_or_equal: '小于等于',
-}
-const comparisonOptions = [
-  { label: '大于', value: 'greater_than' },
-  { label: '大于等于', value: 'greater_than_or_equal' },
-  { label: '小于', value: 'less_than' },
-  { label: '小于等于', value: 'less_than_or_equal' },
 ]
-const modalTitle = computed(() => (editingRuleID.value ? '编辑阈值规则' : '新建阈值规则'))
+const comparisons = ['greater_than', 'greater_than_or_equal', 'less_than', 'less_than_or_equal']
+const metricOptions = computed(() =>
+  metricNames.map((value) => ({ label: formatMetricLabel(value), value })),
+)
+const comparisonOptions = computed(() =>
+  comparisons.map((value) => ({ label: comparisonLabel(value), value })),
+)
+const modalTitle = computed(() =>
+  editingRuleID.value ? locale.t('alerts.modalEdit') : locale.t('alerts.modalCreate'),
+)
+
+/**
+ * 把比较符标识映射成本地化标签。
+ * @param comparison - 比较符标识
+ * @returns 本地化标签，未知比较符原样返回
+ */
+function comparisonLabel(comparison: string): string {
+  const key = `alerts.comparison.${comparison}`
+  return hasMessage(key) ? locale.t(key) : comparison
+}
 
 /**
  * 把规则表单恢复为默认值并退出编辑态。
@@ -147,13 +152,13 @@ async function saveRule(): Promise<void> {
     showRuleModal.value = false
     notifications.push({
       kind: 'success',
-      title: editingRuleID.value ? '阈值规则已更新' : '阈值规则已创建',
+      title: editingRuleID.value ? locale.t('alerts.ruleUpdated') : locale.t('alerts.ruleCreated'),
       dedupeKey: 'alert:rule:save',
     })
   } catch (reason) {
     notifications.push({
       kind: 'error',
-      title: '保存阈值规则失败',
+      title: locale.t('alerts.ruleSaveFailed'),
       content: reason instanceof Error ? reason.message : String(reason),
       dedupeKey: 'alert:rule:save:error',
     })
@@ -177,11 +182,11 @@ async function toggleRule(rule: AlertRule, enabled: boolean): Promise<void> {
  */
 async function removeRule(rule: AlertRule): Promise<void> {
   const confirmed = await interactions.confirm({
-    title: '删除阈值规则？',
-    content: '活动事件会先转为恢复状态，历史事件继续保留。',
+    title: locale.t('alerts.ruleDeleteTitle'),
+    content: locale.t('alerts.ruleDeleteContent'),
     objectLabel: rule.name,
-    impact: `${rule.metric} ${rule.comparison} ${rule.threshold}`,
-    positiveText: '删除规则',
+    impact: `${formatMetricLabel(rule.metric)} ${comparisonLabel(rule.comparison)} ${rule.threshold}`,
+    positiveText: locale.t('alerts.ruleDeleteConfirm'),
     danger: true,
   })
   if (confirmed) await alerts.remove(rule.id)
@@ -194,14 +199,17 @@ async function removeRule(rule: AlertRule): Promise<void> {
  */
 async function removeEvent(event: AlertEvent): Promise<void> {
   const confirmed = await interactions.confirm({
-    title: '删除告警记录？',
+    title: locale.t('alerts.eventDeleteTitle'),
     content:
       event.state === 'active'
-        ? '将永久删除当前活动告警；阈值规则保持启用，条件持续满足时可能再次触发。'
-        : '将永久删除这条告警历史记录。',
+        ? locale.t('alerts.eventDeleteActiveContent')
+        : locale.t('alerts.eventDeleteHistoryContent'),
     objectLabel: formatMetricLabel(event.metric),
-    impact: `当前值 ${event.latestValue.toFixed(2)} / 阈值 ${event.threshold.toFixed(2)}`,
-    positiveText: '删除记录',
+    impact: locale.t('alerts.eventValueSummary', {
+      value: event.latestValue.toFixed(2),
+      threshold: event.threshold.toFixed(2),
+    }),
+    positiveText: locale.t('alerts.eventDeleteConfirm'),
     danger: true,
   })
   if (!confirmed) return
@@ -209,13 +217,13 @@ async function removeEvent(event: AlertEvent): Promise<void> {
     await alerts.removeEvent(event.id)
     notifications.push({
       kind: 'success',
-      title: '告警记录已删除',
+      title: locale.t('alerts.eventDeleted'),
       dedupeKey: `alert:event:delete:${event.id}`,
     })
   } catch (reason) {
     notifications.push({
       kind: 'error',
-      title: '删除告警记录失败',
+      title: locale.t('alerts.eventDeleteFailed'),
       content: reason instanceof Error ? reason.message : String(reason),
       dedupeKey: `alert:event:delete:error:${event.id}`,
     })
@@ -254,23 +262,25 @@ onUnmounted(() => alerts.stopSubscription())
 </script>
 
 <template>
-  <NCard title="阈值告警">
+  <NCard :title="locale.t('alerts.cardTitle')">
     <template #header-extra>
-      <NButton type="primary" size="small" @click="openCreate">新建规则</NButton>
+      <NButton type="primary" size="small" @click="openCreate">
+        {{ locale.t('alerts.newRule') }}
+      </NButton>
     </template>
-    <NAlert v-if="partialMessage" type="warning" title="部分告警数据不可用">{{
+    <NAlert v-if="partialMessage" type="warning" :title="locale.t('alerts.partialTitle')">{{
       partialMessage
     }}</NAlert>
     <NTabs type="line" animated>
-      <NTabPane name="active" :tab="`活动 (${activeEvents.length})`">
+      <NTabPane name="active" :tab="locale.t('alerts.tabActive', { count: activeEvents.length })">
         <NTable v-if="activeEvents.length" size="small" striped>
           <thead>
             <tr>
-              <th>指标</th>
-              <th>触发值</th>
-              <th>开始</th>
-              <th>确认</th>
-              <th>操作</th>
+              <th>{{ locale.t('alerts.col.metric') }}</th>
+              <th>{{ locale.t('alerts.col.triggerValue') }}</th>
+              <th>{{ locale.t('alerts.col.start') }}</th>
+              <th>{{ locale.t('alerts.col.acknowledge') }}</th>
+              <th>{{ locale.t('common.actions') }}</th>
             </tr>
           </thead>
           <tbody>
@@ -281,7 +291,11 @@ onUnmounted(() => alerts.stopSubscription())
               <td>{{ event.latestValue.toFixed(2) }} / {{ event.threshold.toFixed(2) }}</td>
               <td>{{ locale.formatDateTime(event.triggeredAt) }}</td>
               <td>
-                {{ event.acknowledgedAt ? locale.formatDateTime(event.acknowledgedAt) : '未确认' }}
+                {{
+                  event.acknowledgedAt
+                    ? locale.formatDateTime(event.acknowledgedAt)
+                    : locale.t('alerts.unacknowledged')
+                }}
               </td>
               <td>
                 <NFlex>
@@ -290,32 +304,41 @@ onUnmounted(() => alerts.stopSubscription())
                     text
                     type="primary"
                     @click="alerts.acknowledge(event.id)"
-                    >确认</NButton
                   >
-                  <NButton text @click="jumpToMetric(event.metric, event.triggeredAt)"
-                    >查看指标</NButton
-                  >
-                  <NButton text type="error" @click="removeEvent(event)">删除</NButton>
+                    {{ locale.t('common.confirm') }}
+                  </NButton>
+                  <NButton text @click="jumpToMetric(event.metric, event.triggeredAt)">
+                    {{ locale.t('alerts.viewMetric') }}
+                  </NButton>
+                  <NButton text type="error" @click="removeEvent(event)">
+                    {{ locale.t('common.delete') }}
+                  </NButton>
                 </NFlex>
               </td>
             </tr>
           </tbody>
         </NTable>
-        <NAlert v-if="eventsError && !activeEvents.length" type="error" title="告警事件加载失败">{{
-          eventsError instanceof Error ? eventsError.message : String(eventsError)
-        }}</NAlert>
-        <NEmpty v-else-if="!loading" description="当前没有活动告警" />
+        <NAlert
+          v-if="eventsError && !activeEvents.length"
+          type="error"
+          :title="locale.t('alerts.eventsLoadFailed')"
+          >{{ eventsError instanceof Error ? eventsError.message : String(eventsError) }}</NAlert
+        >
+        <NEmpty v-else-if="!loading" :description="locale.t('alerts.noActive')" />
       </NTabPane>
 
-      <NTabPane name="history" :tab="`历史 (${historicalEvents.length})`">
+      <NTabPane
+        name="history"
+        :tab="locale.t('alerts.tabHistory', { count: historicalEvents.length })"
+      >
         <NTable v-if="historicalEvents.length" size="small" striped>
           <thead>
             <tr>
-              <th>指标</th>
-              <th>触发值</th>
-              <th>触发</th>
-              <th>恢复</th>
-              <th>操作</th>
+              <th>{{ locale.t('alerts.col.metric') }}</th>
+              <th>{{ locale.t('alerts.col.triggerValue') }}</th>
+              <th>{{ locale.t('alerts.col.triggered') }}</th>
+              <th>{{ locale.t('alerts.col.recovered') }}</th>
+              <th>{{ locale.t('common.actions') }}</th>
             </tr>
           </thead>
           <tbody>
@@ -325,10 +348,12 @@ onUnmounted(() => alerts.stopSubscription())
               <td>{{ locale.formatDateTime(event.triggeredAt) }}</td>
               <td>{{ event.recoveredAt ? locale.formatDateTime(event.recoveredAt) : '—' }}</td>
               <td>
-                <NButton text @click="jumpToMetric(event.metric, event.triggeredAt)"
-                  >查看指标</NButton
-                >
-                <NButton text type="error" @click="removeEvent(event)">删除</NButton>
+                <NButton text @click="jumpToMetric(event.metric, event.triggeredAt)">
+                  {{ locale.t('alerts.viewMetric') }}
+                </NButton>
+                <NButton text type="error" @click="removeEvent(event)">
+                  {{ locale.t('common.delete') }}
+                </NButton>
               </td>
             </tr>
           </tbody>
@@ -336,33 +361,33 @@ onUnmounted(() => alerts.stopSubscription())
         <NAlert
           v-if="eventsError && !historicalEvents.length"
           type="error"
-          title="告警历史加载失败"
+          :title="locale.t('alerts.historyLoadFailed')"
           >{{ eventsError instanceof Error ? eventsError.message : String(eventsError) }}</NAlert
         >
-        <NEmpty v-else-if="!loading" description="尚无已恢复告警" />
+        <NEmpty v-else-if="!loading" :description="locale.t('alerts.noHistory')" />
       </NTabPane>
 
-      <NTabPane name="rules" :tab="`规则 (${rules.length})`">
+      <NTabPane name="rules" :tab="locale.t('alerts.tabRules', { count: rules.length })">
         <NTable v-if="rules.length" size="small" striped>
           <thead>
             <tr>
-              <th>名称</th>
-              <th>条件</th>
-              <th>持续</th>
-              <th>冷却</th>
-              <th>启用</th>
-              <th>操作</th>
+              <th>{{ locale.t('alerts.col.name') }}</th>
+              <th>{{ locale.t('alerts.col.condition') }}</th>
+              <th>{{ locale.t('alerts.col.duration') }}</th>
+              <th>{{ locale.t('alerts.col.cooldown') }}</th>
+              <th>{{ locale.t('alerts.col.enabled') }}</th>
+              <th>{{ locale.t('common.actions') }}</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="rule in rules" :key="rule.id">
               <td>{{ rule.name }}</td>
               <td>
-                {{ formatMetricLabel(rule.metric) }} ·
-                {{ comparisonLabels[rule.comparison] ?? rule.comparison }} · {{ rule.threshold }}
+                {{ formatMetricLabel(rule.metric) }} · {{ comparisonLabel(rule.comparison) }} ·
+                {{ rule.threshold }}
               </td>
-              <td>{{ rule.durationSeconds }} 秒</td>
-              <td>{{ rule.cooldownSeconds }} 秒</td>
+              <td>{{ locale.t('alerts.seconds', { value: rule.durationSeconds }) }}</td>
+              <td>{{ locale.t('alerts.seconds', { value: rule.cooldownSeconds }) }}</td>
               <td>
                 <NSwitch
                   :value="rule.enabled"
@@ -371,18 +396,23 @@ onUnmounted(() => alerts.stopSubscription())
                 />
               </td>
               <td>
-                <NFlex
-                  ><NButton text @click="openEdit(rule)">编辑</NButton
-                  ><NButton text type="error" @click="removeRule(rule)">删除</NButton></NFlex
-                >
+                <NFlex>
+                  <NButton text @click="openEdit(rule)">{{ locale.t('common.edit') }}</NButton>
+                  <NButton text type="error" @click="removeRule(rule)">
+                    {{ locale.t('common.delete') }}
+                  </NButton>
+                </NFlex>
               </td>
             </tr>
           </tbody>
         </NTable>
-        <NAlert v-if="rulesError && !rules.length" type="error" title="告警规则加载失败">{{
-          rulesError instanceof Error ? rulesError.message : String(rulesError)
-        }}</NAlert>
-        <NEmpty v-else-if="!loading" description="尚未配置阈值规则" />
+        <NAlert
+          v-if="rulesError && !rules.length"
+          type="error"
+          :title="locale.t('alerts.rulesLoadFailed')"
+          >{{ rulesError instanceof Error ? rulesError.message : String(rulesError) }}</NAlert
+        >
+        <NEmpty v-else-if="!loading" :description="locale.t('alerts.noRules')" />
       </NTabPane>
     </NTabs>
 
@@ -393,36 +423,42 @@ onUnmounted(() => alerts.stopSubscription())
       style="width: min(560px, 92vw)"
     >
       <NForm label-placement="top">
-        <NFormItem label="名称"
-          ><NInput v-model:value="draft.name" placeholder="例如：TPS 持续低于 18"
-        /></NFormItem>
+        <NFormItem :label="locale.t('alerts.form.name')">
+          <NInput
+            v-model:value="draft.name"
+            :placeholder="locale.t('alerts.form.namePlaceholder')"
+          />
+        </NFormItem>
         <NFlex :wrap="false">
-          <NFormItem label="指标" style="flex: 1"
-            ><NSelect v-model:value="draft.metric" :options="metricOptions"
-          /></NFormItem>
-          <NFormItem label="比较符" style="flex: 1"
-            ><NSelect v-model:value="draft.comparison" :options="comparisonOptions"
-          /></NFormItem>
+          <NFormItem :label="locale.t('alerts.form.metric')" style="flex: 1">
+            <NSelect v-model:value="draft.metric" :options="metricOptions" />
+          </NFormItem>
+          <NFormItem :label="locale.t('alerts.form.comparison')" style="flex: 1">
+            <NSelect v-model:value="draft.comparison" :options="comparisonOptions" />
+          </NFormItem>
         </NFlex>
         <NFlex :wrap="false">
-          <NFormItem label="阈值" style="flex: 1"
-            ><NInputNumber v-model:value="draft.threshold"
-          /></NFormItem>
-          <NFormItem label="持续秒数" style="flex: 1"
-            ><NInputNumber v-model:value="draft.durationSeconds" :min="0" :max="86400"
-          /></NFormItem>
-          <NFormItem label="冷却秒数" style="flex: 1"
-            ><NInputNumber v-model:value="draft.cooldownSeconds" :min="0" :max="604800"
-          /></NFormItem>
+          <NFormItem :label="locale.t('alerts.form.threshold')" style="flex: 1">
+            <NInputNumber v-model:value="draft.threshold" />
+          </NFormItem>
+          <NFormItem :label="locale.t('alerts.form.duration')" style="flex: 1">
+            <NInputNumber v-model:value="draft.durationSeconds" :min="0" :max="86400" />
+          </NFormItem>
+          <NFormItem :label="locale.t('alerts.form.cooldown')" style="flex: 1">
+            <NInputNumber v-model:value="draft.cooldownSeconds" :min="0" :max="604800" />
+          </NFormItem>
         </NFlex>
         <NFlex align="center" justify="space-between">
-          <NFlex align="center"
-            ><NText>启用规则</NText><NSwitch v-model:value="draft.enabled"
-          /></NFlex>
-          <NFlex
-            ><NButton @click="showRuleModal = false">取消</NButton
-            ><NButton type="primary" :loading="loading" @click="saveRule">保存</NButton></NFlex
-          >
+          <NFlex align="center">
+            <NText>{{ locale.t('alerts.form.enabled') }}</NText>
+            <NSwitch v-model:value="draft.enabled" />
+          </NFlex>
+          <NFlex>
+            <NButton @click="showRuleModal = false">{{ locale.t('common.cancel') }}</NButton>
+            <NButton type="primary" :loading="loading" @click="saveRule">
+              {{ locale.t('common.save') }}
+            </NButton>
+          </NFlex>
         </NFlex>
       </NForm>
     </NModal>

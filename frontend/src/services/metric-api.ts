@@ -15,6 +15,7 @@ import {
   StorageStatus,
 } from '../../bindings/github.com/Cail-Gainey/MineOps/internal/desktop/services/metricservice'
 import { throwIfError } from './api-client'
+import { translate } from '../locales/runtime'
 
 export const metricRealtimeEventName = 'mineops:metric:realtime'
 
@@ -37,7 +38,13 @@ export async function getLatestMetrics(serverID: string): Promise<MetricSample[]
 export async function queryMetrics(query: MetricQuery): Promise<MetricQueryResult> {
   const result = await Query(query)
   throwIfError(result.error)
-  if (!result.result) throw new Error('MetricService 未返回查询结果')
+  if (!result.result)
+    throw new Error(
+      translate('service.missingField', {
+        service: 'MetricService',
+        field: translate('serviceField.queryResult'),
+      }),
+    )
   return result.result
 }
 
@@ -48,7 +55,13 @@ export async function queryMetrics(query: MetricQuery): Promise<MetricQueryResul
 export async function getMetricStorageStatus(): Promise<MetricStorageStatus> {
   const result = await StorageStatus()
   throwIfError(result.error)
-  if (!result.status) throw new Error('MetricService 未返回存储状态')
+  if (!result.status)
+    throw new Error(
+      translate('service.missingField', {
+        service: 'MetricService',
+        field: translate('serviceField.storageStatus'),
+      }),
+    )
   return result.status
 }
 
@@ -59,7 +72,13 @@ export async function getMetricStorageStatus(): Promise<MetricStorageStatus> {
 export async function runMetricMaintenance(): Promise<MetricMaintenanceResult> {
   const result = await RunMaintenance()
   throwIfError(result.error)
-  if (!result.result) throw new Error('MetricService 未返回维护结果')
+  if (!result.result)
+    throw new Error(
+      translate('service.missingField', {
+        service: 'MetricService',
+        field: translate('serviceField.maintenanceResult'),
+      }),
+    )
   return result.result
 }
 

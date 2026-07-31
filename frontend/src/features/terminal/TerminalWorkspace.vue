@@ -4,12 +4,14 @@ import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 
 import { getSSHSession } from '../../services/ssh-session-api'
+import { useLocaleStore } from '../../stores/locale'
 import { useNotificationStore } from '../../stores/notifications'
 import { useTerminalTabsStore } from '../../stores/terminal-tabs'
 import TerminalPane from './TerminalPane.vue'
 
 const route = useRoute()
 const tabs = useTerminalTabsStore()
+const locale = useLocaleStore()
 const notifications = useNotificationStore()
 const renameDraft = ref('')
 const routeLoading = ref(false)
@@ -45,7 +47,7 @@ async function openRouteSession(): Promise<void> {
     routeError.value = error
     notifications.push({
       kind: 'error',
-      title: '打开 Terminal 标签失败',
+      title: locale.t('terminal.openTabFailed'),
       content: error instanceof Error ? error.message : String(error),
       dedupeKey: `terminal:open-tab:${sshSessionID}`,
     })
@@ -85,23 +87,27 @@ function renameActiveTab(): void {
       <NFlex align="center" justify="end">
         <NFlex :wrap="false">
           <NInput v-model:value="renameDraft" size="small" @keyup.enter="renameActiveTab" />
-          <NButton size="small" @click="renameActiveTab">重命名标签</NButton>
+          <NButton size="small" @click="renameActiveTab">
+            {{ locale.t('terminal.renameTab') }}
+          </NButton>
         </NFlex>
       </NFlex>
     </template>
     <NAlert
       v-if="routeError"
       :type="routePermissionDenied ? 'warning' : 'error'"
-      :title="routePermissionDenied ? '权限不足' : '打开 Terminal 失败'"
+      :title="
+        routePermissionDenied ? locale.t('table.permissionDenied') : locale.t('terminal.openFailed')
+      "
       class="route-error"
     >
       <NFlex align="center" justify="space-between">
         <span>{{ routeError instanceof Error ? routeError.message : String(routeError) }}</span>
-        <NButton size="small" @click="openRouteSession">重试</NButton>
+        <NButton size="small" @click="openRouteSession">{{ locale.t('common.retry') }}</NButton>
       </NFlex>
     </NAlert>
     <NSpin :show="routeLoading" class="workspace-content">
-      <NEmpty v-if="!tabs.tabs.length" description="请从 SSH Sessions 页面打开 Terminal" />
+      <NEmpty v-if="!tabs.tabs.length" :description="locale.t('terminal.emptyHint')" />
       <NTabs
         v-else
         v-model:value="tabs.activeID"

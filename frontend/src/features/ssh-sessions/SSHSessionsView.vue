@@ -24,6 +24,7 @@ import {
 import AppDataTable from '../../shared/components/AppDataTable.vue'
 import AppIcon from '../../shared/components/AppIcon.vue'
 import { useInteractionStore } from '../../stores/interactions'
+import { useLocaleStore } from '../../stores/locale'
 import { useNotificationStore } from '../../stores/notifications'
 import { useSSHSessionsStore } from '../../stores/ssh-sessions'
 import { useTerminalTabsStore } from '../../stores/terminal-tabs'
@@ -31,6 +32,7 @@ import SSHSessionForm from './SSHSessionForm.vue'
 
 const store = useSSHSessionsStore()
 const router = useRouter()
+const locale = useLocaleStore()
 const terminalTabs = useTerminalTabsStore()
 const interactions = useInteractionStore()
 const notifications = useNotificationStore()
@@ -58,8 +60,8 @@ let tableResizeObserver: ResizeObserver | null = null
 
 type SessionColumn = DataTableColumns<SSHSessionDTO>[number]
 
-const sessionColumn: SessionColumn = {
-  title: '名称',
+const sessionColumn = computed<SessionColumn>(() => ({
+  title: locale.t('ssh.column.name'),
   key: 'session',
   width: 180,
   sorter: (left, right) => left.name.localeCompare(right.name),
@@ -76,7 +78,7 @@ const sessionColumn: SessionColumn = {
               h(
                 NTag,
                 { size: 'small', type: 'warning', bordered: false },
-                { default: () => '收藏' },
+                { default: () => locale.t('ssh.favourite') },
               ),
             ]
           : []),
@@ -97,7 +99,7 @@ const sessionColumn: SessionColumn = {
               h(
                 NTag,
                 { size: 'small', bordered: false },
-                { default: () => `${row.serverCount} Server` },
+                { default: () => locale.t('ssh.serverCount', { count: row.serverCount }) },
               ),
             ]),
             ...(row.remark
@@ -112,23 +114,27 @@ const sessionColumn: SessionColumn = {
           ]
         : []),
     ]),
-}
+}))
 
-const connectionStatusColumn: SessionColumn = {
-  title: '延迟',
+const connectionStatusColumn = computed<SessionColumn>(() => ({
+  title: locale.t('ssh.column.latency'),
   key: 'connectionStatus',
   width: 90,
   render: (row) => {
     const status = connectionStates.value[row.id]
     if (!status) {
-      return h(NTag, { bordered: false, title: '等待自动延迟测量。' }, { default: () => '待测量' })
+      return h(
+        NTag,
+        { bordered: false, title: locale.t('ssh.latencyPendingHint') },
+        { default: () => locale.t('ssh.latencyPending') },
+      )
     }
     const label =
       status.state === 'latency'
-        ? `${Math.round(status.latencyMs ?? 0)} ms`
+        ? locale.t('ssh.latencyValue', { value: Math.round(status.latencyMs ?? 0) })
         : status.state === 'measuring'
-          ? '测量中'
-          : '不可达'
+          ? locale.t('ssh.latencyMeasuring')
+          : locale.t('ssh.latencyUnreachable')
     const type =
       status.state === 'latency' ? 'success' : status.state === 'measuring' ? 'info' : 'error'
     return h(
@@ -137,22 +143,24 @@ const connectionStatusColumn: SessionColumn = {
       { default: () => label },
     )
   },
-}
+}))
 
-const actionsColumn: SessionColumn = {
-  title: '操作',
+const actionsColumn = computed<SessionColumn>(() => ({
+  title: locale.t('common.actions'),
   key: 'actions',
   render: (row) =>
     h(NFlex, { wrap: true, class: 'row-actions' }, () => [
       h(
         NButton,
         { quaternary: true, circle: true, size: 'small', onClick: () => openTerminal(row) },
-        { default: () => h(AppIcon, { icon: TerminalSquare, label: '打开 Terminal' }) },
+        {
+          default: () => h(AppIcon, { icon: TerminalSquare, label: locale.t('ssh.openTerminal') }),
+        },
       ),
       h(
         NButton,
         { quaternary: true, circle: true, size: 'small', onClick: () => openFiles(row) },
-        { default: () => h(AppIcon, { icon: FolderOpen, label: '文件' }) },
+        { default: () => h(AppIcon, { icon: FolderOpen, label: locale.t('ssh.openFiles') }) },
       ),
       h(
         NButton,
@@ -163,13 +171,17 @@ const actionsColumn: SessionColumn = {
           onClick: () => void toggleFavourite(row),
         },
         {
-          default: () => h(AppIcon, { icon: row.favourite ? Star : StarOff, label: '切换收藏' }),
+          default: () =>
+            h(AppIcon, {
+              icon: row.favourite ? Star : StarOff,
+              label: locale.t('ssh.toggleFavourite'),
+            }),
         },
       ),
       h(
         NButton,
         { quaternary: true, circle: true, size: 'small', onClick: () => openEdit(row) },
-        { default: () => h(AppIcon, { icon: Edit3, label: '编辑' }) },
+        { default: () => h(AppIcon, { icon: Edit3, label: locale.t('common.edit') }) },
       ),
       h(
         NButton,
@@ -180,13 +192,13 @@ const actionsColumn: SessionColumn = {
           type: 'error',
           onClick: () => void remove(row),
         },
-        { default: () => h(AppIcon, { icon: Trash2, label: '删除' }) },
+        { default: () => h(AppIcon, { icon: Trash2, label: locale.t('common.delete') }) },
       ),
     ]),
-}
+}))
 
-const targetColumn: SessionColumn = {
-  title: '地址',
+const targetColumn = computed<SessionColumn>(() => ({
+  title: locale.t('ssh.column.target'),
   key: 'target',
   width: 230,
   sorter: (left, right) =>
@@ -197,10 +209,10 @@ const targetColumn: SessionColumn = {
     const target = `${row.username}@${row.host}:${row.port}`
     return h(NText, { class: 'ellipsis-cell', title: target }, { default: () => target })
   },
-}
+}))
 
-const informationColumn: SessionColumn = {
-  title: '信息',
+const informationColumn = computed<SessionColumn>(() => ({
+  title: locale.t('ssh.column.information'),
   key: 'information',
   width: 260,
   render: (row) => {
@@ -209,67 +221,90 @@ const informationColumn: SessionColumn = {
       const collecting = hostSpecsStates.value[row.id] === 'collecting'
       return h(
         NText,
-        { depth: 3, title: collecting ? '正在采集主机规格。' : '尚未采集主机规格,刷新可重试。' },
-        { default: () => (collecting ? '采集中' : '—') },
+        {
+          depth: 3,
+          title: collecting ? locale.t('ssh.specsCollecting') : locale.t('ssh.specsMissing'),
+        },
+        { default: () => (collecting ? locale.t('ssh.specsCollectingShort') : '—') },
       )
     }
-    return h('div', { class: 'tag-cell', title: `采集于 ${formatCollectedAt(specsCollectedAt)}` }, [
-      h(NTag, { size: 'small', bordered: false }, { default: () => `${cpuCount} 核` }),
-      h(
-        NTag,
-        { size: 'small', bordered: false },
-        { default: () => `${formatCapacity(memoryBytes)} 内存` },
-      ),
-      h(
-        NTag,
-        { size: 'small', bordered: false },
-        { default: () => `${formatCapacity(diskBytes)} 硬盘` },
-      ),
-    ])
+    return h(
+      'div',
+      {
+        class: 'tag-cell',
+        title: locale.t('ssh.specsCollectedAt', { time: formatCollectedAt(specsCollectedAt) }),
+      },
+      [
+        h(
+          NTag,
+          { size: 'small', bordered: false },
+          { default: () => locale.t('ssh.specCpu', { count: cpuCount }) },
+        ),
+        h(
+          NTag,
+          { size: 'small', bordered: false },
+          { default: () => locale.t('ssh.specMemory', { value: formatCapacity(memoryBytes) }) },
+        ),
+        h(
+          NTag,
+          { size: 'small', bordered: false },
+          { default: () => locale.t('ssh.specDisk', { value: formatCapacity(diskBytes) }) },
+        ),
+      ],
+    )
   },
-}
+}))
 
-const remarkColumn: SessionColumn = {
-  title: '备注',
+const remarkColumn = computed<SessionColumn>(() => ({
+  title: locale.t('ssh.column.remark'),
   key: 'remark',
   sorter: (left, right) => left.remark.localeCompare(right.remark),
   render: (row) =>
     h(
       NText,
-      { depth: row.remark ? 1 : 3, class: 'ellipsis-cell', title: row.remark || '无备注' },
+      {
+        depth: row.remark ? 1 : 3,
+        class: 'ellipsis-cell',
+        title: row.remark || locale.t('ssh.noRemark'),
+      },
       { default: () => row.remark || '—' },
     ),
-}
+}))
 
 const columns = computed<DataTableColumns<SSHSessionDTO>>(() => {
   const responsiveActionsColumn = {
-    ...actionsColumn,
+    ...actionsColumn.value,
     width: Math.min(180, Math.max(96, Math.round(tableWidth.value * 0.14))),
   } as SessionColumn
 
   if (tableWidth.value >= 1100) {
     return [
-      connectionStatusColumn,
-      sessionColumn,
-      targetColumn,
-      informationColumn,
-      remarkColumn,
+      connectionStatusColumn.value,
+      sessionColumn.value,
+      targetColumn.value,
+      informationColumn.value,
+      remarkColumn.value,
       responsiveActionsColumn,
     ]
   }
   if (tableWidth.value >= 850) {
     return [
-      connectionStatusColumn,
-      sessionColumn,
-      targetColumn,
-      informationColumn,
+      connectionStatusColumn.value,
+      sessionColumn.value,
+      targetColumn.value,
+      informationColumn.value,
       responsiveActionsColumn,
     ]
   }
   if (tableWidth.value >= 680) {
-    return [connectionStatusColumn, sessionColumn, targetColumn, responsiveActionsColumn]
+    return [
+      connectionStatusColumn.value,
+      sessionColumn.value,
+      targetColumn.value,
+      responsiveActionsColumn,
+    ]
   }
-  return [sessionColumn, connectionStatusColumn, responsiveActionsColumn]
+  return [sessionColumn.value, connectionStatusColumn.value, responsiveActionsColumn]
 })
 
 /**
@@ -290,7 +325,7 @@ function formatCapacity(bytes: number): string {
  */
 function formatCollectedAt(value: string): string {
   const collectedAt = new Date(value)
-  return Number.isNaN(collectedAt.getTime()) ? value : collectedAt.toLocaleString()
+  return Number.isNaN(collectedAt.getTime()) ? value : locale.formatDateTime(collectedAt)
 }
 
 /**
@@ -300,12 +335,15 @@ function formatCollectedAt(value: string): string {
  */
 function contextOptions(row: SSHSessionDTO): DropdownOption[] {
   return [
-    { label: '打开 Terminal', key: 'terminal' },
-    { label: '文件', key: 'files' },
-    { label: '编辑', key: 'edit' },
-    { label: row.favourite ? '取消收藏' : '收藏', key: 'favourite' },
+    { label: locale.t('ssh.openTerminal'), key: 'terminal' },
+    { label: locale.t('ssh.openFiles'), key: 'files' },
+    { label: locale.t('common.edit'), key: 'edit' },
+    {
+      label: row.favourite ? locale.t('ssh.unfavourite') : locale.t('ssh.favourite'),
+      key: 'favourite',
+    },
     { type: 'divider', key: 'divider' },
-    { label: '删除', key: 'delete' },
+    { label: locale.t('common.delete'), key: 'delete' },
   ]
 }
 
@@ -335,14 +373,24 @@ function openFiles(session: SSHSessionDTO): void {
  * @returns 测量完成后的 Promise
  */
 async function measure(session: SSHSessionDTO, generation: number): Promise<void> {
-  connectionStates.value[session.id] = { state: 'measuring', message: '正在测量 SSH 路由延迟。' }
+  connectionStates.value[session.id] = {
+    state: 'measuring',
+    message: locale.t('ssh.measuringHint'),
+  }
   try {
     const result = await preflightSSHSession(session.id)
     if (generation !== measureGeneration) return
     connectionStates.value[session.id] = {
       state: 'latency',
       latencyMs: Math.round(result.latencyMs),
-      message: `SSH RTT 中位数 ${Math.round(result.latencyMs)} ms · 最小 ${Math.round(result.minLatencyMs)} ms · 平均 ${Math.round(result.averageLatencyMs)} ms · 最大 ${Math.round(result.maxLatencyMs)} ms · ${result.sampleCount} 次采样 · ${result.connectedAddress}`,
+      message: locale.t('ssh.latencyDetail', {
+        median: Math.round(result.latencyMs),
+        min: Math.round(result.minLatencyMs),
+        average: Math.round(result.averageLatencyMs),
+        max: Math.round(result.maxLatencyMs),
+        samples: result.sampleCount,
+        address: result.connectedAddress,
+      }),
     }
   } catch (error) {
     if (generation !== measureGeneration) return
@@ -435,7 +483,7 @@ async function refresh(): Promise<void> {
   } catch (error) {
     notifications.push({
       kind: 'error',
-      title: '加载 SSH Sessions 失败',
+      title: locale.t('ssh.loadFailed'),
       content: error instanceof Error ? error.message : String(error),
       dedupeKey: 'ssh-sessions:load-error',
     })
@@ -453,7 +501,7 @@ async function toggleFavourite(session: SSHSessionDTO): Promise<void> {
   } catch (error) {
     notifications.push({
       kind: 'error',
-      title: '更新收藏状态失败',
+      title: locale.t('ssh.favouriteFailed'),
       content: error instanceof Error ? error.message : String(error),
       dedupeKey: `ssh-session:favourite-error:${session.id}`,
     })
@@ -467,11 +515,11 @@ async function toggleFavourite(session: SSHSessionDTO): Promise<void> {
  */
 async function remove(session: SSHSessionDTO): Promise<void> {
   const confirmed = await interactions.confirm({
-    title: '删除 SSH Session？',
-    content: '关联凭据也会从加密数据库删除。存在 Server 引用时操作会被拒绝。',
+    title: locale.t('ssh.deleteTitle'),
+    content: locale.t('ssh.deleteContent'),
     objectLabel: `${session.name} · ${session.username}@${session.host}:${session.port}`,
-    impact: `当前关联 ${session.serverCount} 个 Server。`,
-    positiveText: '删除',
+    impact: locale.t('ssh.deleteImpact', { count: session.serverCount }),
+    positiveText: locale.t('common.delete'),
     danger: true,
   })
   if (!confirmed) return
@@ -482,13 +530,13 @@ async function remove(session: SSHSessionDTO): Promise<void> {
     delete hostSpecsStates.value[session.id]
     notifications.push({
       kind: 'success',
-      title: 'SSH Session 已删除',
+      title: locale.t('ssh.deleted'),
       dedupeKey: `ssh-session:deleted:${session.id}`,
     })
   } catch (error) {
     notifications.push({
       kind: 'error',
-      title: '删除 SSH Session 失败',
+      title: locale.t('ssh.deleteFailed'),
       content: error instanceof Error ? error.message : String(error),
       dedupeKey: `ssh-session:delete-error:${session.id}`,
     })
@@ -517,19 +565,21 @@ function handleContextAction(key: string | number, session: SSHSessionDTO): void
 async function saved(session: SSHSessionDTO): Promise<void> {
   delete connectionStates.value[session.id]
   delete hostSpecsStates.value[session.id]
-  const action = editing.value ? '更新' : '创建'
+  const updating = Boolean(editing.value)
   try {
     const result = await testSSHSessionConnection(session.id)
     notifications.push({
       kind: 'success',
-      title: `SSH Session 已${action}并通过连接测试`,
+      title: updating ? locale.t('ssh.savedUpdatedTested') : locale.t('ssh.savedCreatedTested'),
       content: `${session.name} · ${result.serverVersion} · ${result.remoteAddress} · ${result.connectDurationMs} ms`,
       dedupeKey: `ssh-session:saved:${session.id}`,
     })
   } catch (error) {
     notifications.push({
       kind: 'warning',
-      title: `SSH Session 已${action}，但自动连接测试未通过`,
+      title: updating
+        ? locale.t('ssh.savedUpdatedTestFailed')
+        : locale.t('ssh.savedCreatedTestFailed'),
       content: error instanceof Error ? error.message : String(error),
       dedupeKey: `ssh-session:saved-test-error:${session.id}`,
     })
@@ -545,7 +595,7 @@ async function saved(session: SSHSessionDTO): Promise<void> {
 function saveFailed(error: unknown): void {
   notifications.push({
     kind: 'error',
-    title: '保存 SSH Session 失败',
+    title: locale.t('ssh.saveFailed'),
     content: error instanceof Error ? error.message : String(error),
     dedupeKey: 'ssh-session:save-error',
   })
@@ -587,8 +637,8 @@ onUnmounted(() => {
   <NCard>
     <NFlex justify="end" class="page-actions">
       <NButton type="primary" @click="openCreate">
-        <template #icon><AppIcon :icon="Plus" label="新建" /></template>
-        新建 Session
+        <template #icon><AppIcon :icon="Plus" :label="locale.t('common.create')" /></template>
+        {{ locale.t('ssh.newSession') }}
       </NButton>
     </NFlex>
 
@@ -597,7 +647,7 @@ onUnmounted(() => {
         v-model:value="store.search"
         class="toolbar-search"
         clearable
-        placeholder="搜索名称、主机、用户名或备注"
+        :placeholder="locale.t('ssh.searchPlaceholder')"
         @keyup.enter="refresh"
         @clear="refresh"
       />
@@ -605,15 +655,17 @@ onUnmounted(() => {
         v-model:value="store.group"
         class="toolbar-group"
         clearable
-        placeholder="全部分组"
+        :placeholder="locale.t('ssh.groupPlaceholder')"
         :options="store.groups.map((value) => ({ label: value, value }))"
         @update:value="refresh"
       />
       <NFlex align="center" :wrap="false" class="favourite-filter">
         <NSwitch v-model:value="store.favouriteOnly" @update:value="refresh" />
-        <NText>仅收藏</NText>
+        <NText>{{ locale.t('ssh.favouriteOnly') }}</NText>
       </NFlex>
-      <NButton :loading="store.loading" @click="refresh">刷新</NButton>
+      <NButton :loading="store.loading" @click="refresh">
+        {{ locale.t('common.refresh') }}
+      </NButton>
     </NFlex>
 
     <div ref="tableContainer" class="session-table">
@@ -624,12 +676,12 @@ onUnmounted(() => {
         :error="store.error"
         :partial-message="store.partialMessage"
         :context-options="contextOptions"
-        empty-description="尚未创建 SSH Session"
+        :empty-description="locale.t('ssh.empty')"
         @retry="refresh"
         @context-action="handleContextAction"
       >
         <template #empty-action>
-          <NButton type="primary" @click="openCreate">创建第一个 Session</NButton>
+          <NButton type="primary" @click="openCreate">{{ locale.t('ssh.createFirst') }}</NButton>
         </template>
       </AppDataTable>
     </div>

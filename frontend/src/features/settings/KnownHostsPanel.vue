@@ -1,49 +1,64 @@
 <script setup lang="ts">
 import { NButton, NFlex, NInput, NTag, NText, type DataTableColumns } from 'naive-ui'
-import { h, onMounted, ref } from 'vue'
+import { computed, h, onMounted, ref } from 'vue'
 
 import type { KnownHostDTO } from '../../../bindings/github.com/Cail-Gainey/MineOps/internal/desktop/services/models'
 import { deleteKnownHost, listKnownHosts } from '../../services/known-host-api'
 import AppDataTable from '../../shared/components/AppDataTable.vue'
 import { useInteractionStore } from '../../stores/interactions'
+import { useLocaleStore } from '../../stores/locale'
 import { useNotificationStore } from '../../stores/notifications'
 
 const interactions = useInteractionStore()
+const locale = useLocaleStore()
 const notifications = useNotificationStore()
 const rows = ref<KnownHostDTO[]>([])
 const search = ref('')
 const loading = ref(false)
 const error = ref<unknown>(null)
 
-const columns: DataTableColumns<KnownHostDTO> = [
+const columns = computed<DataTableColumns<KnownHostDTO>>(() => [
   {
-    title: '状态',
+    title: locale.t('knownHosts.column.state'),
     key: 'active',
     width: 90,
     render: (row) =>
       h(
         NTag,
         { type: row.active ? 'success' : 'default', bordered: false },
-        { default: () => (row.active ? '当前' : '历史') },
+        {
+          default: () =>
+            row.active ? locale.t('knownHosts.current') : locale.t('knownHosts.historical'),
+        },
       ),
   },
-  { title: '主机', key: 'host', minWidth: 180, render: (row) => `${row.host}:${row.port}` },
-  { title: '算法', key: 'algorithm', minWidth: 150 },
-  { title: 'SHA256 指纹', key: 'fingerprint', minWidth: 260, ellipsis: { tooltip: true } },
-  { title: '首次信任', key: 'firstSeenAt', minWidth: 180 },
-  { title: '最近使用', key: 'lastSeenAt', minWidth: 180 },
   {
-    title: '操作',
+    title: locale.t('knownHosts.column.host'),
+    key: 'host',
+    minWidth: 180,
+    render: (row) => `${row.host}:${row.port}`,
+  },
+  { title: locale.t('knownHosts.column.algorithm'), key: 'algorithm', minWidth: 150 },
+  {
+    title: locale.t('knownHosts.column.fingerprint'),
+    key: 'fingerprint',
+    minWidth: 260,
+    ellipsis: { tooltip: true },
+  },
+  { title: locale.t('knownHosts.column.firstSeenAt'), key: 'firstSeenAt', minWidth: 180 },
+  { title: locale.t('knownHosts.column.lastSeenAt'), key: 'lastSeenAt', minWidth: 180 },
+  {
+    title: locale.t('common.actions'),
     key: 'actions',
     width: 90,
     render: (row) =>
       h(
         NButton,
         { size: 'small', type: 'error', secondary: true, onClick: () => void remove(row) },
-        { default: () => '删除' },
+        { default: () => locale.t('common.delete') },
       ),
   },
-]
+])
 
 /**
  * 重新加载已信任的主机密钥列表。
@@ -68,12 +83,14 @@ async function refresh(): Promise<void> {
  */
 async function remove(row: KnownHostDTO): Promise<void> {
   const confirmed = await interactions.confirm({
-    title: row.active ? '删除当前受信任指纹？' : '删除指纹历史？',
+    title: row.active
+      ? locale.t('knownHosts.deleteActiveTitle')
+      : locale.t('knownHosts.deleteHistoryTitle'),
     content: row.active
-      ? '下次连接时将重新进入首次信任流程。请在可信渠道核对新指纹。'
-      : '该操作只删除历史审计记录，不改变当前受信任指纹。',
+      ? locale.t('knownHosts.deleteActiveContent')
+      : locale.t('knownHosts.deleteHistoryContent'),
     objectLabel: `${row.host}:${row.port} · ${row.fingerprint}`,
-    positiveText: '删除记录',
+    positiveText: locale.t('knownHosts.deleteConfirm'),
     danger: true,
   })
   if (!confirmed) return
@@ -82,13 +99,13 @@ async function remove(row: KnownHostDTO): Promise<void> {
     await refresh()
     notifications.push({
       kind: 'success',
-      title: 'Known Host 记录已删除',
+      title: locale.t('knownHosts.deleted'),
       dedupeKey: `known-host:deleted:${row.id}`,
     })
   } catch (reason) {
     notifications.push({
       kind: 'error',
-      title: '删除 Known Host 失败',
+      title: locale.t('knownHosts.deleteFailed'),
       content: reason instanceof Error ? reason.message : String(reason),
       dedupeKey: `known-host:delete-error:${row.id}`,
     })
@@ -103,14 +120,14 @@ onMounted(refresh)
     <NFlex align="center" justify="space-between">
       <div>
         <NText tag="h3">Known Hosts</NText>
-        <NText depth="3">当前指纹与变更历史均保存在 SQLCipher；指纹变化默认拒绝连接。</NText>
+        <NText depth="3">{{ locale.t('knownHosts.description') }}</NText>
       </div>
-      <NButton :loading="loading" @click="refresh">刷新</NButton>
+      <NButton :loading="loading" @click="refresh">{{ locale.t('common.refresh') }}</NButton>
     </NFlex>
     <NInput
       v-model:value="search"
       clearable
-      placeholder="搜索主机或 SHA256 指纹"
+      :placeholder="locale.t('knownHosts.searchPlaceholder')"
       class="known-host-search"
       @keyup.enter="refresh"
       @clear="refresh"
@@ -120,7 +137,7 @@ onMounted(refresh)
       :data="rows"
       :loading="loading"
       :error="error"
-      empty-description="尚无受信任主机指纹"
+      :empty-description="locale.t('knownHosts.empty')"
       @retry="refresh"
     />
   </section>

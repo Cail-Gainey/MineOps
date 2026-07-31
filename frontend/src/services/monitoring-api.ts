@@ -7,6 +7,7 @@ import {
   Resume,
 } from '../../bindings/github.com/Cail-Gainey/MineOps/internal/desktop/services/monitoringservice'
 import { throwIfError } from './api-client'
+import { translate } from '../locales/runtime'
 
 /**
  * 读取某台 Server 的监控统一状态。
@@ -16,7 +17,10 @@ import { throwIfError } from './api-client'
 export async function getMonitoringOverview(serverID: string): Promise<MonitoringOverview> {
   const result = await Overview(serverID)
   throwIfError(result.error)
-  if (!result.overview) throw new Error('MonitoringService 未返回 Overview')
+  if (!result.overview)
+    throw new Error(
+      translate('service.missingField', { service: 'MonitoringService', field: 'Overview' }),
+    )
   return result.overview
 }
 

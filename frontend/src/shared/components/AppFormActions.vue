@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { NButton, NFlex, NText } from 'naive-ui'
 
+import { useLocaleStore } from '../../stores/locale'
+
 withDefaults(
   defineProps<{
     dirty: boolean
@@ -14,8 +16,8 @@ withDefaults(
   {
     submitting: false,
     disabled: false,
-    submitText: '保存',
-    discardText: '放弃修改',
+    submitText: '',
+    discardText: '',
     statusText: '',
     showDiscard: true,
   },
@@ -25,11 +27,15 @@ defineEmits<{
   submit: []
   discard: []
 }>()
+
+const locale = useLocaleStore()
 </script>
 
 <template>
   <NFlex align="center" justify="space-between" class="form-actions">
-    <NText depth="3">{{ statusText || (dirty ? '有未保存修改' : '所有修改已保存') }}</NText>
+    <NText depth="3">{{
+      statusText || (dirty ? locale.t('form.dirty') : locale.t('form.clean'))
+    }}</NText>
     <NFlex>
       <slot name="before" />
       <NButton
@@ -37,7 +43,7 @@ defineEmits<{
         :disabled="!dirty || submitting || disabled"
         @click="$emit('discard')"
       >
-        {{ discardText }}
+        {{ discardText || locale.t('form.discard') }}
       </NButton>
       <NButton
         type="primary"
@@ -45,7 +51,7 @@ defineEmits<{
         :loading="submitting"
         @click="$emit('submit')"
       >
-        {{ submitText }}
+        {{ submitText || locale.t('common.save') }}
       </NButton>
     </NFlex>
   </NFlex>

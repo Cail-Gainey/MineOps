@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
+import { translate } from '../locales/runtime'
 
 import { AlertRule } from '../../bindings/github.com/Cail-Gainey/MineOps/internal/model/models'
 import type { AlertEvent } from '../../bindings/github.com/Cail-Gainey/MineOps/internal/model/models'
@@ -24,9 +25,9 @@ export const useAlertsStore = defineStore('alerts', () => {
   const error = computed(() => (rulesError.value && eventsError.value ? rulesError.value : null))
   const partialMessage = computed(() =>
     rulesError.value
-      ? '告警规则暂时不可用，事件历史仍可浏览。'
+      ? translate('store.alertRulesUnavailable')
       : eventsError.value
-        ? '告警事件暂时不可用，规则仍可管理。'
+        ? translate('store.alertEventsUnavailable')
         : '',
   )
   let unsubscribe: (() => void) | null = null

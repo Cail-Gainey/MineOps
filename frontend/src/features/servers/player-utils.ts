@@ -1,3 +1,5 @@
+import { translate } from '../../locales/runtime'
+
 export type PlayerFilter = 'all' | 'online' | 'whitelist' | 'operator' | 'banned'
 export type PlayerSort = 'name' | 'currentDuration' | 'totalDuration' | 'lastActivity'
 export type SortDirection = 'asc' | 'desc'
@@ -30,10 +32,11 @@ export function formatPlayerDuration(seconds: number): string {
   const hours = Math.floor((value % 86_400) / 3_600)
   const minutes = Math.floor((value % 3_600) / 60)
   const remainingSeconds = value % 60
-  if (days > 0) return `${days}天 ${hours}小时`
-  if (hours > 0) return `${hours}小时 ${minutes}分`
-  if (minutes > 0) return `${minutes}分 ${remainingSeconds}秒`
-  return `${remainingSeconds}秒`
+  if (days > 0) return translate('duration.daysHours', { days, hours })
+  if (hours > 0) return translate('duration.hoursMinutes', { hours, minutes })
+  if (minutes > 0)
+    return translate('duration.minutesSeconds', { minutes, seconds: remainingSeconds })
+  return translate('duration.seconds', { seconds: remainingSeconds })
 }
 
 /**

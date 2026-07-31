@@ -26,6 +26,8 @@ import { useRouter } from 'vue-router'
 import AppFormActions from '../../shared/components/AppFormActions.vue'
 import AppFormField from '../../shared/components/AppFormField.vue'
 import { useUnsavedGuard } from '../../composables/use-unsaved-guard'
+import { hasMessage } from '../../locales/runtime'
+import { useLocaleStore } from '../../stores/locale'
 import { useNotificationStore } from '../../stores/notifications'
 import { useServerWizardStore } from '../../stores/server-wizard'
 import { useSSHSessionsStore } from '../../stores/ssh-sessions'
@@ -33,6 +35,7 @@ import InstallationTerminal from './InstallationTerminal.vue'
 
 const show = defineModel<boolean>('show', { default: false })
 const wizard = useServerWizardStore()
+const locale = useLocaleStore()
 const sshSessions = useSSHSessionsStore()
 const notifications = useNotificationStore()
 const router = useRouter()
@@ -40,24 +43,40 @@ const replacementName = ref('')
 const now = ref(Date.now())
 const elapsedTimer = window.setInterval(() => (now.value = Date.now()), 1000)
 const exitGuardDirty = computed(() => show.value && !wizard.task)
-const firewallPolicyOptions = [
-  { label: '自动管理', value: 'automatic' },
-  { label: '操作前确认', value: 'prompt' },
-  { label: '不管理', value: 'disabled' },
-]
+const firewallPolicies = ['automatic', 'prompt', 'disabled']
+const firewallPolicyOptions = computed(() =>
+  firewallPolicies.map((value) => ({
+    label: locale.t(`servers.firewall.${value}` as Parameters<typeof locale.t>[0]),
+    value,
+  })),
+)
+const authTypeOptions = computed(() =>
+  ['password', 'private_key', 'agent'].map((value) => ({
+    label: locale.t(`sshForm.auth.${value}` as Parameters<typeof locale.t>[0]),
+    value,
+  })),
+)
 
-useUnsavedGuard('server-wizard', 'Minecraft Server Wizard 有未提交配置', exitGuardDirty)
+useUnsavedGuard(
+  'server-wizard',
+  computed(() => locale.t('wizard.unsavedGuard')),
+  exitGuardDirty,
+)
 
 const distributionOptions = computed(() =>
   wizard.distributions.map((item) => ({
-    label: `${item.displayName}${item.proxy ? ' · Proxy' : ''}${!item.catalogReady || !item.installerReady ? ' · 尚未开放安装' : ''}`,
+    label: `${item.displayName}${item.proxy ? locale.t('wizard.distributionProxy') : ''}${
+      !item.catalogReady || !item.installerReady ? locale.t('wizard.distributionNotReady') : ''
+    }`,
     value: item.type,
     disabled: !item.catalogReady || !item.installerReady,
   })),
 )
 const versionOptions = computed(() =>
   wizard.versions.map((item) => ({
-    label: `${item.version}${item.build ? ` · build ${item.build}` : ''} · Java ${item.javaMajor}`,
+    label: `${item.version}${
+      item.build ? locale.t('wizard.versionBuild', { build: item.build }) : ''
+    } · Java ${item.javaMajor}`,
     value: item.version,
   })),
 )
@@ -73,14 +92,17 @@ const completedStepCount = computed(
   () => wizard.steps.filter((item) => item.state === 'success' || item.state === 'skipped').length,
 )
 const stepProgressText = computed(() => {
-  const summary = `已完成 ${completedStepCount.value}/${wizard.steps.length}`
+  const summary = locale.t('wizard.stepProgress', {
+    done: completedStepCount.value,
+    total: wizard.steps.length,
+  })
   return runningSteps.value.length > 1
-    ? `${summary} · 并行 ${runningSteps.value.length} 个步骤`
+    ? locale.t('wizard.stepParallel', { summary, count: runningSteps.value.length })
     : summary
 })
 const elapsedText = computed(() => {
   const startedAt = wizard.task?.startedAt
-  if (!startedAt) return '尚未开始'
+  if (!startedAt) return locale.t('wizard.notStarted')
   const finishedAt = wizard.task?.finishedAt ? Date.parse(wizard.task.finishedAt) : now.value
   const seconds = Math.max(0, Math.floor((finishedAt - Date.parse(startedAt)) / 1000))
   const minutes = Math.floor(seconds / 60)
@@ -88,7 +110,7 @@ const elapsedText = computed(() => {
 })
 const installationTerminalLines = computed(() => {
   if (!wizard.task) return []
-  const lines = [`[MineOps] 安装任务 ${wizard.task.id}`]
+  const lines = [locale.t('wizard.terminalHeader', { id: wizard.task.id })]
   for (const step of wizard.steps) {
     const logs = step.checkpoint?.logs
     if (!Array.isArray(logs)) continue
@@ -97,16 +119,24 @@ const installationTerminalLines = computed(() => {
   return lines
 })
 const installationTerminalStatus = computed(() => {
-  if (!wizard.task) return '等待安装任务'
+  if (!wizard.task) return locale.t('wizard.terminalWaiting')
   if (runningSteps.value.length > 0) {
     return runningSteps.value
-      .map((step) => `${stepLabel(step.name)} · ${step.message || '正在执行'}`)
+      .map((step) =>
+        locale.t('wizard.stepRunning', {
+          label: stepLabel(step.name),
+          message: step.message || locale.t('wizard.stepExecuting'),
+        }),
+      )
       .join(' ｜ ')
   }
   const current = wizard.steps.find((step) => step.order === wizard.task?.currentStep)
-  if (!current) return `任务状态：${wizard.task.state}`
-  const message = current.message || '等待执行'
-  return `${stepLabel(current.name)} · ${current.state} · ${message}`
+  if (!current) return locale.t('wizard.taskState', { state: wizard.task.state })
+  return locale.t('wizard.stepSummary', {
+    label: stepLabel(current.name),
+    state: current.state,
+    message: current.message || locale.t('wizard.stepWaiting'),
+  })
 })
 
 /**
@@ -117,7 +147,7 @@ async function initialize(): Promise<void> {
   try {
     await wizard.initialize()
   } catch (error) {
-    notifyError('初始化 Server Wizard 失败', error)
+    notifyError(locale.t('wizard.initFailed'), error)
   }
 }
 
@@ -129,7 +159,7 @@ async function next(): Promise<void> {
   try {
     await wizard.next()
   } catch (error) {
-    notifyError('无法进入下一步', error)
+    notifyError(locale.t('wizard.nextFailed'), error)
   }
 }
 
@@ -142,12 +172,12 @@ async function testSSH(): Promise<void> {
     await wizard.testSelectedSSH()
     notifications.push({
       kind: 'success',
-      title: 'SSH 连接测试成功',
+      title: locale.t('wizard.sshTestSucceeded'),
       content: wizard.connectionEvidence,
       dedupeKey: `wizard:ssh:${wizard.selectedSSHSessionID}`,
     })
   } catch (error) {
-    notifyError('SSH 连接测试失败', error)
+    notifyError(locale.t('wizard.sshTestFailed'), error)
   }
 }
 
@@ -160,12 +190,12 @@ async function submit(): Promise<void> {
     await wizard.submit()
     notifications.push({
       kind: 'info',
-      title: '安装任务已启动',
+      title: locale.t('wizard.installStarted'),
       content: `Operation ${wizard.operationID}`,
       dedupeKey: `installation:${wizard.operationID}`,
     })
   } catch (error) {
-    notifyError('启动安装失败', error)
+    notifyError(locale.t('wizard.installStartFailed'), error)
   }
 }
 
@@ -177,7 +207,7 @@ async function cancel(): Promise<void> {
   try {
     await wizard.cancel()
   } catch (error) {
-    notifyError('取消安装失败', error)
+    notifyError(locale.t('wizard.cancelFailed'), error)
   }
 }
 
@@ -189,7 +219,7 @@ async function retry(): Promise<void> {
   try {
     await wizard.retry()
   } catch (error) {
-    notifyError('重试安装失败', error)
+    notifyError(locale.t('wizard.retryFailed'), error)
   }
 }
 
@@ -211,7 +241,7 @@ async function resolveDirectoryConflict(action: 'backup' | 'rename' | 'cancel'):
   try {
     await wizard.resolveDirectoryConflict(action, replacementName.value)
   } catch (error) {
-    notifyError('处理 Server 目录冲突失败', error)
+    notifyError(locale.t('wizard.conflictFailed'), error)
   }
 }
 
@@ -231,26 +261,13 @@ function notifyError(title: string, error: unknown): void {
 }
 
 /**
- * 把安装步骤标识映射成中文标签。
+ * 把安装步骤标识映射成本地化标签。
  * @param name - 安装步骤标识
- * @returns 中文标签
+ * @returns 本地化标签，未登记的步骤原样返回
  */
 function stepLabel(name: string): string {
-  return (
-    {
-      connect_ssh: '建立 SSH 连接',
-      initialize_directories: '初始化 MineOps 目录',
-      create_server_directory: '创建服务器目录',
-      resolve_java: '检测 Java Runtime',
-      install_java: '安装 OpenJDK',
-      download_server: '下载服务端',
-      install_server: '安装服务端',
-      write_eula: '写入 EULA',
-      configure_firewall: '放行防火墙端口',
-      first_start: '首次启动与正常停止',
-      register_server: '注册 Server',
-    }[name] ?? name
-  )
+  const key = `wizard.step.${name}`
+  return hasMessage(key) ? locale.t(key) : name
 }
 
 /**
@@ -276,7 +293,7 @@ watch(
     if (distribution && distribution !== previous)
       void wizard
         .loadVersions(distribution)
-        .catch((error) => notifyError('加载版本目录失败', error))
+        .catch((error) => notifyError(locale.t('wizard.loadVersionsFailed'), error))
   },
 )
 
@@ -305,7 +322,7 @@ watch(
   <NModal
     v-model:show="show"
     preset="card"
-    title="创建并安装 Minecraft Server"
+    :title="locale.t('wizard.title')"
     :mask-closable="false"
     style="width: min(920px, calc(100vw - 32px))"
   >
@@ -314,13 +331,18 @@ watch(
         <NFlex vertical :size="18">
           <NFlex align="center" justify="space-between">
             <div>
-              <NText tag="h3">安装任务 {{ wizard.task.id }}</NText>
-              <NText depth="3">关闭此窗口不会取消后台任务，重新打开后会从 SQLite 恢复状态。</NText>
+              <NText tag="h3">{{ locale.t('wizard.taskTitle', { id: wizard.task.id }) }}</NText>
+              <NText depth="3">{{ locale.t('wizard.taskHint') }}</NText>
               <div>
-                <NText depth="3"
-                  >{{ stepProgressText }} · 剩余 {{ remainingSteps }} · 已用时
-                  {{ elapsedText }}</NText
-                >
+                <NText depth="3">
+                  {{
+                    locale.t('wizard.taskMeta', {
+                      progress: stepProgressText,
+                      remaining: remainingSteps,
+                      elapsed: elapsedText,
+                    })
+                  }}
+                </NText>
               </div>
             </div>
             <NTag
@@ -356,11 +378,11 @@ watch(
               <div>
                 <NText strong>{{ item.order }}. {{ stepLabel(item.name) }}</NText>
                 <div>
-                  <NText depth="3">{{ item.message || '等待执行' }}</NText>
+                  <NText depth="3">{{ item.message || locale.t('wizard.stepWaiting') }}</NText>
                 </div>
               </div>
               <NFlex align="center">
-                <NText depth="3">尝试 {{ item.attempt }}</NText>
+                <NText depth="3">{{ locale.t('wizard.attempt', { count: item.attempt }) }}</NText>
                 <NTag :type="stepTagType(item.state)" :bordered="false">{{ item.state }}</NTag>
               </NFlex>
             </NFlex>
@@ -372,23 +394,26 @@ watch(
               JSON.stringify(item.errorDetails, null, 2)
             }}</pre>
           </div>
-          <NAlert v-if="directoryConflict" type="warning" title="Server 目录已存在">
+          <NAlert v-if="directoryConflict" type="warning" :title="locale.t('wizard.conflictTitle')">
             <NFlex vertical>
-              <NText
-                >MineOps
-                不会静默删除现有目录。请选择备份原目录后继续、输入新名称，或取消安装。</NText
-              >
+              <NText>{{ locale.t('wizard.conflictContent') }}</NText>
               <NFlex wrap>
-                <NButton type="warning" @click="resolveDirectoryConflict('backup')"
-                  >备份原目录后继续</NButton
-                >
-                <NInput v-model:value="replacementName" placeholder="新的 Server 名称" />
+                <NButton type="warning" @click="resolveDirectoryConflict('backup')">
+                  {{ locale.t('wizard.conflictBackup') }}
+                </NButton>
+                <NInput
+                  v-model:value="replacementName"
+                  :placeholder="locale.t('wizard.conflictNamePlaceholder')"
+                />
                 <NButton
                   :disabled="!replacementName.trim()"
                   @click="resolveDirectoryConflict('rename')"
-                  >更换名称并重试</NButton
                 >
-                <NButton type="error" @click="resolveDirectoryConflict('cancel')">取消安装</NButton>
+                  {{ locale.t('wizard.conflictRename') }}
+                </NButton>
+                <NButton type="error" @click="resolveDirectoryConflict('cancel')">
+                  {{ locale.t('wizard.conflictCancel') }}
+                </NButton>
               </NFlex>
             </NFlex>
           </NAlert>
@@ -397,9 +422,18 @@ watch(
 
       <template v-else>
         <NSteps :current="wizard.currentStep" size="small">
-          <NStep title="选择 SSH" description="已有会话或新建并测试" />
-          <NStep title="服务器配置" description="动态类型、版本和启动参数" />
-          <NStep title="确认安装" description="摘要、EULA 与十一阶段任务" />
+          <NStep
+            :title="locale.t('wizard.step1Title')"
+            :description="locale.t('wizard.step1Desc')"
+          />
+          <NStep
+            :title="locale.t('wizard.step2Title')"
+            :description="locale.t('wizard.step2Desc')"
+          />
+          <NStep
+            :title="locale.t('wizard.step3Title')"
+            :description="locale.t('wizard.step3Desc')"
+          />
         </NSteps>
 
         <NForm
@@ -408,17 +442,21 @@ watch(
           label-placement="left"
           label-width="170"
         >
-          <AppFormField label="SSH 来源">
+          <AppFormField :label="locale.t('wizard.sshSource')">
             <NRadioGroup v-model:value="wizard.sshMode">
-              <NRadioButton value="existing">选择已有会话</NRadioButton>
-              <NRadioButton value="new">新建会话</NRadioButton>
+              <NRadioButton value="existing">{{ locale.t('wizard.sshExisting') }}</NRadioButton>
+              <NRadioButton value="new">{{ locale.t('wizard.sshNew') }}</NRadioButton>
             </NRadioGroup>
           </AppFormField>
-          <NAlert v-if="!sshSessions.sessions.length" type="info" title="尚未配置 SSH 会话">
-            可直接在此填写 SSH 信息；点击下一步后会先保存并测试连接，再继续创建服务器。
+          <NAlert
+            v-if="!sshSessions.sessions.length"
+            type="info"
+            :title="locale.t('wizard.noSessionTitle')"
+          >
+            {{ locale.t('wizard.noSessionContent') }}
           </NAlert>
           <template v-if="wizard.sshMode === 'existing'">
-            <AppFormField label="SSH 会话" required>
+            <AppFormField :label="locale.t('wizard.sshSession')" required>
               <NSelect
                 v-model:value="wizard.selectedSSHSessionID"
                 filterable
@@ -430,9 +468,9 @@ watch(
                 "
               />
             </AppFormField>
-            <AppFormField label="连接测试">
+            <AppFormField :label="locale.t('wizard.connectionTest')">
               <NFlex align="center">
-                <NButton @click="testSSH">测试 SSH</NButton>
+                <NButton @click="testSSH">{{ locale.t('wizard.testSSH') }}</NButton>
                 <NText v-if="wizard.connectionEvidence" depth="3">{{
                   wizard.connectionEvidence
                 }}</NText>
@@ -440,38 +478,46 @@ watch(
             </AppFormField>
           </template>
           <template v-else>
-            <AppFormField label="会话名称" required
-              ><NInput v-model:value="wizard.newSSH.name" placeholder="例如：生产服宿主机"
-            /></AppFormField>
-            <AppFormField label="主机" required
-              ><NInput v-model:value="wizard.newSSH.host" placeholder="主机名或 IP 地址"
-            /></AppFormField>
-            <AppFormField label="端口" required
-              ><NInputNumber v-model:value="wizard.newSSH.port" :min="1" :max="65535"
-            /></AppFormField>
-            <AppFormField label="用户名" required
-              ><NInput v-model:value="wizard.newSSH.username" placeholder="请输入用户名"
-            /></AppFormField>
-            <AppFormField label="认证方式" required>
-              <NSelect
-                v-model:value="wizard.newSSH.authType"
-                :options="[
-                  { label: '密码', value: 'password' },
-                  { label: '私钥', value: 'private_key' },
-                  { label: 'SSH Agent', value: 'agent' },
-                ]"
+            <AppFormField :label="locale.t('wizard.sessionName')" required>
+              <NInput
+                v-model:value="wizard.newSSH.name"
+                :placeholder="locale.t('sshForm.namePlaceholder')"
               />
+            </AppFormField>
+            <AppFormField :label="locale.t('sshForm.host')" required>
+              <NInput
+                v-model:value="wizard.newSSH.host"
+                :placeholder="locale.t('sshForm.hostPlaceholder')"
+              />
+            </AppFormField>
+            <AppFormField :label="locale.t('sshForm.port')" required>
+              <NInputNumber v-model:value="wizard.newSSH.port" :min="1" :max="65535" />
+            </AppFormField>
+            <AppFormField :label="locale.t('sshForm.username')" required>
+              <NInput
+                v-model:value="wizard.newSSH.username"
+                :placeholder="locale.t('wizard.usernamePlaceholder')"
+              />
+            </AppFormField>
+            <AppFormField :label="locale.t('sshForm.authType')" required>
+              <NSelect v-model:value="wizard.newSSH.authType" :options="authTypeOptions" />
             </AppFormField>
             <AppFormField
               v-if="wizard.newSSH.authType !== 'agent'"
-              :label="wizard.newSSH.authType === 'private_key' ? '私钥' : '密码'"
+              :label="
+                wizard.newSSH.authType === 'private_key'
+                  ? locale.t('sshForm.privateKey')
+                  : locale.t('sshForm.password')
+              "
               required
             >
               <NInput
                 v-model:value="wizard.newSSH.secret"
                 :type="wizard.newSSH.authType === 'private_key' ? 'textarea' : 'password'"
                 :placeholder="
-                  wizard.newSSH.authType === 'private_key' ? '请粘贴私钥内容' : '请输入密码'
+                  wizard.newSSH.authType === 'private_key'
+                    ? locale.t('wizard.secretPlaceholderKey')
+                    : locale.t('wizard.secretPlaceholderPassword')
                 "
                 v-bind="
                   wizard.newSSH.authType === 'private_key'
@@ -480,12 +526,16 @@ watch(
                 "
               />
             </AppFormField>
-            <AppFormField v-if="wizard.newSSH.authType === 'private_key'" label="私钥口令"
-              ><NInput
+            <AppFormField
+              v-if="wizard.newSSH.authType === 'private_key'"
+              :label="locale.t('sshForm.passphrase')"
+            >
+              <NInput
                 v-model:value="wizard.newSSH.passphrase"
                 type="password"
-                placeholder="请输入私钥口令"
-            /></AppFormField>
+                :placeholder="locale.t('wizard.passphrasePlaceholder')"
+              />
+            </AppFormField>
           </template>
         </NForm>
 
@@ -495,27 +545,33 @@ watch(
           label-placement="left"
           label-width="170"
         >
-          <AppFormField label="Server 名称" required
-            ><NInput v-model:value="wizard.server.name"
-          /></AppFormField>
-          <AppFormField label="服务端类型" required
-            ><NSelect v-model:value="wizard.server.type" :options="distributionOptions"
-          /></AppFormField>
-          <AppFormField label="Minecraft 版本" required
-            ><NSelect
+          <AppFormField :label="locale.t('wizard.serverName')" required>
+            <NInput v-model:value="wizard.server.name" />
+          </AppFormField>
+          <AppFormField :label="locale.t('wizard.serverType')" required>
+            <NSelect v-model:value="wizard.server.type" :options="distributionOptions" />
+          </AppFormField>
+          <AppFormField :label="locale.t('wizard.mcVersion')" required>
+            <NSelect
               v-model:value="wizard.server.version"
               filterable
               :loading="wizard.versionsLoading"
               :disabled="!wizard.server.type || wizard.versionsLoading"
-              :placeholder="wizard.versionsLoading ? '正在加载版本…' : '选择 Minecraft 版本'"
+              :placeholder="
+                wizard.versionsLoading
+                  ? locale.t('wizard.versionsLoading')
+                  : locale.t('wizard.selectVersion')
+              "
               :options="versionOptions"
-          /></AppFormField>
+            />
+          </AppFormField>
           <AppFormField
-            label="远程目录"
-            help="留空时根据 SSH 用户生成 /home/{user}/MineOps/Servers/{safe-name}。"
-            ><NInput v-model:value="wizard.server.remotePath"
-          /></AppFormField>
-          <AppFormField label="Xms / Xmx MiB">
+            :label="locale.t('servers.form.remoteDir')"
+            :help="locale.t('wizard.remoteDirHelp')"
+          >
+            <NInput v-model:value="wizard.server.remotePath" />
+          </AppFormField>
+          <AppFormField :label="locale.t('wizard.memory')">
             <NFlex
               ><NInputNumber
                 v-model:value="wizard.server.launchProfile.xmsMiB"
@@ -524,22 +580,24 @@ watch(
                 :min="64"
             /></NFlex>
           </AppFormField>
-          <AppFormField label="JVM 参数"
-            ><NDynamicTags v-model:value="wizard.server.launchProfile.jvmArguments"
-          /></AppFormField>
-          <AppFormField label="Server 参数"
-            ><NDynamicTags v-model:value="wizard.server.launchProfile.serverArguments"
-          /></AppFormField>
-          <AppFormField label="防火墙策略">
+          <AppFormField :label="locale.t('servers.form.jvmArgs')">
+            <NDynamicTags v-model:value="wizard.server.launchProfile.jvmArguments" />
+          </AppFormField>
+          <AppFormField :label="locale.t('servers.form.serverArgs')">
+            <NDynamicTags v-model:value="wizard.server.launchProfile.serverArguments" />
+          </AppFormField>
+          <AppFormField :label="locale.t('servers.form.firewall')">
             <NSelect
               v-model:value="wizard.server.firewallPolicy"
               :options="firewallPolicyOptions"
             />
           </AppFormField>
-          <AppFormField label="分组"><NInput v-model:value="wizard.server.group" /></AppFormField>
-          <AppFormField label="标签"
-            ><NDynamicTags v-model:value="wizard.server.tags"
-          /></AppFormField>
+          <AppFormField :label="locale.t('servers.form.group')">
+            <NInput v-model:value="wizard.server.group" />
+          </AppFormField>
+          <AppFormField :label="locale.t('servers.form.tags')">
+            <NDynamicTags v-model:value="wizard.server.tags" />
+          </AppFormField>
         </NForm>
 
         <NFlex v-else class="wizard-form" vertical :size="16">
@@ -549,52 +607,59 @@ watch(
                 wizard.selectedSession?.host
               }}</NDescriptionsItem
             >
-            <NDescriptionsItem label="服务端"
-              >{{ wizard.server.type }} {{ wizard.server.version }}</NDescriptionsItem
-            >
-            <NDescriptionsItem label="Java 要求"
-              >Java {{ wizard.selectedVersion?.javaMajor || '自动解析' }}</NDescriptionsItem
-            >
-            <NDescriptionsItem label="内存"
-              >Xms {{ wizard.server.launchProfile.xmsMiB }} MiB / Xmx
-              {{ wizard.server.launchProfile.xmxMiB }} MiB</NDescriptionsItem
-            >
-            <NDescriptionsItem label="目录">{{
-              wizard.server.remotePath || '提交时生成默认路径'
+            <NDescriptionsItem :label="locale.t('wizard.summaryServer')">
+              {{ wizard.server.type }} {{ wizard.server.version }}
+            </NDescriptionsItem>
+            <NDescriptionsItem :label="locale.t('wizard.summaryJava')">
+              Java {{ wizard.selectedVersion?.javaMajor || locale.t('wizard.javaAuto') }}
+            </NDescriptionsItem>
+            <NDescriptionsItem :label="locale.t('wizard.summaryMemory')">
+              {{
+                locale.t('wizard.summaryMemoryValue', {
+                  xms: wizard.server.launchProfile.xmsMiB,
+                  xmx: wizard.server.launchProfile.xmxMiB,
+                })
+              }}
+            </NDescriptionsItem>
+            <NDescriptionsItem :label="locale.t('wizard.summaryDirectory')">{{
+              wizard.server.remotePath || locale.t('wizard.defaultPathHint')
             }}</NDescriptionsItem>
-            <NDescriptionsItem label="分组 / 标签"
-              >{{ wizard.server.group || '未分组' }} ·
-              {{ wizard.server.tags.join(', ') || '无标签' }}</NDescriptionsItem
-            >
+            <NDescriptionsItem :label="locale.t('wizard.summaryGroupTags')">
+              {{ wizard.server.group || locale.t('wizard.ungrouped') }} ·
+              {{ wizard.server.tags.join(', ') || locale.t('wizard.noTags') }}
+            </NDescriptionsItem>
           </NDescriptions>
-          <NAlert type="warning" title="Minecraft EULA 提示">
-            提交安装即确认 MineOps 将在远程服务器目录幂等写入
-            <code>eula=true</code>。安装会创建持久化 Operation 和十一阶段
-            InstallationTask，关闭窗口不会取消任务。
+          <NAlert type="warning" :title="locale.t('wizard.eulaTitle')">
+            {{ locale.t('wizard.eulaContentBefore') }}
+            <code>eula=true</code>{{ locale.t('wizard.eulaContentAfter') }}
           </NAlert>
-          <NCheckbox v-model:checked="wizard.server.eulaAccepted"
-            >我理解并确认自动写入 eula=true</NCheckbox
-          >
+          <NCheckbox v-model:checked="wizard.server.eulaAccepted">
+            {{ locale.t('wizard.eulaCheckbox') }}
+          </NCheckbox>
         </NFlex>
       </template>
     </template>
 
     <template #footer>
       <NFlex v-if="wizard.task" justify="space-between">
-        <NButton @click="show = false">关闭窗口</NButton>
+        <NButton @click="show = false">{{ locale.t('wizard.closeWindow') }}</NButton>
         <NFlex>
-          <NButton v-if="wizard.running" type="warning" @click="cancel">取消任务</NButton>
+          <NButton v-if="wizard.running" type="warning" @click="cancel">
+            {{ locale.t('wizard.cancelTask') }}
+          </NButton>
           <NButton
             v-if="wizard.task.state === 'failed' || wizard.task.state === 'cancelled'"
             @click="clearInstallationState"
-            >清除安装状态</NButton
           >
+            {{ locale.t('wizard.clearState') }}
+          </NButton>
           <NButton
             v-if="wizard.task.state === 'failed' || wizard.task.state === 'cancelled'"
             type="primary"
             @click="retry"
-            >从失败步骤重试</NButton
           >
+            {{ locale.t('wizard.retryFromFailure') }}
+          </NButton>
         </NFlex>
       </NFlex>
       <AppFormActions
@@ -602,8 +667,10 @@ watch(
         :dirty="true"
         :submitting="wizard.loading"
         :show-discard="wizard.currentStep > 1"
-        :submit-text="wizard.currentStep === 3 ? '创建并开始安装' : '下一步'"
-        discard-text="上一步"
+        :submit-text="
+          wizard.currentStep === 3 ? locale.t('wizard.submitInstall') : locale.t('wizard.nextStep')
+        "
+        :discard-text="locale.t('wizard.previousStep')"
         @discard="wizard.currentStep--"
         @submit="wizard.currentStep === 3 ? submit() : next()"
       />

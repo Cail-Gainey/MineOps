@@ -15,12 +15,14 @@ import {
   subscribeConsoleEvents,
   writeServerConsole,
 } from '../../services/console-api'
+import { useLocaleStore } from '../../stores/locale'
 import { useNotificationStore } from '../../stores/notifications'
 import { useSettingsStore } from '../../stores/settings'
 import { useThemeStore } from '../../stores/theme'
 import { resolveTerminalTheme } from '../../themes/terminal-presets'
 
 const props = defineProps<{ serverId: string; serverState: string; active: boolean }>()
+const locale = useLocaleStore()
 const notifications = useNotificationStore()
 const settings = useSettingsStore()
 const theme = useThemeStore()
@@ -30,7 +32,7 @@ const searchText = ref('')
 const commandText = ref('')
 const filterSpark = ref(false)
 const consoleReady = ref(false)
-const status = ref('服务器未运行')
+const status = ref(locale.t('console.serverStopped'))
 const observableStates = new Set(['starting', 'running', 'stopping'])
 const canShowConsole = computed(() => observableStates.has(props.serverState))
 const shouldAttach = computed(() => props.active && canShowConsole.value)
@@ -88,7 +90,7 @@ function decodeBase64(value: string): Uint8Array {
 function showError(error: unknown): void {
   notifications.push({
     kind: 'error',
-    title: '服务器控制台附加失败',
+    title: locale.t('console.attachFailedTitle'),
     content: error instanceof Error ? error.message : String(error),
     dedupeKey: `console:error:${props.serverId}`,
   })
@@ -140,17 +142,19 @@ function handleEvent(event: ConsoleEvent): void {
       if (filtered) terminal?.write(filtered)
     }
   }
-  if (event.type === 'dropped') status.value = event.message || '控制台输出过快，部分内容已丢弃'
+  if (event.type === 'dropped') status.value = event.message || locale.t('console.dropped')
   if (event.type === 'closed') {
     sessionID = ''
     consoleReady.value = false
-    status.value = canShowConsole.value ? '实时日志连接已断开，正在重新附加' : '服务器未运行'
+    status.value = canShowConsole.value
+      ? locale.t('console.reattaching')
+      : locale.t('console.serverStopped')
     scheduleRetry()
   }
   if (event.type === 'error') {
     sessionID = ''
     consoleReady.value = false
-    status.value = event.error?.message ?? '控制台附加失败'
+    status.value = event.error?.message ?? locale.t('console.attachFailed')
     showError(new Error(status.value))
     scheduleRetry()
   }
@@ -165,7 +169,10 @@ async function attach(): Promise<void> {
   clearRetry()
   opening = true
   const generation = attachmentGeneration
-  status.value = props.serverState === 'starting' ? '等待服务器实时日志' : '正在附加实时日志'
+  status.value =
+    props.serverState === 'starting'
+      ? locale.t('console.waitingLogs')
+      : locale.t('console.attaching')
   try {
     const session = await openServerConsole(props.serverId)
     if (disposed || generation !== attachmentGeneration || !shouldAttach.value) {
@@ -175,13 +182,15 @@ async function attach(): Promise<void> {
     sessionID = session.id
     consoleReady.value = true
     for (const event of pendingEvents.splice(0)) handleEvent(event)
-    status.value = '已附加实时日志，可输入命令'
+    status.value = locale.t('console.attached')
     if (props.active && terminalSettings.value.autoFocus) terminal?.focus()
   } catch (error) {
     pendingEvents.length = 0
     if (error instanceof ApplicationError && error.code === 'validation.conflict') {
       status.value =
-        props.serverState === 'starting' ? '等待服务器实时日志' : '正在重新附加实时日志'
+        props.serverState === 'starting'
+          ? locale.t('console.waitingLogs')
+          : locale.t('console.reattachingLogs')
     } else {
       status.value = error instanceof Error ? error.message : String(error)
       showError(error)
@@ -214,8 +223,8 @@ async function detach(): Promise<void> {
 function findNext(): void {
   if (!searchText.value) return
   status.value = searchAddon?.findNext(searchText.value, { caseSensitive: false })
-    ? `已定位：${searchText.value}`
-    : `未找到：${searchText.value}`
+    ? locale.t('terminal.searchFound', { text: searchText.value })
+    : locale.t('terminal.searchNotFound', { text: searchText.value })
 }
 
 /**
@@ -237,7 +246,7 @@ async function sendCommand(): Promise<void> {
   try {
     await writeServerConsole(sessionID, `${command}\n`)
     commandText.value = ''
-    status.value = '命令已发送'
+    status.value = locale.t('console.commandSent')
   } catch (error) {
     showError(error)
   }
@@ -283,7 +292,7 @@ watch(shouldAttach, (attachNow) => {
 
 watch(canShowConsole, (show) => {
   if (show) return
-  status.value = '服务器未运行'
+  status.value = locale.t('console.serverStopped')
   terminal?.reset()
   terminal?.clear()
 })
@@ -305,22 +314,22 @@ onUnmounted(() => {
 
 <template>
   <div class="server-console">
-    <NEmpty v-if="!canShowConsole" description="服务器未运行，暂无实时日志" class="console-empty" />
+    <NEmpty v-if="!canShowConsole" :description="locale.t('console.empty')" class="console-empty" />
     <template v-else>
       <NFlex class="console-toolbar" align="center" :wrap="true">
         <NInput
           v-model:value="searchText"
           class="console-search-input"
           clearable
-          placeholder="搜索控制台"
+          :placeholder="locale.t('console.searchPlaceholder')"
           @keyup.enter="findNext"
         />
-        <NButton @click="findNext">查找下一个</NButton>
-        <NButton @click="copySelection">复制选择</NButton>
+        <NButton @click="findNext">{{ locale.t('console.findNext') }}</NButton>
+        <NButton @click="copySelection">{{ locale.t('console.copySelection') }}</NButton>
         <NButton :type="filterSpark ? 'primary' : 'default'" @click="filterSpark = !filterSpark">
-          过滤spark
+          {{ locale.t('console.filterSpark') }}
         </NButton>
-        <NButton @click="clearTerminal">清屏</NButton>
+        <NButton @click="clearTerminal">{{ locale.t('console.clear') }}</NButton>
         <NText class="console-status" depth="3">{{ status }}</NText>
       </NFlex>
       <NFlex class="console-command-row" align="center" :wrap="false">
@@ -328,12 +337,12 @@ onUnmounted(() => {
           v-model:value="commandText"
           class="console-command-input"
           :disabled="!consoleReady"
-          placeholder="输入 Java/Minecraft 命令"
+          :placeholder="locale.t('console.commandPlaceholder')"
           @keyup.enter="sendCommand"
         />
-        <NButton :disabled="!consoleReady || !commandText.trim()" @click="sendCommand"
-          >发送命令</NButton
-        >
+        <NButton :disabled="!consoleReady || !commandText.trim()" @click="sendCommand">
+          {{ locale.t('console.sendCommand') }}
+        </NButton>
       </NFlex>
     </template>
     <div ref="terminalElement" class="console-terminal" :class="{ hidden: !canShowConsole }" />

@@ -5,6 +5,7 @@ import {
 import type { BackgroundResource } from '../../bindings/github.com/Cail-Gainey/MineOps/internal/service/models'
 import { SettingsSnapshot } from '../../bindings/github.com/Cail-Gainey/MineOps/internal/model/models'
 import { throwIfError } from './api-client'
+import { translate } from '../locales/runtime'
 
 export interface BackgroundOperationResult {
   resource: BackgroundResource
@@ -18,7 +19,13 @@ export interface BackgroundOperationResult {
  */
 function unwrapBackground(result: BackgroundResourceResult): BackgroundOperationResult {
   throwIfError(result.error)
-  if (!result.resource) throw new Error('BackgroundService 未返回资源状态')
+  if (!result.resource)
+    throw new Error(
+      translate('service.missingField', {
+        service: 'BackgroundService',
+        field: translate('serviceField.backgroundResource'),
+      }),
+    )
   return {
     resource: result.resource,
     settings: result.settings ? SettingsSnapshot.createFrom(result.settings) : null,

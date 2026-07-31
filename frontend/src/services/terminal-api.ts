@@ -9,6 +9,7 @@ import {
   Resize,
 } from '../../bindings/github.com/Cail-Gainey/MineOps/internal/desktop/services/terminalservice'
 import { throwIfError } from './api-client'
+import { translate } from '../locales/runtime'
 
 export const terminalEventName = 'mineops:terminal:event'
 
@@ -26,7 +27,8 @@ export async function openTerminal(
 ): Promise<TerminalSession> {
   const result = await Open(sshSessionID, columns, rows)
   throwIfError(result.error)
-  if (!result.session) throw new Error('Terminal Session 响应为空')
+  if (!result.session)
+    throw new Error(translate('service.emptyResponse', { subject: 'Terminal Session' }))
   return result.session
 }
 

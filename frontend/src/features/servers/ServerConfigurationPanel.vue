@@ -116,16 +116,31 @@ const document = computed(() =>
 const propertiesPath = computed(
   () => `${props.server.remotePath.replace(/\/$/, '')}/${configurationFileName.value}`,
 )
+const gamemodeOptions = computed(() =>
+  ['survival', 'creative', 'adventure', 'spectator'].map((value) => ({
+    label: locale.t(`serverConfig.gamemode.${value}` as Parameters<typeof locale.t>[0]),
+    value,
+  })),
+)
+const difficultyOptions = computed(() =>
+  ['peaceful', 'easy', 'normal', 'hard'].map((value) => ({
+    label: locale.t(`serverConfig.difficulty.${value}` as Parameters<typeof locale.t>[0]),
+    value,
+  })),
+)
 const backupOptions = computed(() =>
   backups.value.map((backup) => ({
-    label: `${locale.formatDateTime(backup.modifiedAt)} · ${(backup.size / 1024).toFixed(1)} KiB`,
+    label: locale.t('serverConfig.backupOption', {
+      time: locale.formatDateTime(backup.modifiedAt),
+      size: (backup.size / 1024).toFixed(1),
+    }),
     value: backup.path,
   })),
 )
 
 useUnsavedGuard(
   computed(() => `server-properties-form:${props.server.id}`),
-  computed(() => `Server ${props.server.name} 的结构化配置有未保存修改`),
+  computed(() => locale.t('serverConfig.unsavedGuard', { name: props.server.name })),
   structuredDirty,
 )
 
@@ -231,10 +246,10 @@ async function load(): Promise<void> {
 async function requestReload(): Promise<void> {
   if (structuredDirty.value || rawDirty.value) {
     const confirmed = await interactions.confirm({
-      title: '重新读取远端配置？',
-      content: '表单模式或原文模式存在未保存修改，重新读取后将丢弃这些修改。',
+      title: locale.t('serverConfig.reloadTitle'),
+      content: locale.t('serverConfig.reloadContent'),
       objectLabel: propertiesPath.value,
-      positiveText: '放弃修改并重新读取',
+      positiveText: locale.t('serverConfig.reloadConfirm'),
       danger: true,
     })
     if (!confirmed) return
@@ -295,14 +310,16 @@ async function runWithFirewallConfirmation(
       throw reason
     }
     const confirmed = await interactions.confirm({
-      title: '同步防火墙端口并保存配置？',
-      content: `将先放行 TCP ${reason.details.newPort ?? ''}，再原子保存配置。`,
+      title: locale.t('serverConfig.firewallTitle'),
+      content: locale.t('serverConfig.firewallContent', {
+        port: String(reason.details.newPort ?? ''),
+      }),
       objectLabel: `TCP ${reason.details.oldPort ?? ''} → ${reason.details.newPort ?? ''}`,
       impact:
         reason.details.removeOldPort === true
-          ? '保存后仅在规则由 MineOps 创建、没有其他 Server 引用且当前未使用时移除原端口。'
-          : '原端口规则将保留。',
-      positiveText: '确认同步并保存',
+          ? locale.t('serverConfig.firewallRemoveOld')
+          : locale.t('serverConfig.firewallKeepOld'),
+      positiveText: locale.t('serverConfig.firewallConfirm'),
       danger: reason.details.removeOldPort === true,
     })
     return confirmed ? action(true) : null
@@ -331,7 +348,7 @@ async function saveStructured(): Promise<void> {
     if (!saved) return
     applySnapshot(saved)
     await loadBackups()
-    notifySuccess('结构化配置已保存')
+    notifySuccess(locale.t('serverConfig.savedStructured'))
   } catch (reason) {
     handleSaveError(reason)
   } finally {
@@ -359,7 +376,7 @@ async function saveRaw(content: string, versionToken: string): Promise<void> {
         versionToken,
       )
       rawDirty.value = false
-      notifySuccess('代理配置已保存', false)
+      notifySuccess(locale.t('serverConfig.savedProxy'), false)
       return
     }
     const saved = await runWithFirewallConfirmation((confirmed) =>
@@ -368,7 +385,7 @@ async function saveRaw(content: string, versionToken: string): Promise<void> {
     if (!saved) return
     applySnapshot(saved)
     await loadBackups()
-    notifySuccess('原文配置已保存')
+    notifySuccess(locale.t('serverConfig.savedRaw'))
   } catch (reason) {
     handleSaveError(reason)
   } finally {
@@ -385,11 +402,11 @@ async function restoreSelected(): Promise<void> {
   const backup = backups.value.find((item) => item.path === selectedBackupPath.value)
   if (!backup) return
   const confirmed = await interactions.confirm({
-    title: '恢复 server.properties 备份？',
-    content: '恢复前会再次检查远端版本；当前配置也会先进入有限备份，然后原子替换。',
+    title: locale.t('serverConfig.restoreTitle'),
+    content: locale.t('serverConfig.restoreContent'),
     objectLabel: backup.name,
     impact: propertiesPath.value,
-    positiveText: '确认恢复',
+    positiveText: locale.t('serverConfig.restoreConfirm'),
     danger: true,
   })
   if (!confirmed) return
@@ -407,7 +424,7 @@ async function restoreSelected(): Promise<void> {
     if (!restored) return
     applySnapshot(restored)
     await loadBackups()
-    notifySuccess('配置备份已恢复')
+    notifySuccess(locale.t('serverConfig.restored'))
   } catch (reason) {
     handleSaveError(reason)
   } finally {
@@ -427,7 +444,7 @@ function handleSaveError(reason: unknown): void {
   }
   notifications.push({
     kind: 'error',
-    title: '保存 server.properties 失败',
+    title: locale.t('serverConfig.saveFailed'),
     content: reason instanceof Error ? reason.message : String(reason),
     dedupeKey: `server-properties:error:${props.server.id}`,
   })
@@ -444,8 +461,8 @@ function notifySuccess(title: string, retainedBackup = true): void {
     kind: 'success',
     title,
     content: retainedBackup
-      ? '保存前版本已进入远程有限备份，最多保留 10 份。'
-      : '远端配置已原子保存。',
+      ? locale.t('serverConfig.retainedBackup')
+      : locale.t('serverConfig.atomicSaved'),
     dedupeKey: `server-properties:saved:${props.server.id}`,
   })
 }
@@ -457,8 +474,8 @@ function notifySuccess(title: string, retainedBackup = true): void {
 function explainSaveAs(): void {
   notifications.push({
     kind: 'info',
-    title: '请在“文件”页签另存配置文件',
-    content: `“配置”页签固定编辑 ${configurationFileName.value}，其他文件请使用完整的“文件”工作区。`,
+    title: locale.t('serverConfig.saveAsTitle'),
+    content: locale.t('serverConfig.saveAsContent', { file: configurationFileName.value }),
     dedupeKey: `server-properties:save-as:${props.server.id}`,
   })
 }
@@ -482,7 +499,7 @@ onMounted(() => {
             v-model:value="selectedBackupPath"
             :options="backupOptions"
             :disabled="!backups.length"
-            placeholder="选择历史备份"
+            :placeholder="locale.t('serverConfig.selectBackup')"
             style="width: 320px"
           />
           <NButton
@@ -492,90 +509,98 @@ onMounted(() => {
             :loading="restoring"
             @click="restoreSelected"
           >
-            恢复备份
+            {{ locale.t('serverConfig.restoreBackup') }}
           </NButton>
-          <NButton :loading="loading" @click="requestReload">重新读取</NButton>
+          <NButton :loading="loading" @click="requestReload">
+            {{ locale.t('serverConfig.reload') }}
+          </NButton>
         </NFlex>
       </NFlex>
 
-      <NAlert v-if="error" type="error" title="读取服务器配置失败">
+      <NAlert v-if="error" type="error" :title="locale.t('serverConfig.loadFailed')">
         <NFlex align="center" justify="space-between">
           <span>{{ error instanceof Error ? error.message : String(error) }}</span>
-          <NButton size="small" @click="load">重试</NButton>
+          <NButton size="small" @click="load">{{ locale.t('common.retry') }}</NButton>
         </NFlex>
       </NAlert>
-      <NAlert v-if="backupError" type="warning" title="配置已加载，但备份列表不可用">
+      <NAlert v-if="backupError" type="warning" :title="locale.t('serverConfig.backupListFailed')">
         {{ backupError instanceof Error ? backupError.message : String(backupError) }}
       </NAlert>
-      <NAlert v-if="isProxyConfiguration" type="info" title="代理配置使用原文模式">
-        {{ configurationFileName }} 由对应代理服务端生成，MineOps 会进行冲突检测和原子保存。
+      <NAlert
+        v-if="isProxyConfiguration"
+        type="info"
+        :title="locale.t('serverConfig.proxyModeTitle')"
+      >
+        {{ locale.t('serverConfig.proxyModeContent', { file: configurationFileName }) }}
       </NAlert>
-      <NAlert v-if="snapshot?.validationNotice" type="warning" title="配置值需要修正">
+      <NAlert
+        v-if="snapshot?.validationNotice"
+        type="warning"
+        :title="locale.t('serverConfig.validationTitle')"
+      >
         {{ snapshot.validationNotice }}
       </NAlert>
-      <NAlert v-if="conflictMessage" type="warning" title="远端配置已变化">
-        {{ conflictMessage }} 请重新读取；MineOps 不会静默覆盖远端修改。
+      <NAlert v-if="conflictMessage" type="warning" :title="locale.t('serverConfig.conflictTitle')">
+        {{ locale.t('serverConfig.conflictContent', { message: conflictMessage }) }}
       </NAlert>
-      <NAlert v-if="structuredDirty && rawDirty" type="warning" title="两个编辑模式均有修改">
-        为避免一个模式覆盖另一个模式，请重新读取并只保留一个模式的修改。
+      <NAlert
+        v-if="structuredDirty && rawDirty"
+        type="warning"
+        :title="locale.t('serverConfig.bothDirtyTitle')"
+      >
+        {{ locale.t('serverConfig.bothDirtyContent') }}
       </NAlert>
-      <NAlert v-if="structuredDirty && !structuredValid" type="warning" title="表单值无效">
-        请检查端口、玩家数、视距、模拟距离和世界名称后再保存。
+      <NAlert
+        v-if="structuredDirty && !structuredValid"
+        type="warning"
+        :title="locale.t('serverConfig.invalidTitle')"
+      >
+        {{ locale.t('serverConfig.invalidContent') }}
       </NAlert>
 
       <NTabs v-if="document" v-model:value="mode" type="segment" animated>
         <NTabPane
           v-if="!isProxyConfiguration"
           name="structured"
-          tab="表单模式"
+          :tab="locale.t('serverConfig.tabStructured')"
           display-directive="show"
         >
           <NCard size="small">
             <NForm label-placement="top">
               <div class="form-grid">
-                <NFormItem label="服务器描述（MOTD）" class="wide-field">
+                <NFormItem :label="locale.t('serverConfig.motd')" class="wide-field">
                   <NInput v-model:value="form.motd" maxlength="256" />
                 </NFormItem>
-                <NFormItem label="服务端口">
+                <NFormItem :label="locale.t('serverConfig.port')">
                   <NInputNumber v-model:value="form.serverPort" :min="1" :max="65535" />
                 </NFormItem>
-                <NFormItem label="最大玩家数">
+                <NFormItem :label="locale.t('serverConfig.maxPlayers')">
                   <NInputNumber v-model:value="form.maxPlayers" :min="1" :max="100000" />
                 </NFormItem>
-                <NFormItem label="游戏模式">
-                  <NSelect
-                    v-model:value="form.gamemode"
-                    :options="[
-                      { label: '生存', value: 'survival' },
-                      { label: '创造', value: 'creative' },
-                      { label: '冒险', value: 'adventure' },
-                      { label: '旁观', value: 'spectator' },
-                    ]"
-                  />
+                <NFormItem :label="locale.t('serverConfig.gamemode')">
+                  <NSelect v-model:value="form.gamemode" :options="gamemodeOptions" />
                 </NFormItem>
-                <NFormItem label="难度">
-                  <NSelect
-                    v-model:value="form.difficulty"
-                    :options="[
-                      { label: '和平', value: 'peaceful' },
-                      { label: '简单', value: 'easy' },
-                      { label: '普通', value: 'normal' },
-                      { label: '困难', value: 'hard' },
-                    ]"
-                  />
+                <NFormItem :label="locale.t('serverConfig.difficulty')">
+                  <NSelect v-model:value="form.difficulty" :options="difficultyOptions" />
                 </NFormItem>
-                <NFormItem label="视距">
+                <NFormItem :label="locale.t('serverConfig.viewDistance')">
                   <NInputNumber v-model:value="form.viewDistance" :min="2" :max="32" />
                 </NFormItem>
-                <NFormItem label="模拟距离">
+                <NFormItem :label="locale.t('serverConfig.simulationDistance')">
                   <NInputNumber v-model:value="form.simulationDistance" :min="3" :max="32" />
                 </NFormItem>
-                <NFormItem label="世界名称">
+                <NFormItem :label="locale.t('serverConfig.levelName')">
                   <NInput v-model:value="form.levelName" maxlength="128" />
                 </NFormItem>
-                <NFormItem label="正版验证"><NSwitch v-model:value="form.onlineMode" /></NFormItem>
-                <NFormItem label="白名单"><NSwitch v-model:value="form.whiteList" /></NFormItem>
-                <NFormItem label="玩家对战（PVP）"><NSwitch v-model:value="form.pvp" /></NFormItem>
+                <NFormItem :label="locale.t('serverConfig.onlineMode')">
+                  <NSwitch v-model:value="form.onlineMode" />
+                </NFormItem>
+                <NFormItem :label="locale.t('serverConfig.whiteList')">
+                  <NSwitch v-model:value="form.whiteList" />
+                </NFormItem>
+                <NFormItem :label="locale.t('serverConfig.pvp')">
+                  <NSwitch v-model:value="form.pvp" />
+                </NFormItem>
               </div>
               <NFlex justify="end">
                 <NButton
@@ -586,7 +611,7 @@ onMounted(() => {
                   :loading="saving"
                   @click="saveStructured"
                 >
-                  保存表单修改
+                  {{ locale.t('serverConfig.saveStructured') }}
                 </NButton>
               </NFlex>
             </NForm>
@@ -594,7 +619,11 @@ onMounted(() => {
         </NTabPane>
         <NTabPane
           name="raw"
-          :tab="isProxyConfiguration ? '代理配置' : '原文模式'"
+          :tab="
+            isProxyConfiguration
+              ? locale.t('serverConfig.tabProxy')
+              : locale.t('serverConfig.tabRaw')
+          "
           display-directive="show"
         >
           <RemoteTextEditor
@@ -612,8 +641,10 @@ onMounted(() => {
         </NTabPane>
       </NTabs>
 
-      <NEmpty v-else-if="!error && !loading" description="配置文件尚未加载">
-        <template #extra><NButton type="primary" @click="load">读取配置</NButton></template>
+      <NEmpty v-else-if="!error && !loading" :description="locale.t('serverConfig.notLoaded')">
+        <template #extra>
+          <NButton type="primary" @click="load">{{ locale.t('serverConfig.loadButton') }}</NButton>
+        </template>
       </NEmpty>
     </NFlex>
   </NSpin>

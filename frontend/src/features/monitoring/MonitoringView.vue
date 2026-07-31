@@ -51,6 +51,7 @@ import { useSettingsStore } from '../../stores/settings'
 import { useThemeStore } from '../../stores/theme'
 import { accentColours } from '../../themes/tokens'
 import { chartInitOptions } from '../../shared/charts/render-options'
+import { formatMetricLabel } from '../../shared/monitoring/metric-labels'
 import AlertRulesPanel from './AlertRulesPanel.vue'
 import { byteDisplayScale, metricDisplayScale, roundToTwo } from './metric-units'
 
@@ -127,40 +128,49 @@ const serverOptions = computed(() =>
     value: server.id,
   })),
 )
-const metricOptions = [
-  { label: 'CPU 使用率', value: 'host.cpu' },
-  { label: '内存使用率', value: 'host.memory' },
-  { label: '1 分钟负载', value: 'host.load.1m' },
-  { label: '磁盘已用空间', value: 'host.disk.used' },
-  { label: '磁盘读取速率', value: 'host.disk.read_bytes_per_second' },
-  { label: '磁盘写入速率', value: 'host.disk.write_bytes_per_second' },
-  { label: '网络接收速率', value: 'host.network.receive_bytes_per_second' },
-  { label: '网络发送速率', value: 'host.network.transmit_bytes_per_second' },
-  { label: 'Java CPU 使用率', value: 'process.cpu' },
-  { label: 'Java 内存', value: 'process.rss' },
-  { label: 'Java 线程数', value: 'process.threads' },
-  { label: 'Minecraft TPS', value: 'minecraft.tps' },
-  { label: 'Minecraft MSPT', value: 'minecraft.mspt' },
+const metricNames = [
+  'host.cpu',
+  'host.memory',
+  'host.load.1m',
+  'host.disk.used',
+  'host.disk.read_bytes_per_second',
+  'host.disk.write_bytes_per_second',
+  'host.network.receive_bytes_per_second',
+  'host.network.transmit_bytes_per_second',
+  'process.cpu',
+  'process.rss',
+  'process.threads',
+  'minecraft.tps',
+  'minecraft.mspt',
 ]
-const rangeOptions = [
-  { label: '最近 1 小时', value: 1 },
-  { label: '最近 24 小时', value: 24 },
-  { label: '最近 7 天', value: 168 },
-  { label: '最近 30 天', value: 720 },
+const rangeValues = [1, 24, 168, 720]
+const granularityValues = ['raw', 'minute', 'hour']
+const kpiMetrics = [
+  'host.cpu',
+  'host.memory',
+  'host.disk.used',
+  'host.network.receive_bytes_per_second',
+  'process.cpu',
+  'process.rss',
 ]
-const granularityOptions = [
-  { label: '原始', value: 'raw' },
-  { label: '分钟', value: 'minute' },
-  { label: '小时', value: 'hour' },
-]
-const kpis = [
-  { label: 'CPU 使用率', metric: 'host.cpu' },
-  { label: '内存使用率', metric: 'host.memory' },
-  { label: '磁盘已用空间', metric: 'host.disk.used' },
-  { label: '网络接收速率', metric: 'host.network.receive_bytes_per_second' },
-  { label: 'Java CPU 使用率', metric: 'process.cpu' },
-  { label: 'Java 内存', metric: 'process.rss' },
-]
+const metricOptions = computed(() =>
+  metricNames.map((value) => ({ label: formatMetricLabel(value), value })),
+)
+const rangeOptions = computed(() =>
+  rangeValues.map((value) => ({
+    label: locale.t(`monitoring.range.${value}` as Parameters<typeof locale.t>[0]),
+    value,
+  })),
+)
+const granularityOptions = computed(() =>
+  granularityValues.map((value) => ({
+    label: locale.t(`monitoring.granularity.${value}` as Parameters<typeof locale.t>[0]),
+    value,
+  })),
+)
+const kpis = computed(() =>
+  kpiMetrics.map((metric) => ({ metric, label: formatMetricLabel(metric) })),
+)
 
 /**
  * 把 Tooltip 传入的值格式化成两位小数并附加单位。
@@ -238,7 +248,7 @@ function createChartOption(result: MetricQueryResult | null, compact = false): C
           ? Object.entries(series.tags)
               .map(([key, value]) => `${key}=${value}`)
               .join(', ')
-          : `来源 ${series.sourceID.slice(0, 8)}`,
+          : locale.t('monitoring.seriesSource', { id: series.sourceID.slice(0, 8) }),
       data,
       showSymbol: false,
       connectNulls: false,
@@ -251,7 +261,7 @@ function createChartOption(result: MetricQueryResult | null, compact = false): C
 
 const chartOption = computed<ChartOption>(() => createChartOption(history.value))
 const overviewCharts = computed(() =>
-  kpis.map((kpi) => {
+  kpis.value.map((kpi) => {
     const result = trendHistories.value[kpi.metric] ?? null
     // 未滚动到可见范围时不构建 option，避免为看不见的图付出遍历与序列化成本。
     return {
@@ -273,7 +283,7 @@ const latestTimestamp = computed(() => {
   const timestamps = [...latestByMetric.value.values()].map((sample) =>
     Date.parse(sample.timestamp),
   )
-  if (timestamps.length === 0) return '尚无采集数据'
+  if (timestamps.length === 0) return locale.t('monitoring.noSamples')
   return locale.formatDateTime(Math.max(...timestamps))
 })
 const offlineWindowMillis = computed(
@@ -285,15 +295,19 @@ const collectorStatus = computed<{
   loading: boolean
 }>(() => {
   const collector = overview.value?.collector
-  if (collector?.paused) return { type: 'warning', label: '已暂停', loading: false }
-  if (collector?.collecting) return { type: 'default', label: '采集中', loading: true }
-  if (collector?.lastError) return { type: 'warning', label: '采集错误', loading: false }
+  if (collector?.paused)
+    return { type: 'warning', label: locale.t('monitoring.collector.paused'), loading: false }
+  if (collector?.collecting)
+    return { type: 'default', label: locale.t('monitoring.collector.collecting'), loading: true }
+  if (collector?.lastError)
+    return { type: 'warning', label: locale.t('monitoring.collector.error'), loading: false }
   if (collector?.collectedAt) {
     const age = Date.now() - Date.parse(collector.collectedAt)
-    if (age <= offlineWindowMillis.value) return { type: 'success', label: '正常', loading: false }
-    return { type: 'warning', label: '数据陈旧', loading: false }
+    if (age <= offlineWindowMillis.value)
+      return { type: 'success', label: locale.t('monitoring.collector.ok'), loading: false }
+    return { type: 'warning', label: locale.t('monitoring.collector.stale'), loading: false }
   }
-  return { type: 'default', label: '尚未采集', loading: false }
+  return { type: 'default', label: locale.t('monitoring.collector.none'), loading: false }
 })
 
 /**
@@ -302,7 +316,7 @@ const collectorStatus = computed<{
  * @returns 带单位的容量文本
  */
 function formatBytes(value: number): string {
-  if (!Number.isFinite(value) || value < 0) return '不可用'
+  if (!Number.isFinite(value) || value < 0) return locale.t('monitoring.unavailable')
   const scale = byteDisplayScale(value)
   return `${(value / scale.factor).toFixed(2)} ${scale.unit}`
 }
@@ -330,7 +344,7 @@ async function refresh(): Promise<void> {
   } catch (reason) {
     notifications.push({
       kind: 'error',
-      title: '刷新 Monitoring 失败',
+      title: locale.t('monitoring.refreshFailed'),
       content: reason instanceof Error ? reason.message : String(reason),
       dedupeKey: 'monitoring:refresh:error',
     })
@@ -419,17 +433,17 @@ async function toggleMonitoring(): Promise<void> {
     else await pauseMonitoring(selectedServerID.value)
     notifications.push({
       kind: 'success',
-      title: paused ? '监控采集已恢复' : '监控采集已暂停',
+      title: paused ? locale.t('monitoring.resumed') : locale.t('monitoring.paused'),
       content: paused
-        ? '后台自动采集将在下一个周期继续。'
-        : '远端 Spark 与主机指标采集守护进程均已停止；恢复后会重新部署。',
+        ? locale.t('monitoring.resumedContent')
+        : locale.t('monitoring.pausedContent'),
       dedupeKey: `monitoring:${paused ? 'resume' : 'pause'}:success`,
     })
     await refresh()
   } catch (reason) {
     notifications.push({
       kind: 'error',
-      title: paused ? '恢复监控失败' : '暂停监控失败',
+      title: paused ? locale.t('monitoring.resumeFailed') : locale.t('monitoring.pauseFailed'),
       content: reason instanceof Error ? reason.message : String(reason),
       dedupeKey: `monitoring:${paused ? 'resume' : 'pause'}:error`,
     })
@@ -445,14 +459,13 @@ async function toggleMonitoring(): Promise<void> {
 async function clearHistory(): Promise<void> {
   if (!selectedServer.value || monitoringActionLoading.value) return
   const confirmed = await interactions.confirm({
-    title: '清理监控历史数据？',
-    content:
-      '将永久删除该服务器的原始、分钟和小时指标、Spark TPS/MSPT Snapshot、当前实时缓存和待同步的远端 Spark 缓冲。',
+    title: locale.t('monitoring.clearTitle'),
+    content: locale.t('monitoring.clearContent'),
     objectLabel: selectedServer.value.name,
     impact: overview.value?.collector?.paused
-      ? '监控当前已暂停，清理后不会立即产生新数据。'
-      : '监控仍在运行，清理后下一个采集周期会重新产生数据。',
-    positiveText: '确认清理',
+      ? locale.t('monitoring.clearImpactPaused')
+      : locale.t('monitoring.clearImpactRunning'),
+    positiveText: locale.t('monitoring.clearConfirm'),
     danger: true,
   })
   if (!confirmed) return
@@ -461,7 +474,7 @@ async function clearHistory(): Promise<void> {
     await clearMonitoringHistory(selectedServer.value.id)
     notifications.push({
       kind: 'success',
-      title: '监控历史数据已清理',
+      title: locale.t('monitoring.cleared'),
       content: selectedServer.value.name,
       dedupeKey: `monitoring:clear:${selectedServer.value.id}`,
     })
@@ -469,7 +482,7 @@ async function clearHistory(): Promise<void> {
   } catch (reason) {
     notifications.push({
       kind: 'error',
-      title: '清理监控历史数据失败',
+      title: locale.t('monitoring.clearFailed'),
       content: reason instanceof Error ? reason.message : String(reason),
       dedupeKey: 'monitoring:clear:error',
     })
@@ -484,15 +497,15 @@ onMounted(async () => {
   try {
     if (!props.embedded) {
       const requestedMetric = String(route.query.metric ?? '')
-      if (metricOptions.some((option) => option.value === requestedMetric)) {
+      if (metricNames.includes(requestedMetric)) {
         selectedMetric.value = requestedMetric
       }
       const requestedRange = Number(route.query.rangeHours)
-      if (rangeOptions.some((option) => option.value === requestedRange)) {
+      if (rangeValues.includes(requestedRange)) {
         rangeHours.value = requestedRange
       }
       const requestedGranularity = String(route.query.granularity ?? '')
-      if (granularityOptions.some((option) => option.value === requestedGranularity)) {
+      if (granularityValues.includes(requestedGranularity)) {
         granularity.value = requestedGranularity
       }
     }
@@ -504,7 +517,7 @@ onMounted(async () => {
   } catch (reason) {
     notifications.push({
       kind: 'error',
-      title: '加载 Monitoring 失败',
+      title: locale.t('monitoring.loadFailed'),
       content: reason instanceof Error ? reason.message : String(reason),
       dedupeKey: 'monitoring:load:error',
     })
@@ -522,7 +535,7 @@ watch(
     } catch (reason) {
       notifications.push({
         kind: 'error',
-        title: '切换 Monitoring Server 失败',
+        title: locale.t('monitoring.switchFailed'),
         content: reason instanceof Error ? reason.message : String(reason),
         dedupeKey: 'monitoring:load:error',
       })
@@ -553,25 +566,19 @@ watch(
         changed = true
       }
       const requestedMetric = String(metricValue ?? '')
-      if (
-        requestedMetric !== selectedMetric.value &&
-        metricOptions.some((option) => option.value === requestedMetric)
-      ) {
+      if (requestedMetric !== selectedMetric.value && metricNames.includes(requestedMetric)) {
         selectedMetric.value = requestedMetric
         changed = true
       }
       const requestedRange = Number(rangeValue)
-      if (
-        requestedRange !== rangeHours.value &&
-        rangeOptions.some((option) => option.value === requestedRange)
-      ) {
+      if (requestedRange !== rangeHours.value && rangeValues.includes(requestedRange)) {
         rangeHours.value = requestedRange
         changed = true
       }
       const requestedGranularity = String(granularityValue ?? '')
       if (
         requestedGranularity !== granularity.value &&
-        granularityOptions.some((option) => option.value === requestedGranularity)
+        granularityValues.includes(requestedGranularity)
       ) {
         granularity.value = requestedGranularity
         changed = true
@@ -617,18 +624,22 @@ onUnmounted(() => {
               v-if="!embedded"
               v-model:value="selectedServerID"
               :options="serverOptions"
-              placeholder="选择 Server"
+              :placeholder="locale.t('monitoring.selectServer')"
               style="width: 260px"
               @update:value="changeServer"
             />
-            <NButton :loading="loading" @click="refresh">刷新</NButton>
+            <NButton :loading="loading" @click="refresh">{{ locale.t('common.refresh') }}</NButton>
             <NButton
               :type="overview?.collector?.paused ? 'primary' : 'warning'"
               :loading="monitoringActionLoading"
               :disabled="!selectedServerID"
               @click="toggleMonitoring"
             >
-              {{ overview?.collector?.paused ? '恢复监控' : '暂停监控' }}
+              {{
+                overview?.collector?.paused
+                  ? locale.t('monitoring.resume')
+                  : locale.t('monitoring.pause')
+              }}
             </NButton>
             <NButton
               type="error"
@@ -637,19 +648,19 @@ onUnmounted(() => {
               :disabled="!selectedServerID"
               @click="clearHistory"
             >
-              清理历史数据
+              {{ locale.t('monitoring.clearHistory') }}
             </NButton>
           </NFlex>
         </NFlex>
       </section>
 
-      <NAlert v-if="error" type="error" title="Metric 查询失败">
+      <NAlert v-if="error" type="error" :title="locale.t('monitoring.queryFailed')">
         {{ error instanceof Error ? error.message : String(error) }}
       </NAlert>
-      <NAlert v-if="partialMessage" type="warning" title="部分 Monitoring 数据不可用">
+      <NAlert v-if="partialMessage" type="warning" :title="locale.t('monitoring.partialTitle')">
         {{ partialMessage }}
       </NAlert>
-      <NEmpty v-if="servers.length === 0" description="请先创建 Minecraft Server" />
+      <NEmpty v-if="servers.length === 0" :description="locale.t('monitoring.noServers')" />
 
       <template v-if="selectedServer">
         <NGrid cols="1 640:3 1000:6" :x-gap="12" :y-gap="12">
@@ -672,9 +683,13 @@ onUnmounted(() => {
             <template #header>
               <NFlex align="center" justify="space-between" wrap>
                 <div>
-                  <NText tag="h3">历史趋势 · {{ selectedServer.name }}</NText>
+                  <NText tag="h3">{{
+                    locale.t('monitoring.historyTitle', { name: selectedServer.name })
+                  }}</NText>
                   <div>
-                    <NText depth="3">最近采集：{{ latestTimestamp }}</NText>
+                    <NText depth="3">{{
+                      locale.t('monitoring.latestCollected', { time: latestTimestamp })
+                    }}</NText>
                   </div>
                 </div>
                 <NFlex wrap>
@@ -703,12 +718,12 @@ onUnmounted(() => {
               :init-options="chartInit"
               autoresize
             />
-            <NEmpty v-else description="当前时间范围没有该指标数据" />
+            <NEmpty v-else :description="locale.t('monitoring.noData')" />
           </NCard>
         </section>
 
         <section ref="overviewChartsSection">
-          <NCard title="常用指标趋势">
+          <NCard :title="locale.t('monitoring.overviewCharts')">
             <NGrid cols="1 760:2" :x-gap="12" :y-gap="12">
               <NGridItem v-for="chart in overviewCharts" :key="chart.metric">
                 <NCard :title="chart.label" size="small">
@@ -725,14 +740,14 @@ onUnmounted(() => {
                     size="small"
                   />
                   <div v-else-if="!overviewChartsVisible" class="metric-overview-chart" />
-                  <NEmpty v-else size="small" description="暂无趋势数据" />
+                  <NEmpty v-else size="small" :description="locale.t('monitoring.noTrendData')" />
                 </NCard>
               </NGridItem>
             </NGrid>
           </NCard>
         </section>
 
-        <NCard title="指标存储">
+        <NCard :title="locale.t('monitoring.storageCard')">
           <NFlex vertical>
             <NProgress
               type="line"
@@ -740,18 +755,24 @@ onUnmounted(() => {
               :status="storage?.pressure ? 'warning' : 'success'"
             />
             <NText depth="3">
-              数据库已用 {{ formatBytes(storage?.databaseBytes ?? 0) }} /
-              {{ formatBytes(storage?.capacityBytes ?? 0) }} · 已分配
-              {{ formatBytes(storage?.allocatedDatabaseBytes ?? 0) }} · 磁盘可用
-              {{ formatBytes(storage?.availableDiskBytes ?? -1) }}
+              {{
+                locale.t('monitoring.storageSummary', {
+                  used: formatBytes(storage?.databaseBytes ?? 0),
+                  capacity: formatBytes(storage?.capacityBytes ?? 0),
+                  allocated: formatBytes(storage?.allocatedDatabaseBytes ?? 0),
+                  available: formatBytes(storage?.availableDiskBytes ?? -1),
+                })
+              }}
             </NText>
           </NFlex>
         </NCard>
 
-        <NCard title="监控状态与自动采集">
+        <NCard :title="locale.t('monitoring.statusCard')">
           <NFlex vertical :size="12">
             <NFlex wrap>
-              <NTag :type="collectorStatus.type"> 采集 {{ collectorStatus.label }} </NTag>
+              <NTag :type="collectorStatus.type">
+                {{ locale.t('monitoring.collectorTag', { label: collectorStatus.label }) }}
+              </NTag>
               <NTag
                 :type="
                   overview?.spark?.status === 'available'
@@ -764,7 +785,11 @@ onUnmounted(() => {
                 Spark {{ overview?.spark?.status ?? 'unavailable' }}
               </NTag>
               <NTag :type="overview?.activeAlerts.length ? 'error' : 'success'">
-                活跃告警 {{ overview?.activeAlerts.length ?? 0 }}
+                {{
+                  locale.t('monitoring.activeAlerts', {
+                    count: overview?.activeAlerts.length ?? 0,
+                  })
+                }}
               </NTag>
             </NFlex>
             <NAlert
@@ -773,24 +798,34 @@ onUnmounted(() => {
               :type="issue.severity === 'error' ? 'error' : 'warning'"
               :title="issue.code"
             >
-              {{ issue.message }} · {{ locale.formatDateTime(issue.timestamp) }}
+              {{
+                locale.t('monitoring.issueLine', {
+                  message: issue.message,
+                  time: locale.formatDateTime(issue.timestamp),
+                })
+              }}
             </NAlert>
-            <NText v-if="!overview?.issues.length" depth="3"
-              >当前没有离线、采集、Spark 或阈值异常。</NText
-            >
+            <NText v-if="!overview?.issues.length" depth="3">
+              {{ locale.t('monitoring.noIssues') }}
+            </NText>
             <NText depth="3">
-              最近采集：{{
-                overview?.collector?.collectedAt
-                  ? locale.formatDateTime(overview.collector.collectedAt)
-                  : '尚未采集'
+              {{
+                locale.t('monitoring.latestCollected', {
+                  time: overview?.collector?.collectedAt
+                    ? locale.formatDateTime(overview.collector.collectedAt)
+                    : locale.t('monitoring.collector.none'),
+                })
               }}
             </NText>
             <NText v-if="overview?.collector?.lastError" type="error" depth="3">
-              最近错误：{{ overview.collector.lastError
-              }}{{
-                overview.collector.lastErrorAt
-                  ? ` · ${locale.formatDateTime(overview.collector.lastErrorAt)}`
-                  : ''
+              {{
+                locale.t('monitoring.lastError', {
+                  message:
+                    overview.collector.lastError +
+                    (overview.collector.lastErrorAt
+                      ? ` · ${locale.formatDateTime(overview.collector.lastErrorAt)}`
+                      : ''),
+                })
               }}
             </NText>
           </NFlex>

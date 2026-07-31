@@ -1,6 +1,8 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
+import { translate } from '../locales/runtime'
+
 export interface ConfirmRequest {
   title: string
   content: string
@@ -71,9 +73,9 @@ export const useInteractionStore = defineStore('interactions', () => {
     if (request.dirty && !force) {
       drawerRequest.value = null
       const discard = await confirm({
-        title: '放弃未保存修改？',
-        content: '关闭后，当前抽屉中的未保存修改将丢失。',
-        positiveText: '放弃并关闭',
+        title: translate('dialog.discardDrawerTitle'),
+        content: translate('dialog.discardDrawerContent'),
+        positiveText: translate('dialog.discardDrawerConfirm'),
         danger: true,
       })
       if (!discard) drawerRequest.value = request

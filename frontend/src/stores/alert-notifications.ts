@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
+import { translate } from '../locales/runtime'
 
 import type { AlertEvent } from '../../bindings/github.com/Cail-Gainey/MineOps/internal/model/models'
 import {
@@ -121,8 +122,14 @@ export const useAlertNotificationStore = defineStore('alert-notifications', () =
     if (channels.has('desktop')) {
       notifications.push({
         kind: 'warning',
-        title: `监控告警 · ${formatMetricLabel(event.metric)}`,
-        content: `当前值 ${event.latestValue.toFixed(2)}，阈值 ${event.threshold.toFixed(2)} · 服务器 ${event.serverID}`,
+        title: translate('store.alertNotificationTitle', {
+          metric: formatMetricLabel(event.metric),
+        }),
+        content: translate('store.alertNotificationContent', {
+          value: event.latestValue.toFixed(2),
+          threshold: event.threshold.toFixed(2),
+          server: event.serverID,
+        }),
         dedupeKey: `alert:active:${event.id}`,
         duration: 8000,
       })

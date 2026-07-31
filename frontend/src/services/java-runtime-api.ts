@@ -13,6 +13,7 @@ import {
   Validate,
 } from '../../bindings/github.com/Cail-Gainey/MineOps/internal/desktop/services/javaruntimeservice'
 import { throwIfError } from './api-client'
+import { translate } from '../locales/runtime'
 
 /**
  * 列出某个 SSH Session 上已登记的 Java 运行时。
@@ -52,7 +53,8 @@ export async function validateJavaRuntime(
 ): Promise<JavaCandidate> {
   const result = await Validate(sshSessionID, executablePath)
   throwIfError(result.error)
-  if (!result.candidates[0]) throw new Error('Java 验证响应为空')
+  if (!result.candidates[0])
+    throw new Error(translate('service.emptyResponse', { subject: 'Java verification' }))
   return result.candidates[0]
 }
 
@@ -68,7 +70,8 @@ export async function importJavaRuntime(
 ): Promise<JavaRuntime> {
   const result = await Import(sshSessionID, executablePath)
   throwIfError(result.error)
-  if (!result.javaRuntime) throw new Error('Java 导入响应为空')
+  if (!result.javaRuntime)
+    throw new Error(translate('service.emptyResponse', { subject: 'Java import' }))
   return result.javaRuntime
 }
 
@@ -86,7 +89,13 @@ export async function installManagedJavaRuntime(
 ): Promise<string> {
   const result = await Install(sshSessionID, majorVersion, architecture)
   throwIfError(result.error)
-  if (!result.operationID) throw new Error('JavaRuntimeService 未返回安装 Operation ID')
+  if (!result.operationID)
+    throw new Error(
+      translate('service.missingField', {
+        service: 'JavaRuntimeService',
+        field: translate('serviceField.installOperationID'),
+      }),
+    )
   return result.operationID
 }
 
@@ -125,7 +134,8 @@ export async function recommendJavaRuntime(
 ): Promise<JavaRuntime> {
   const result = await Recommend(sshSessionID, serverType, minecraftVersion)
   throwIfError(result.error)
-  if (!result.javaRuntime) throw new Error('Java 推荐响应为空')
+  if (!result.javaRuntime)
+    throw new Error(translate('service.emptyResponse', { subject: 'Java recommendation' }))
   return result.javaRuntime
 }
 

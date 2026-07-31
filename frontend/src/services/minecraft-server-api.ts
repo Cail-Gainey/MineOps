@@ -29,6 +29,7 @@ import type {
   ServerPropertyUpdate,
 } from '../../bindings/github.com/Cail-Gainey/MineOps/internal/service/models'
 import { throwIfError } from './api-client'
+import { translate } from '../locales/runtime'
 
 const installationStatusCache = new Map<string, ServerInstallationStatus>()
 const installationStatusRequests = new Map<string, Promise<ServerInstallationStatus>>()
@@ -79,7 +80,8 @@ export async function getMinecraftServer(
 ): Promise<MinecraftServer> {
   const result = await Get(id, includeDeleted)
   throwIfError(result.error)
-  if (!result.server) throw new Error('Minecraft Server 响应为空')
+  if (!result.server)
+    throw new Error(translate('service.emptyResponse', { subject: 'Minecraft Server' }))
   return result.server
 }
 
@@ -91,7 +93,8 @@ export async function getMinecraftServer(
 export async function createMinecraftServer(input: MinecraftServerInput): Promise<MinecraftServer> {
   const result = await Create(input)
   throwIfError(result.error)
-  if (!result.server) throw new Error('Minecraft Server 创建响应为空')
+  if (!result.server)
+    throw new Error(translate('service.emptyResponse', { subject: 'Minecraft Server' }))
   return result.server
 }
 
@@ -107,7 +110,13 @@ export async function inspectRemoteMinecraftServer(
 ): Promise<RemoteServerInspection> {
   const result = await InspectRemote(sshSessionID, remotePath)
   throwIfError(result.error)
-  if (!result.inspection) throw new Error('MinecraftServerService 未返回远程检查结果')
+  if (!result.inspection)
+    throw new Error(
+      translate('service.missingField', {
+        service: 'MinecraftServerService',
+        field: translate('serviceField.inspection'),
+      }),
+    )
   return result.inspection
 }
 
@@ -121,7 +130,13 @@ export async function importRemoteMinecraftServer(
 ): Promise<MinecraftServer> {
   const result = await ImportRemote(input)
   throwIfError(result.error)
-  if (!result.server) throw new Error('MinecraftServerService 未返回导入结果')
+  if (!result.server)
+    throw new Error(
+      translate('service.missingField', {
+        service: 'MinecraftServerService',
+        field: translate('serviceField.importResult'),
+      }),
+    )
   return result.server
 }
 
@@ -137,7 +152,8 @@ export async function updateMinecraftServer(
 ): Promise<MinecraftServer> {
   const result = await Update(id, input)
   throwIfError(result.error)
-  if (!result.server) throw new Error('Minecraft Server 更新响应为空')
+  if (!result.server)
+    throw new Error(translate('service.emptyResponse', { subject: 'Minecraft Server' }))
   return result.server
 }
 
@@ -191,7 +207,13 @@ export async function hardDeleteRemoteMinecraftServer(
 ): Promise<string> {
   const result = await HardDeleteRemote(id, confirmedName, confirmedPath)
   throwIfError(result.error)
-  if (!result.operationID) throw new Error('MinecraftServerService 未返回硬删除 Operation ID')
+  if (!result.operationID)
+    throw new Error(
+      translate('service.missingField', {
+        service: 'MinecraftServerService',
+        field: translate('serviceField.hardDeleteOperationID'),
+      }),
+    )
   return result.operationID
 }
 
@@ -214,7 +236,13 @@ export async function listMinecraftServerBackups(id: string): Promise<ServerBack
 export async function createMinecraftServerBackup(id: string): Promise<string> {
   const result = await CreateBackup(id)
   throwIfError(result.error)
-  if (!result.operationID) throw new Error('MinecraftServerService 未返回备份 Operation ID')
+  if (!result.operationID)
+    throw new Error(
+      translate('service.missingField', {
+        service: 'MinecraftServerService',
+        field: translate('serviceField.backupOperationID'),
+      }),
+    )
   return result.operationID
 }
 
@@ -230,7 +258,13 @@ export async function restoreMinecraftServerBackup(
 ): Promise<string> {
   const result = await RestoreBackup(id, backupPath)
   throwIfError(result.error)
-  if (!result.operationID) throw new Error('MinecraftServerService 未返回恢复 Operation ID')
+  if (!result.operationID)
+    throw new Error(
+      translate('service.missingField', {
+        service: 'MinecraftServerService',
+        field: translate('serviceField.restoreOperationID'),
+      }),
+    )
   return result.operationID
 }
 
@@ -243,7 +277,12 @@ export async function readMinecraftServerProperties(id: string): Promise<ServerP
   const result = await ReadProperties(id)
   throwIfError(result.error)
   if (!result.properties?.document)
-    throw new Error('MinecraftServerService 未返回 server.properties')
+    throw new Error(
+      translate('service.missingField', {
+        service: 'MinecraftServerService',
+        field: 'server.properties',
+      }),
+    )
   return result.properties
 }
 
@@ -274,7 +313,12 @@ export async function saveMinecraftServerProperties(
   )
   throwIfError(result.error)
   if (!result.properties?.document)
-    throw new Error('MinecraftServerService 未返回保存后的 server.properties')
+    throw new Error(
+      translate('service.missingField', {
+        service: 'MinecraftServerService',
+        field: translate('serviceField.savedProperties'),
+      }),
+    )
   return result.properties
 }
 
@@ -308,7 +352,12 @@ export async function restoreMinecraftServerPropertyBackup(
   const result = await RestorePropertyBackup(id, backupPath, expectedVersion, firewallConfirmed)
   throwIfError(result.error)
   if (!result.properties?.document)
-    throw new Error('MinecraftServerService 未返回恢复后的 server.properties')
+    throw new Error(
+      translate('service.missingField', {
+        service: 'MinecraftServerService',
+        field: translate('serviceField.restoredProperties'),
+      }),
+    )
   return result.properties
 }
 
@@ -331,7 +380,13 @@ export async function inspectMinecraftServerInstallationStatus(
   const request = (async () => {
     const result = await InspectInstallationStatus(id)
     throwIfError(result.error)
-    if (!result.status) throw new Error('MinecraftServerService 未返回安装一致性状态')
+    if (!result.status)
+      throw new Error(
+        translate('service.missingField', {
+          service: 'MinecraftServerService',
+          field: translate('serviceField.installationStatus'),
+        }),
+      )
     installationStatusCache.set(id, result.status)
     return result.status
   })()

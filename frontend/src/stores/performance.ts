@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { computed, ref, watch } from 'vue'
+import { translate } from '../locales/runtime'
 
 import type { MinecraftServer } from '../../bindings/github.com/Cail-Gainey/MineOps/internal/model/models'
 import type {
@@ -68,10 +69,9 @@ export const usePerformanceStore = defineStore('performance', () => {
   })
   const partialMessage = computed(() => {
     if (serversError.value && servers.value.length)
-      return 'Server 列表刷新失败，继续使用已加载目标。'
-    if (overviewError.value && overview.value)
-      return 'Performance 数据刷新失败，当前显示上一次成功快照。'
-    if (monitoringOverviewError.value) return 'Spark 采集控制状态刷新失败，当前显示上一次成功状态。'
+      return translate('store.performanceServerListStale')
+    if (overviewError.value && overview.value) return translate('store.performanceStale')
+    if (monitoringOverviewError.value) return translate('store.performanceCollectorStale')
     return ''
   })
 
@@ -162,7 +162,7 @@ export const usePerformanceStore = defineStore('performance', () => {
    * @returns 安装完成后的 Promise
    */
   async function install(): Promise<void> {
-    if (!installPlan.value?.planDigest) throw new Error('Spark 安装计划不存在或已过期')
+    if (!installPlan.value?.planDigest) throw new Error(translate('store.sparkPlanMissing'))
     loading.value = true
     try {
       await installSpark(selectedServerID.value, installPlan.value.planDigest)

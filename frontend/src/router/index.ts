@@ -14,7 +14,6 @@ const router = createRouter({
         name: feature.id,
         component: feature.component,
         meta: {
-          title: feature.title,
           titleKey: feature.titleKey,
           permissions: feature.permissions,
           dialogs: feature.dialogs,

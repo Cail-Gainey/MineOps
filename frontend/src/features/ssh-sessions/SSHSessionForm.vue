@@ -23,9 +23,11 @@ import {
   testSSHSessionInput,
   updateSSHSession,
 } from '../../services/ssh-session-api'
+import { hasMessage } from '../../locales/runtime'
 import AppFormActions from '../../shared/components/AppFormActions.vue'
 import AppFormField from '../../shared/components/AppFormField.vue'
 import { useUnsavedGuard } from '../../composables/use-unsaved-guard'
+import { useLocaleStore } from '../../stores/locale'
 
 const props = defineProps<{
   show: boolean
@@ -38,15 +40,18 @@ const emit = defineEmits<{
   failed: [error: unknown]
 }>()
 
-const authOptions = [
-  { label: '密码', value: 'password' },
-  { label: '私钥', value: 'private_key' },
-  { label: 'SSH Agent', value: 'agent' },
-]
-const hostKeyOptions = [
-  { label: '严格校验（推荐）', value: 'strict' },
-  { label: '首次确认后信任', value: 'trust_on_first_use' },
-]
+const locale = useLocaleStore()
+const authTypes = ['password', 'private_key', 'agent']
+const hostKeyPolicies = ['strict', 'trust_on_first_use']
+const authOptions = computed(() =>
+  authTypes.map((value) => ({ label: authTypeLabel(value), value })),
+)
+const hostKeyOptions = computed(() =>
+  hostKeyPolicies.map((value) => ({
+    label: locale.t(`sshForm.hostKey.${value}` as Parameters<typeof locale.t>[0]),
+    value,
+  })),
+)
 
 const draft = reactive<SSHSessionInput>(emptyInput())
 const initial = reactive<SSHSessionInput>(emptyInput())
@@ -56,12 +61,14 @@ const testResult = ref<SSHConnectionTestDTO | null>(null)
 const testError = ref('')
 let testRevision = 0
 const dirty = computed(() => JSON.stringify(draft) !== JSON.stringify(initial))
-const title = computed(() => (props.session ? '编辑 SSH Session' : '新建 SSH Session'))
+const title = computed(() =>
+  props.session ? locale.t('sshForm.titleEdit') : locale.t('sshForm.titleCreate'),
+)
 const exitGuardDirty = computed(() => props.show && dirty.value)
 
 useUnsavedGuard(
   computed(() => `ssh-session-form:${props.session?.id ?? 'new'}`),
-  computed(() => `${title.value}有未提交修改`),
+  computed(() => locale.t('sshForm.unsaved', { title: title.value })),
   exitGuardDirty,
 )
 
@@ -162,12 +169,13 @@ function clearSecrets(): void {
 }
 
 /**
- * 把认证方式标识映射成中文标签。
+ * 把认证方式标识映射成本地化标签。
  * @param authType - 认证方式标识
- * @returns 中文标签，未知方式原样返回
+ * @returns 本地化标签，未知方式原样返回
  */
 function authTypeLabel(authType: string): string {
-  return authOptions.find((option) => option.value === authType)?.label ?? authType
+  const key = `sshForm.auth.${authType}`
+  return hasMessage(key) ? locale.t(key) : authType
 }
 
 /**
@@ -234,91 +242,109 @@ function fromSession(session: SSHSessionDTO): SSHSessionInput {
     @esc="close"
   >
     <NForm label-placement="left" label-width="150">
-      <AppFormField label="名称" required>
-        <NInput v-model:value="draft.name" placeholder="例如：生产服宿主机" />
+      <AppFormField :label="locale.t('sshForm.name')" required>
+        <NInput v-model:value="draft.name" :placeholder="locale.t('sshForm.namePlaceholder')" />
       </AppFormField>
-      <AppFormField label="主机" required>
-        <NInput v-model:value="draft.host" placeholder="主机名或 IP 地址" />
+      <AppFormField :label="locale.t('sshForm.host')" required>
+        <NInput v-model:value="draft.host" :placeholder="locale.t('sshForm.hostPlaceholder')" />
       </AppFormField>
-      <AppFormField label="端口" required>
+      <AppFormField :label="locale.t('sshForm.port')" required>
         <NInputNumber v-model:value="draft.port" :min="1" :max="65535" />
       </AppFormField>
-      <AppFormField label="用户名" required>
+      <AppFormField :label="locale.t('sshForm.username')" required>
         <NInput v-model:value="draft.username" />
       </AppFormField>
-      <AppFormField label="认证方式" required>
+      <AppFormField :label="locale.t('sshForm.authType')" required>
         <NSelect v-model:value="draft.authType" :options="authOptions" />
       </AppFormField>
       <AppFormField
         v-if="draft.authType === 'password'"
-        label="密码"
+        :label="locale.t('sshForm.password')"
         :required="!session?.hasCredential"
-        help="编辑时留空表示保留原凭据。"
+        :help="locale.t('sshForm.passwordHelp')"
       >
         <NInput v-model:value="draft.secret" type="password" show-password-on="click" />
       </AppFormField>
       <template v-if="draft.authType === 'private_key'">
         <AppFormField
-          label="私钥"
+          :label="locale.t('sshForm.privateKey')"
           :required="!session?.hasCredential"
-          help="支持 OpenSSH/PEM；编辑时留空表示保留原凭据。"
+          :help="locale.t('sshForm.privateKeyHelp')"
         >
           <NInput v-model:value="draft.secret" type="textarea" :rows="5" />
         </AppFormField>
-        <AppFormField label="私钥口令">
+        <AppFormField :label="locale.t('sshForm.passphrase')">
           <NInput v-model:value="draft.passphrase" type="password" show-password-on="click" />
         </AppFormField>
       </template>
-      <AppFormField label="主机密钥策略" required help="不提供忽略全部主机指纹的选项。">
+      <AppFormField
+        :label="locale.t('sshForm.hostKeyPolicy')"
+        required
+        :help="locale.t('sshForm.hostKeyPolicyHelp')"
+      >
         <NSelect v-model:value="draft.hostKeyPolicy" :options="hostKeyOptions" />
       </AppFormField>
-      <AppFormField label="连接级覆盖" help="关闭时继承 Settings 中的 SSH 全局默认值。">
+      <AppFormField :label="locale.t('sshForm.override')" :help="locale.t('sshForm.overrideHelp')">
         <NSwitch v-model:value="draft.overrideSettings" />
       </AppFormField>
-      <AppFormField label="分组">
+      <AppFormField :label="locale.t('sshForm.group')">
         <NInput v-model:value="draft.group" />
       </AppFormField>
-      <AppFormField label="收藏">
-        <NCheckbox v-model:checked="draft.favourite">置顶显示</NCheckbox>
+      <AppFormField :label="locale.t('sshForm.favourite')">
+        <NCheckbox v-model:checked="draft.favourite">
+          {{ locale.t('sshForm.favouritePin') }}
+        </NCheckbox>
       </AppFormField>
-      <AppFormField v-if="draft.overrideSettings" label="连接超时（秒）">
+      <AppFormField v-if="draft.overrideSettings" :label="locale.t('sshForm.connectTimeout')">
         <NInputNumber v-model:value="draft.connectTimeoutSec" :min="1" :max="300" />
       </AppFormField>
-      <AppFormField v-if="draft.overrideSettings" label="握手超时（秒）">
+      <AppFormField v-if="draft.overrideSettings" :label="locale.t('sshForm.handshakeTimeout')">
         <NInputNumber v-model:value="draft.handshakeTimeoutSec" :min="1" :max="300" />
       </AppFormField>
-      <AppFormField v-if="draft.overrideSettings" label="KeepAlive（秒）">
+      <AppFormField v-if="draft.overrideSettings" :label="locale.t('sshForm.keepAlive')">
         <NInputNumber v-model:value="draft.keepAliveSec" :min="0" :max="3600" />
       </AppFormField>
-      <AppFormField v-if="draft.overrideSettings" label="压缩">
+      <AppFormField v-if="draft.overrideSettings" :label="locale.t('sshForm.compression')">
         <NSwitch v-model:value="draft.compression" />
       </AppFormField>
-      <AppFormField label="备注">
+      <AppFormField :label="locale.t('sshForm.remark')">
         <NInput v-model:value="draft.remark" type="textarea" :rows="3" />
       </AppFormField>
     </NForm>
-    <NAlert v-if="testResult" type="success" title="SSH 连接测试通过" class="test-result">
-      SSH 握手、主机密钥、认证和命令通道均成功。远端版本：{{
-        testResult.serverVersion
-      }}；远端地址：{{ testResult.remoteAddress }}；认证方式：{{
-        authTypeLabel(testResult.authType)
-      }}；总耗时：{{ testResult.connectDurationMs }}
-      ms。
+    <NAlert
+      v-if="testResult"
+      type="success"
+      :title="locale.t('sshForm.testSuccessTitle')"
+      class="test-result"
+    >
+      {{
+        locale.t('sshForm.testSuccessContent', {
+          version: testResult.serverVersion,
+          address: testResult.remoteAddress,
+          auth: authTypeLabel(testResult.authType),
+          duration: testResult.connectDurationMs,
+        })
+      }}
     </NAlert>
-    <NAlert v-else-if="testError" type="error" title="SSH 连接测试失败" class="test-result">
+    <NAlert
+      v-else-if="testError"
+      type="error"
+      :title="locale.t('sshForm.testFailedTitle')"
+      class="test-result"
+    >
       {{ testError }}
     </NAlert>
     <template #footer>
       <NFlex align="center" justify="space-between">
         <NButton :loading="testing" :disabled="submitting.value" @click="testConnection">
-          测试连接
+          {{ locale.t('sshForm.testConnection') }}
         </NButton>
         <AppFormActions
           class="form-actions"
           :dirty="dirty"
           :submitting="submitting.value"
           :disabled="testing"
-          submit-text="保存 SSH Session"
+          :submit-text="locale.t('sshForm.submit')"
           @discard="discard"
           @submit="submit"
         />

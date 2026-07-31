@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { NButton, NProgress, NTag, type DataTableColumns } from 'naive-ui'
-import { h, onMounted, ref } from 'vue'
+import { computed, h, onMounted, ref } from 'vue'
 
 import type { InstallationTask } from '../../../bindings/github.com/Cail-Gainey/MineOps/internal/model/models'
 import { getInstallation, listServerInstallations } from '../../services/installation-api'
 import AppDataTable from '../../shared/components/AppDataTable.vue'
+import { hasMessage } from '../../locales/runtime'
 import { useInteractionStore } from '../../stores/interactions'
 import { useLocaleStore } from '../../stores/locale'
 
@@ -17,40 +18,26 @@ const locale = useLocaleStore()
 const tasks = ref<InstallationTask[]>([])
 const loading = ref(false)
 const error = ref<unknown>(null)
-const installationStateLabels: Record<string, string> = {
-  waiting: '等待中',
-  running: '执行中',
-  succeeded: '已成功',
-  failed: '失败',
-  cancelled: '已取消',
-}
-// 与 model.NewInstallationTask 的步骤名列表一一对应。
-const installationStepLabels: Record<string, string> = {
-  connect_ssh: '建立 SSH 连接',
-  initialize_directories: '初始化远程目录',
-  create_server_directory: '创建服务器目录',
-  resolve_java: '检测 Java 运行时',
-  install_java: '安装 OpenJDK',
-  download_server: '下载服务端',
-  install_server: '安装服务端',
-  write_eula: '写入 EULA',
-  configure_firewall: '配置防火墙',
-  first_start: '首次启动检查',
-  register_server: '注册服务器',
-}
-const installationStepStateLabels: Record<string, string> = {
-  waiting: '等待中',
-  running: '执行中',
-  success: '成功',
-  failed: '失败',
-  skipped: '已跳过',
-  cancelled: '已取消',
+/**
+ * 把枚举值翻译成当前界面语言的标签。
+ * @param prefix - 文案键前缀
+ * @param value - 枚举值
+ * @returns 本地化标签，未登记的值原样返回
+ */
+function enumLabel(prefix: string, value: string): string {
+  const key = `${prefix}.${value}`
+  return hasMessage(key) ? locale.t(key) : value
 }
 
-const columns: DataTableColumns<InstallationTask> = [
-  { title: '安装任务', key: 'id', minWidth: 220, ellipsis: { tooltip: true } },
+const columns = computed<DataTableColumns<InstallationTask>>(() => [
   {
-    title: '状态',
+    title: locale.t('installHistory.column.task'),
+    key: 'id',
+    minWidth: 220,
+    ellipsis: { tooltip: true },
+  },
+  {
+    title: locale.t('servers.column.state'),
     key: 'state',
     width: 110,
     render: (row) =>
@@ -67,11 +54,11 @@ const columns: DataTableColumns<InstallationTask> = [
                   : 'info',
           bordered: false,
         },
-        { default: () => installationStateLabels[row.state] ?? row.state },
+        { default: () => enumLabel('installHistory.state', row.state) },
       ),
   },
   {
-    title: '步骤',
+    title: locale.t('installHistory.column.step'),
     key: 'currentStep',
     width: 150,
     render: (row) =>
@@ -80,25 +67,30 @@ const columns: DataTableColumns<InstallationTask> = [
         showIndicator: false,
       }),
   },
-  { title: '后台任务', key: 'operationID', minWidth: 220, ellipsis: { tooltip: true } },
   {
-    title: '创建时间',
+    title: locale.t('installHistory.column.operation'),
+    key: 'operationID',
+    minWidth: 220,
+    ellipsis: { tooltip: true },
+  },
+  {
+    title: locale.t('common.created'),
     key: 'createdAt',
     width: 190,
     render: (row) => locale.formatDateTime(row.createdAt),
   },
   {
-    title: '详情',
+    title: locale.t('installHistory.column.detail'),
     key: 'detail',
     width: 90,
     render: (row) =>
       h(
         NButton,
         { size: 'small', onClick: () => void showDetails(row) },
-        { default: () => '查看' },
+        { default: () => locale.t('installHistory.view') },
       ),
   },
-]
+])
 
 /**
  * 加载该 Server 的安装历史列表。
@@ -125,11 +117,16 @@ async function showDetails(task: InstallationTask): Promise<void> {
   try {
     const aggregate = await getInstallation(task.id)
     interactions.openDrawer({
-      title: `安装任务 ${task.id}`,
+      title: locale.t('installHistory.drawerTitle', { id: task.id }),
       content: aggregate.steps
         .map(
           (step) =>
-            `${step.order}. ${installationStepLabels[step.name] ?? step.name} · ${installationStepStateLabels[step.state] ?? step.state} · 第 ${step.attempt} 次尝试\n${step.message || step.errorCode || ''}`,
+            `${locale.t('installHistory.stepLine', {
+              order: step.order,
+              label: enumLabel('installHistory.step', step.name),
+              state: enumLabel('installHistory.stepState', step.state),
+              attempt: step.attempt,
+            })}\n${step.message || step.errorCode || ''}`,
         )
         .join('\n\n'),
     })
@@ -148,7 +145,7 @@ onMounted(() => void load())
     :loading="loading"
     :error="error"
     :scroll-x="980"
-    empty-description="该服务器尚无安装历史"
+    :empty-description="locale.t('installHistory.empty')"
     @retry="load"
     @open="showDetails"
   />

@@ -17,7 +17,6 @@ import type { ResourceKey } from '../locales/resources'
 export interface FeatureModule {
   id: string
   path: string
-  title: string
   titleKey: ResourceKey
   icon: Component
   menu: boolean
@@ -31,7 +30,6 @@ export const featureModules: FeatureModule[] = [
   {
     id: 'dashboard',
     path: '/',
-    title: '概览',
     titleKey: 'nav.dashboard',
     icon: Gauge,
     menu: true,
@@ -43,7 +41,6 @@ export const featureModules: FeatureModule[] = [
   {
     id: 'servers',
     path: '/servers',
-    title: 'MC Servers',
     titleKey: 'nav.servers',
     icon: Server,
     menu: true,
@@ -55,8 +52,7 @@ export const featureModules: FeatureModule[] = [
   {
     id: 'server-detail',
     path: '/servers/:serverID',
-    title: 'Server Detail',
-    titleKey: 'nav.servers',
+    titleKey: 'nav.serverDetail',
     icon: Server,
     menu: false,
     dialogs: ['server-operation'],
@@ -67,7 +63,6 @@ export const featureModules: FeatureModule[] = [
   {
     id: 'ssh-sessions',
     path: '/ssh-sessions',
-    title: 'SSH Sessions',
     titleKey: 'nav.sshSessions',
     icon: TerminalSquare,
     menu: true,
@@ -79,7 +74,6 @@ export const featureModules: FeatureModule[] = [
   {
     id: 'files',
     path: '/files/:sshSessionID?',
-    title: 'Files',
     titleKey: 'nav.files',
     icon: FileText,
     menu: false,
@@ -91,7 +85,6 @@ export const featureModules: FeatureModule[] = [
   {
     id: 'terminal',
     path: '/terminal/:sshSessionID?',
-    title: 'SSH Terminal',
     titleKey: 'nav.terminal',
     icon: TerminalSquare,
     menu: false,
@@ -103,7 +96,6 @@ export const featureModules: FeatureModule[] = [
   {
     id: 'java-runtimes',
     path: '/java-runtimes',
-    title: 'Java Runtimes',
     titleKey: 'nav.javaRuntimes',
     icon: Coffee,
     menu: true,
@@ -115,7 +107,6 @@ export const featureModules: FeatureModule[] = [
   {
     id: 'operations',
     path: '/operations',
-    title: 'Operations',
     titleKey: 'nav.operations',
     icon: Blocks,
     menu: true,
@@ -127,7 +118,6 @@ export const featureModules: FeatureModule[] = [
   {
     id: 'monitoring',
     path: '/monitoring',
-    title: 'Monitoring',
     titleKey: 'nav.monitoring',
     icon: Activity,
     menu: true,
@@ -139,7 +129,6 @@ export const featureModules: FeatureModule[] = [
   {
     id: 'performance',
     path: '/performance',
-    title: 'Performance Center',
     titleKey: 'nav.performance',
     icon: HardDrive,
     menu: true,
@@ -151,7 +140,6 @@ export const featureModules: FeatureModule[] = [
   {
     id: 'settings',
     path: '/settings',
-    title: 'Settings',
     titleKey: 'nav.settings',
     icon: Settings,
     menu: true,
@@ -166,7 +154,6 @@ if (import.meta.env.DEV) {
   featureModules.push({
     id: 'spikes',
     path: '/spikes',
-    title: '阶段 0 技术基线',
     titleKey: 'nav.spikes',
     icon: Box,
     menu: false,

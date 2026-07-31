@@ -5,6 +5,7 @@ import {
 import type { BackupInfo } from '../../bindings/github.com/Cail-Gainey/MineOps/internal/infrastructure/sqlcipher/models'
 import type { StorageStatus } from '../../bindings/github.com/Cail-Gainey/MineOps/internal/service/models'
 import { throwIfError } from './api-client'
+import { translate } from '../locales/runtime'
 
 /**
  * 抛出 StorageService 返回的错误，并把状态与备份信息统一成可空结果。
@@ -25,7 +26,13 @@ function unwrapStorage(result: StorageResult): {
  */
 export async function getStorageStatus(): Promise<StorageStatus> {
   const result = unwrapStorage(await StorageService.GetStatus())
-  if (!result.status) throw new Error('StorageService 未返回存储状态')
+  if (!result.status)
+    throw new Error(
+      translate('service.missingField', {
+        service: 'StorageService',
+        field: translate('serviceField.storageStatus'),
+      }),
+    )
   return result.status
 }
 
@@ -36,7 +43,13 @@ export async function getStorageStatus(): Promise<StorageStatus> {
  */
 export async function createPortableBackup(destination: string): Promise<BackupInfo> {
   const result = unwrapStorage(await StorageService.CreateBackup(destination))
-  if (!result.backup) throw new Error('StorageService 未返回备份信息')
+  if (!result.backup)
+    throw new Error(
+      translate('service.missingField', {
+        service: 'StorageService',
+        field: translate('serviceField.backupInfo'),
+      }),
+    )
   return result.backup
 }
 
@@ -47,7 +60,13 @@ export async function createPortableBackup(destination: string): Promise<BackupI
  */
 export async function schedulePortableRestore(path: string): Promise<StorageStatus> {
   const result = unwrapStorage(await StorageService.ScheduleRestore(path))
-  if (!result.status) throw new Error('StorageService 未返回恢复排队状态')
+  if (!result.status)
+    throw new Error(
+      translate('service.missingField', {
+        service: 'StorageService',
+        field: translate('serviceField.restoreQueueStatus'),
+      }),
+    )
   return result.status
 }
 
@@ -57,7 +76,13 @@ export async function schedulePortableRestore(path: string): Promise<StorageStat
  */
 export async function scheduleDatabaseKeyRotation(): Promise<StorageStatus> {
   const result = unwrapStorage(await StorageService.ScheduleKeyRotation())
-  if (!result.status) throw new Error('StorageService 未返回密钥轮换状态')
+  if (!result.status)
+    throw new Error(
+      translate('service.missingField', {
+        service: 'StorageService',
+        field: translate('serviceField.keyRotationStatus'),
+      }),
+    )
   return result.status
 }
 
@@ -67,7 +92,13 @@ export async function scheduleDatabaseKeyRotation(): Promise<StorageStatus> {
  */
 export async function cancelPendingDatabaseMaintenance(): Promise<StorageStatus> {
   const result = unwrapStorage(await StorageService.CancelPendingMaintenance())
-  if (!result.status) throw new Error('StorageService 未返回维护状态')
+  if (!result.status)
+    throw new Error(
+      translate('service.missingField', {
+        service: 'StorageService',
+        field: translate('serviceField.maintenanceStatus'),
+      }),
+    )
   return result.status
 }
 
@@ -77,7 +108,13 @@ export async function cancelPendingDatabaseMaintenance(): Promise<StorageStatus>
  */
 export async function scheduleDatabaseVacuum(): Promise<StorageStatus> {
   const result = unwrapStorage(await StorageService.ScheduleVacuum())
-  if (!result.status) throw new Error('StorageService 未返回存储整理状态')
+  if (!result.status)
+    throw new Error(
+      translate('service.missingField', {
+        service: 'StorageService',
+        field: translate('serviceField.vacuumStatus'),
+      }),
+    )
   return result.status
 }
 
@@ -87,7 +124,13 @@ export async function scheduleDatabaseVacuum(): Promise<StorageStatus> {
  */
 export async function scheduleDatabaseReset(): Promise<StorageStatus> {
   const result = unwrapStorage(await StorageService.ScheduleDatabaseReset())
-  if (!result.status) throw new Error('StorageService 未返回清空数据库状态')
+  if (!result.status)
+    throw new Error(
+      translate('service.missingField', {
+        service: 'StorageService',
+        field: translate('serviceField.resetStatus'),
+      }),
+    )
   return result.status
 }
 

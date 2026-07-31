@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
+import { translate } from '../locales/runtime'
 
 import type {
   PlayerEvent,
@@ -67,8 +68,7 @@ export const usePlayersStore = defineStore('players', () => {
   const pageCount = computed(() => Math.max(1, Math.ceil(total.value / pageSize.value)))
   const partialMessage = computed(() => {
     if (eventError.value) return eventError.value
-    if (listError.value && players.value.length)
-      return '玩家列表刷新失败，继续显示最近一次成功数据。'
+    if (listError.value && players.value.length) return translate('store.playersStale')
     return ''
   })
 
@@ -250,7 +250,7 @@ export const usePlayersStore = defineStore('players', () => {
   function mergeEvent(event: PlayerEvent): void {
     if (event.serverID !== serverID.value) return
     if (event.type === 'error') {
-      eventError.value = event.message || '玩家活动同步发生错误'
+      eventError.value = event.message || translate('store.playerActivityError')
       return
     }
     eventError.value = ''

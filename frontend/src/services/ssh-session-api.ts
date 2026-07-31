@@ -17,6 +17,7 @@ import {
 } from '../../bindings/github.com/Cail-Gainey/MineOps/internal/desktop/services/sshsessionservice'
 import { throwIfError } from './api-client'
 import { runWithHostKeyTrustConfirmation } from './host-key-trust'
+import { translate } from '../locales/runtime'
 
 /**
  * 按关键字、分组与收藏状态列出 SSH Session。
@@ -43,7 +44,8 @@ export async function listSSHSessions(
 export async function getSSHSession(id: string): Promise<SSHSessionDTO> {
   const result = await Get(id)
   throwIfError(result.error)
-  if (!result.session) throw new Error('SSH Session 响应为空')
+  if (!result.session)
+    throw new Error(translate('service.emptyResponse', { subject: 'SSH Session' }))
   return result.session
 }
 
@@ -55,7 +57,8 @@ export async function getSSHSession(id: string): Promise<SSHSessionDTO> {
 export async function createSSHSession(input: SSHSessionInput): Promise<SSHSessionDTO> {
   const result = await Create(input)
   throwIfError(result.error)
-  if (!result.session) throw new Error('SSH Session 创建响应为空')
+  if (!result.session)
+    throw new Error(translate('service.emptyResponse', { subject: 'SSH Session' }))
   return result.session
 }
 
@@ -68,7 +71,8 @@ export async function createSSHSession(input: SSHSessionInput): Promise<SSHSessi
 export async function updateSSHSession(id: string, input: SSHSessionInput): Promise<SSHSessionDTO> {
   const result = await Update(id, input)
   throwIfError(result.error)
-  if (!result.session) throw new Error('SSH Session 更新响应为空')
+  if (!result.session)
+    throw new Error(translate('service.emptyResponse', { subject: 'SSH Session' }))
   return result.session
 }
 
@@ -91,7 +95,8 @@ export async function deleteSSHSession(id: string): Promise<void> {
 export async function ensureSSHSessionHostSpecs(id: string): Promise<SSHSessionDTO> {
   const result = await EnsureHostSpecs(id)
   throwIfError(result.error)
-  if (!result.session) throw new Error('SSH 主机规格响应为空')
+  if (!result.session)
+    throw new Error(translate('service.emptyResponse', { subject: 'SSH host specs' }))
   return result.session
 }
 

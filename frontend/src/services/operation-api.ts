@@ -7,6 +7,7 @@ import {
 } from '../../bindings/github.com/Cail-Gainey/MineOps/internal/desktop/services'
 import type { Operation } from '../../bindings/github.com/Cail-Gainey/MineOps/internal/model/models'
 import { throwIfError } from './api-client'
+import { translate } from '../locales/runtime'
 
 export const operationProgressEventName = 'mineops:operation:progress'
 
@@ -29,7 +30,9 @@ export async function getOperation(id: string): Promise<Operation> {
   const result: OperationResult = await OperationService.Get(id)
   throwIfError(result.error)
   if (!result.operation) {
-    throw new Error('OperationService 未返回 Operation')
+    throw new Error(
+      translate('service.missingField', { service: 'OperationService', field: 'Operation' }),
+    )
   }
   return result.operation
 }

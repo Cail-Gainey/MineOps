@@ -14,6 +14,7 @@ import {
 import { computed, h, onMounted, ref } from 'vue'
 
 import type { Operation } from '../../../bindings/github.com/Cail-Gainey/MineOps/internal/model/models'
+import { hasMessage } from '../../locales/runtime'
 import AppDataTable from '../../shared/components/AppDataTable.vue'
 import { useInteractionStore } from '../../stores/interactions'
 import { useLocaleStore } from '../../stores/locale'
@@ -31,66 +32,78 @@ const typeFilter = ref<string | null>(null)
 const targetFilter = ref<string | null>(null)
 const stateFilter = ref<string | null>(null)
 
-const typeLabels: Record<string, string> = {
-  install: '安装',
-  download: '下载',
-  upload: '上传',
-  extract: '解压',
-  start: '启动',
-  stop: '停止',
-  restart: '重启',
-  backup: '备份',
-  restore: '恢复',
-  update: '更新',
-  delete: '删除',
-  profile: '性能分析',
-}
-const targetLabels: Record<string, string> = {
-  server: '服务器',
-  ssh_session: 'SSH 会话',
-  file: '文件',
-  java_runtime: 'Java 运行时',
-  agent: 'Agent',
-  settings: '设置',
-  spark: 'Spark',
-}
-const stateLabels: Record<string, string> = {
-  pending: '等待中',
-  running: '运行中',
-  succeeded: '已成功',
-  failed: '失败',
-  cancelled: '已取消',
-}
-const typeOptions = Object.entries(typeLabels).map(([value, label]) => ({ label, value }))
-const targetOptions = Object.entries(targetLabels).map(([value, label]) => ({ label, value }))
-const stateOptions = Object.entries(stateLabels).map(([value, label]) => ({ label, value }))
+const operationTypes = [
+  'install',
+  'download',
+  'upload',
+  'extract',
+  'start',
+  'stop',
+  'restart',
+  'backup',
+  'restore',
+  'update',
+  'delete',
+  'profile',
+]
+const operationTargets = [
+  'server',
+  'ssh_session',
+  'file',
+  'java_runtime',
+  'agent',
+  'settings',
+  'spark',
+]
+const operationStates = ['pending', 'running', 'succeeded', 'failed', 'cancelled']
 
 /**
- * 把任务类型映射成中文标签。
+ * 把枚举值翻译成当前界面语言的标签。
+ * @param prefix - 文案键前缀
+ * @param value - 枚举值
+ * @returns 本地化标签，未登记的值原样返回
+ */
+function enumLabel(prefix: string, value: string): string {
+  const key = `${prefix}.${value}`
+  return hasMessage(key) ? locale.t(key) : value
+}
+
+/**
+ * 把任务类型映射成本地化标签。
  * @param value - 任务类型标识
- * @returns 中文标签，未知类型原样返回
+ * @returns 本地化标签，未知类型原样返回
  */
 function typeLabel(value: string): string {
-  return typeLabels[value] ?? value
+  return enumLabel('operations.type', value)
 }
 
 /**
- * 把任务目标类型映射成中文标签。
+ * 把任务目标类型映射成本地化标签。
  * @param value - 目标类型标识
- * @returns 中文标签，未知类型原样返回
+ * @returns 本地化标签，未知类型原样返回
  */
 function targetLabel(value: string): string {
-  return targetLabels[value] ?? value
+  return enumLabel('operations.target', value)
 }
 
 /**
- * 把任务状态映射成中文标签。
+ * 把任务状态映射成本地化标签。
  * @param value - 任务状态标识
- * @returns 中文标签，未知状态原样返回
+ * @returns 本地化标签，未知状态原样返回
  */
 function stateLabel(value: string): string {
-  return stateLabels[value] ?? value
+  return enumLabel('operations.state', value)
 }
+
+const typeOptions = computed(() =>
+  operationTypes.map((value) => ({ label: typeLabel(value), value })),
+)
+const targetOptions = computed(() =>
+  operationTargets.map((value) => ({ label: targetLabel(value), value })),
+)
+const stateOptions = computed(() =>
+  operationStates.map((value) => ({ label: stateLabel(value), value })),
+)
 
 /**
  * 判断一条任务是否满足当前的关键字与筛选条件。
@@ -190,9 +203,9 @@ function stateType(state: string): 'default' | 'info' | 'success' | 'warning' | 
   }
 }
 
-const columns: DataTableColumns<Operation> = [
+const columns = computed<DataTableColumns<Operation>>(() => [
   {
-    title: '任务',
+    title: locale.t('operations.column.task'),
     key: 'type',
     width: 220,
     render: (row) =>
@@ -207,7 +220,7 @@ const columns: DataTableColumns<Operation> = [
       ]),
   },
   {
-    title: '状态与进度',
+    title: locale.t('operations.column.progress'),
     key: 'progress',
     width: 190,
     render: (row) =>
@@ -225,16 +238,16 @@ const columns: DataTableColumns<Operation> = [
       ]),
   },
   {
-    title: '当前活动',
+    title: locale.t('operations.column.activity'),
     key: 'message',
     render: (row) =>
       h('div', { class: 'operation-activity' }, [
-        h('strong', row.stage || '等待任务更新'),
-        h('span', row.message || '暂无详细消息'),
+        h('strong', row.stage || locale.t('operations.pendingStage')),
+        h('span', row.message || locale.t('operations.noMessage')),
       ]),
   },
   {
-    title: '操作',
+    title: locale.t('common.actions'),
     key: 'actions',
     width: 210,
     render: (row) =>
@@ -246,7 +259,7 @@ const columns: DataTableColumns<Operation> = [
             h(
               NButton,
               { size: 'small', onClick: () => void showDetails(row) },
-              { default: () => '详情' },
+              { default: () => locale.t('common.detail') },
             ),
             row.state === 'pending' || row.state === 'running'
               ? h(
@@ -257,7 +270,7 @@ const columns: DataTableColumns<Operation> = [
                     loading: operationActionPending(row.id),
                     onClick: () => void confirmCancel(row),
                   },
-                  { default: () => '取消' },
+                  { default: () => locale.t('common.cancel') },
                 )
               : null,
             canRetry(row)
@@ -269,7 +282,7 @@ const columns: DataTableColumns<Operation> = [
                     loading: operationActionPending(row.id),
                     onClick: () => void confirmRetry(row),
                   },
-                  { default: () => '重试' },
+                  { default: () => locale.t('operations.retry') },
                 )
               : null,
             row.state !== 'pending' && row.state !== 'running'
@@ -281,14 +294,14 @@ const columns: DataTableColumns<Operation> = [
                     loading: operationActionPending(row.id),
                     onClick: () => void confirmDelete(row),
                   },
-                  { default: () => '删除' },
+                  { default: () => locale.t('common.delete') },
                 )
               : null,
           ],
         },
       ),
   },
-]
+])
 
 /**
  * 按任务当前状态构建右键菜单项。
@@ -296,17 +309,28 @@ const columns: DataTableColumns<Operation> = [
  * @returns 下拉菜单项数组
  */
 function contextOptions(row: Operation): DropdownOption[] {
-  const options: DropdownOption[] = [{ label: '查看详情', key: 'details' }]
+  const options: DropdownOption[] = [
+    { label: locale.t('operations.context.details'), key: 'details' },
+  ]
   if (row.state === 'pending' || row.state === 'running') {
-    options.push({ type: 'divider', key: 'divider' }, { label: '取消任务', key: 'cancel' })
+    options.push(
+      { type: 'divider', key: 'divider' },
+      { label: locale.t('operations.context.cancel'), key: 'cancel' },
+    )
   }
   if (canRetry(row)) {
-    options.push({ type: 'divider', key: 'retry-divider' }, { label: '重试任务', key: 'retry' })
+    options.push(
+      { type: 'divider', key: 'retry-divider' },
+      { label: locale.t('operations.context.retry'), key: 'retry' },
+    )
   }
   if (row.state !== 'pending' && row.state !== 'running') {
-    options.push({ type: 'divider', key: 'delete-divider' }, { label: '删除记录', key: 'delete' })
+    options.push(
+      { type: 'divider', key: 'delete-divider' },
+      { label: locale.t('operations.context.delete'), key: 'delete' },
+    )
   }
-  options.push({ label: '复制 Operation ID', key: 'copy-id' })
+  options.push({ label: locale.t('operations.context.copyID'), key: 'copy-id' })
   return options
 }
 
@@ -317,11 +341,11 @@ function contextOptions(row: Operation): DropdownOption[] {
  */
 async function confirmCancel(operation: Operation): Promise<void> {
   const confirmed = await interactions.confirm({
-    title: '取消后台任务？',
-    content: '取消请求会发送给正在运行的 Operation，已完成的步骤不会自动回滚。',
+    title: locale.t('operations.cancelTitle'),
+    content: locale.t('operations.cancelContent'),
     objectLabel: `${typeLabel(operation.type)} · ${operation.id}`,
     impact: operation.message || operation.stage,
-    positiveText: '确认取消',
+    positiveText: locale.t('operations.cancelConfirm'),
     danger: true,
   })
   if (!confirmed) return
@@ -330,14 +354,14 @@ async function confirmCancel(operation: Operation): Promise<void> {
     await operations.cancel(operation.id)
     notifications.push({
       kind: 'warning',
-      title: '已提交取消请求',
+      title: locale.t('operations.cancelSubmitted'),
       content: operation.message,
       dedupeKey: `operation:cancel:${operation.id}`,
     })
   } catch (error) {
     notifications.push({
       kind: 'error',
-      title: '取消 Operation 失败',
+      title: locale.t('operations.cancelFailed'),
       content: error instanceof Error ? error.message : String(error),
       dedupeKey: `operation:cancel-error:${operation.id}`,
     })
@@ -353,11 +377,11 @@ async function confirmCancel(operation: Operation): Promise<void> {
  */
 async function confirmRetry(operation: Operation): Promise<void> {
   const confirmed = await interactions.confirm({
-    title: '重试安装任务？',
-    content: '将创建新的 Operation，并从 Installation Task 未完成的检查点继续执行。',
+    title: locale.t('operations.retryTitle'),
+    content: locale.t('operations.retryContent'),
     objectLabel: `${typeLabel(operation.type)} · ${operation.targetID}`,
     impact: operation.message || operation.errorCode || operation.stage,
-    positiveText: '确认重试',
+    positiveText: locale.t('operations.retryConfirm'),
   })
   if (!confirmed) return
   setOperationActionPending(operation.id, true)
@@ -365,14 +389,14 @@ async function confirmRetry(operation: Operation): Promise<void> {
     const replacementID = await operations.retry(operation)
     notifications.push({
       kind: 'success',
-      title: '重试任务已启动',
-      content: `新的 Operation：${replacementID}`,
+      title: locale.t('operations.retryStarted'),
+      content: locale.t('operations.retryStartedContent', { id: replacementID }),
       dedupeKey: `operation:retry:${operation.id}:${replacementID}`,
     })
   } catch (error) {
     notifications.push({
       kind: 'error',
-      title: '重试 Operation 失败',
+      title: locale.t('operations.retryFailed'),
       content: error instanceof Error ? error.message : String(error),
       dedupeKey: `operation:retry-error:${operation.id}`,
     })
@@ -388,11 +412,11 @@ async function confirmRetry(operation: Operation): Promise<void> {
  */
 async function confirmDelete(operation: Operation): Promise<void> {
   const confirmed = await interactions.confirm({
-    title: '删除任务记录？',
-    content: '只会删除任务中心中的终态 Operation 记录，不会撤销已经执行的远端操作。',
+    title: locale.t('operations.deleteTitle'),
+    content: locale.t('operations.deleteContent'),
     objectLabel: `${typeLabel(operation.type)} · ${operation.id}`,
     impact: operation.message || operation.errorCode || operation.stage,
-    positiveText: '确认删除',
+    positiveText: locale.t('operations.deleteConfirm'),
     danger: true,
   })
   if (!confirmed) return
@@ -401,14 +425,14 @@ async function confirmDelete(operation: Operation): Promise<void> {
     await operations.deleteHistory(operation.id)
     notifications.push({
       kind: 'success',
-      title: '任务记录已删除',
+      title: locale.t('operations.deleted'),
       content: operation.id,
       dedupeKey: `operation:delete:${operation.id}`,
     })
   } catch (error) {
     notifications.push({
       kind: 'error',
-      title: '删除任务记录失败',
+      title: locale.t('operations.deleteFailed'),
       content: error instanceof Error ? error.message : String(error),
       dedupeKey: `operation:delete-error:${operation.id}`,
     })
@@ -424,11 +448,11 @@ async function confirmDelete(operation: Operation): Promise<void> {
 async function confirmClearHistory(): Promise<void> {
   if (!operations.history.length) return
   const confirmed = await interactions.confirm({
-    title: '清空任务历史？',
-    content: '将删除全部已完成、失败和已取消的 Operation 记录，正在等待或运行的任务会保留。',
-    objectLabel: `${operations.history.length} 条当前已加载记录`,
-    impact: '该操作不会撤销远端执行结果，删除后的历史记录无法恢复。',
-    positiveText: '确认清空',
+    title: locale.t('operations.clearTitle'),
+    content: locale.t('operations.clearContent'),
+    objectLabel: locale.t('operations.clearObject', { count: operations.history.length }),
+    impact: locale.t('operations.clearImpact'),
+    positiveText: locale.t('operations.clearConfirm'),
     danger: true,
   })
   if (!confirmed) return
@@ -437,14 +461,14 @@ async function confirmClearHistory(): Promise<void> {
     const deleted = await operations.clearHistory()
     notifications.push({
       kind: 'success',
-      title: '任务历史已清空',
-      content: `已删除 ${deleted} 条终态 Operation 记录。`,
+      title: locale.t('operations.cleared'),
+      content: locale.t('operations.clearedContent', { count: deleted }),
       dedupeKey: 'operation:clear-history',
     })
   } catch (error) {
     notifications.push({
       kind: 'error',
-      title: '清空任务历史失败',
+      title: locale.t('operations.clearFailed'),
       content: error instanceof Error ? error.message : String(error),
       dedupeKey: 'operation:clear-history-error',
     })
@@ -476,21 +500,28 @@ async function showDetails(operation: Operation): Promise<void> {
     // 保留列表中的最后已知状态，详情仍然可查看。
   }
   interactions.openDrawer({
-    title: `任务详情 · ${typeLabel(current.type)}`,
+    title: locale.t('operations.detailsTitle', { type: typeLabel(current.type) }),
     content: [
-      `ID: ${current.id}`,
-      `类型: ${typeLabel(current.type)}`,
-      `目标: ${targetLabel(current.targetType)} / ${current.targetID}`,
-      `状态: ${stateLabel(current.state)}`,
-      `阶段: ${current.stage || '-'}`,
-      `进度: ${Math.round(current.progress * 100)}%`,
-      `消息: ${current.message || '-'}`,
-      `错误码: ${current.errorCode ?? '-'}`,
-      `错误详情:\n${formatDetails(current.errorDetails)}`,
-      `重试来源: ${current.retryOf ?? '-'}`,
-      `创建时间: ${current.createdAt}`,
-      `开始时间: ${current.startedAt ?? '-'}`,
-      `结束时间: ${current.finishedAt ?? '-'}`,
+      locale.t('operations.details.id', { value: current.id }),
+      locale.t('operations.details.type', { value: typeLabel(current.type) }),
+      locale.t('operations.details.target', {
+        type: targetLabel(current.targetType),
+        id: current.targetID,
+      }),
+      locale.t('operations.details.state', { value: stateLabel(current.state) }),
+      locale.t('operations.details.stage', { value: current.stage || '-' }),
+      locale.t('operations.details.progress', { value: Math.round(current.progress * 100) }),
+      locale.t('operations.details.message', { value: current.message || '-' }),
+      locale.t('operations.details.errorCode', { value: current.errorCode ?? '-' }),
+      locale.t('operations.details.errorDetails', { value: formatDetails(current.errorDetails) }),
+      locale.t('operations.details.retryOf', { value: current.retryOf ?? '-' }),
+      locale.t('operations.details.createdAt', { value: locale.formatDateTime(current.createdAt) }),
+      locale.t('operations.details.startedAt', {
+        value: current.startedAt ? locale.formatDateTime(current.startedAt) : '-',
+      }),
+      locale.t('operations.details.finishedAt', {
+        value: current.finishedAt ? locale.formatDateTime(current.finishedAt) : '-',
+      }),
     ].join('\n'),
     width: 620,
   })
@@ -506,14 +537,14 @@ async function copyOperationID(operation: Operation): Promise<void> {
     await navigator.clipboard.writeText(operation.id)
     notifications.push({
       kind: 'success',
-      title: 'Operation ID 已复制',
+      title: locale.t('operations.copySucceeded'),
       content: operation.id,
       dedupeKey: `operation:copy:${operation.id}`,
     })
   } catch (error) {
     notifications.push({
       kind: 'error',
-      title: '复制 Operation ID 失败',
+      title: locale.t('operations.copyFailed'),
       content: error instanceof Error ? error.message : String(error),
       dedupeKey: `operation:copy-error:${operation.id}`,
     })
@@ -546,31 +577,33 @@ onMounted(() => {
         <NInput
           v-model:value="keyword"
           clearable
-          placeholder="搜索 ID、阶段、消息或错误码"
+          :placeholder="locale.t('operations.searchPlaceholder')"
           style="width: 260px"
         />
         <NSelect
           v-model:value="typeFilter"
           clearable
-          placeholder="任务类型"
+          :placeholder="locale.t('operations.filterType')"
           :options="typeOptions"
           style="width: 140px"
         />
         <NSelect
           v-model:value="targetFilter"
           clearable
-          placeholder="目标类型"
+          :placeholder="locale.t('operations.filterTarget')"
           :options="targetOptions"
           style="width: 150px"
         />
         <NSelect
           v-model:value="stateFilter"
           clearable
-          placeholder="状态"
+          :placeholder="locale.t('operations.filterState')"
           :options="stateOptions"
           style="width: 130px"
         />
-        <NButton quaternary @click="clearFilters">清除筛选</NButton>
+        <NButton quaternary @click="clearFilters">
+          {{ locale.t('operations.clearFilters') }}
+        </NButton>
       </NFlex>
       <NFlex align="center">
         <NButton
@@ -579,14 +612,25 @@ onMounted(() => {
           :disabled="operations.history.length === 0"
           :loading="clearingHistory"
           @click="confirmClearHistory"
-          >清空历史</NButton
         >
-        <NButton :loading="operations.loading" @click="operations.refresh">刷新</NButton>
+          {{ locale.t('operations.clearHistory') }}
+        </NButton>
+        <NButton :loading="operations.loading" @click="operations.refresh">
+          {{ locale.t('common.refresh') }}
+        </NButton>
       </NFlex>
     </NFlex>
 
     <NTabs type="line" animated>
-      <NTabPane :tab="`活动 (${filteredActive.length}/${operations.active.length})`" name="active">
+      <NTabPane
+        :tab="
+          locale.t('operations.tabActive', {
+            filtered: filteredActive.length,
+            total: operations.active.length,
+          })
+        "
+        name="active"
+      >
         <AppDataTable
           :columns="columns"
           :data="filteredActive"
@@ -594,14 +638,19 @@ onMounted(() => {
           :error="operations.activeError"
           :partial-message="operations.partialMessage"
           :context-options="contextOptions"
-          empty-description="当前没有活动 Operation"
+          :empty-description="locale.t('operations.emptyActive')"
           @retry="operations.refresh"
           @context-action="handleContextAction"
           @open="showDetails"
         />
       </NTabPane>
       <NTabPane
-        :tab="`历史 (${filteredHistory.length}/${operations.history.length})`"
+        :tab="
+          locale.t('operations.tabHistory', {
+            filtered: filteredHistory.length,
+            total: operations.history.length,
+          })
+        "
         name="history"
       >
         <AppDataTable
@@ -611,7 +660,7 @@ onMounted(() => {
           :error="operations.historyError"
           :partial-message="operations.partialMessage"
           :context-options="contextOptions"
-          empty-description="暂无 Operation 历史"
+          :empty-description="locale.t('operations.emptyHistory')"
           @retry="operations.refresh"
           @context-action="handleContextAction"
           @open="showDetails"

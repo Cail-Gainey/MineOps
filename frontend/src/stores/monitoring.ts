@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { computed, ref, shallowRef } from 'vue'
+import { translate } from '../locales/runtime'
 
 import { MetricQuery } from '../../bindings/github.com/Cail-Gainey/MineOps/internal/model/models'
 import type {
@@ -63,12 +64,12 @@ export const useMonitoringStore = defineStore('monitoring', () => {
   )
   const partialMessage = computed(() => {
     const missing: string[] = []
-    if (storageError.value) missing.push('存储容量')
-    if (latestError.value) missing.push('实时值')
-    if (historyError.value) missing.push('历史趋势')
-    if (trendsError.value) missing.push('指标概览趋势')
-    if (overviewError.value) missing.push('统一状态')
-    return missing.length ? `${missing.join('、')} 暂时不可用；其余已成功数据继续显示。` : ''
+    if (storageError.value) missing.push(translate('store.monitoring.storage'))
+    if (latestError.value) missing.push(translate('store.monitoring.latest'))
+    if (historyError.value) missing.push(translate('store.monitoring.history'))
+    if (trendsError.value) missing.push(translate('store.monitoring.trends'))
+    if (overviewError.value) missing.push(translate('store.monitoring.overview'))
+    return missing.length ? translate('store.monitoringPartial', { items: missing.join('、') }) : ''
   })
   let unsubscribe: (() => void) | null = null
   let refreshSequence = 0

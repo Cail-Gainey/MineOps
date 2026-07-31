@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
+import { translate } from '../locales/runtime'
 
 import type { SSHSessionDTO } from '../../bindings/github.com/Cail-Gainey/MineOps/internal/desktop/services/models'
 import type {
@@ -45,9 +46,7 @@ export const useFilesStore = defineStore('files', () => {
     () => historyIndex.value >= 0 && historyIndex.value < history.value.length - 1,
   )
   const partialMessage = computed(() =>
-    sessionError.value && sessions.value.length
-      ? 'SSH Session 列表刷新失败，继续使用已加载连接。'
-      : '',
+    sessionError.value && sessions.value.length ? translate('store.sshSessionListStale') : '',
   )
   const activeTransfers = computed(() =>
     operations.active.filter((operation) => operation.targetType === 'file'),
@@ -66,7 +65,7 @@ export const useFilesStore = defineStore('files', () => {
       sessions.value = await listSSHSessions()
       if (preferredSessionID) {
         if (!sessions.value.some((item) => item.id === preferredSessionID)) {
-          throw new Error('指定的 SSH Session 不存在或当前不可访问')
+          throw new Error(translate('store.sshSessionMissing'))
         }
         selectedSessionID.value = preferredSessionID
       } else if (

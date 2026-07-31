@@ -18,6 +18,7 @@ import {
   subscribeTerminalEvents,
   writeTerminal,
 } from '../../services/terminal-api'
+import { useLocaleStore } from '../../stores/locale'
 import { useNotificationStore } from '../../stores/notifications'
 import { useSettingsStore } from '../../stores/settings'
 import { useThemeStore } from '../../stores/theme'
@@ -28,6 +29,7 @@ const props = defineProps<{
   active: boolean
 }>()
 
+const locale = useLocaleStore()
 const notifications = useNotificationStore()
 const theme = useThemeStore()
 const settings = useSettingsStore()
@@ -35,7 +37,7 @@ const { tokens } = storeToRefs(theme)
 const terminalElement = ref<HTMLElement | null>(null)
 const searchText = ref('')
 const searchInput = ref<InstanceType<typeof NInput> | null>(null)
-const status = ref('准备连接')
+const status = ref(locale.t('terminal.statusReady'))
 const connecting = ref(false)
 const reconnecting = ref(false)
 const menuVisible = ref(false)
@@ -143,7 +145,9 @@ function scheduleResize(): void {
 function findNext(): void {
   if (!searchText.value) return
   const found = searchAddon?.findNext(searchText.value, { caseSensitive: false }) ?? false
-  status.value = found ? `已定位：${searchText.value}` : `未找到：${searchText.value}`
+  status.value = found
+    ? locale.t('terminal.searchFound', { text: searchText.value })
+    : locale.t('terminal.searchNotFound', { text: searchText.value })
 }
 
 /**
@@ -154,7 +158,7 @@ async function copySelection(): Promise<void> {
   const selection = terminal?.getSelection() ?? ''
   if (!selection) return
   await navigator.clipboard.writeText(selection)
-  status.value = `已复制 ${selection.length} 个字符`
+  status.value = locale.t('terminal.copied', { count: selection.length })
 }
 
 /**
@@ -171,12 +175,12 @@ async function pasteClipboard(): Promise<void> {
 }
 
 const menuOptions = computed<DropdownOption[]>(() => [
-  { label: '复制', key: 'copy', disabled: !menuHasSelection.value },
-  { label: '粘贴', key: 'paste' },
+  { label: locale.t('terminal.menu.copy'), key: 'copy', disabled: !menuHasSelection.value },
+  { label: locale.t('terminal.menu.paste'), key: 'paste' },
   { type: 'divider', key: 'divider-clipboard' },
-  { label: '全选', key: 'select-all' },
-  { label: '清屏', key: 'clear' },
-  { label: '搜索', key: 'search' },
+  { label: locale.t('terminal.menu.selectAll'), key: 'select-all' },
+  { label: locale.t('terminal.menu.clear'), key: 'clear' },
+  { label: locale.t('terminal.menu.search'), key: 'search' },
 ])
 
 /**
@@ -217,7 +221,7 @@ function handleMenuSelect(key: string | number): void {
 function showError(error: unknown): void {
   notifications.push({
     kind: 'error',
-    title: 'Terminal 操作失败',
+    title: locale.t('terminal.actionFailed'),
     content: error instanceof Error ? error.message : String(error),
     dedupeKey: `terminal:error:${terminalSessionID || props.sshSessionId}`,
   })
@@ -239,7 +243,10 @@ function scheduleReconnect(): void {
   }
   reconnectAttempts++
   const delay = Math.max(0, sshSettings.reconnectBackoffSec) * 1000 * reconnectAttempts
-  status.value = `连接已断开，${Math.round(delay / 1000)} 秒后进行第 ${reconnectAttempts} 次重连`
+  status.value = locale.t('terminal.reconnectCountdown', {
+    seconds: Math.round(delay / 1000),
+    attempt: reconnectAttempts,
+  })
   reconnectTimer = window.setTimeout(() => {
     reconnectTimer = null
     void connectTerminal(true)
@@ -261,7 +268,7 @@ async function connectTerminal(reconnect = false): Promise<void> {
     terminalSessionID = ''
     await closeTerminal(previousID).catch(() => undefined)
   }
-  if (reconnect) terminal?.writeln('\r\n\x1b[33m[MineOps] 正在重新连接…\x1b[0m')
+  if (reconnect) terminal?.writeln(`\r\n\x1b[33m${locale.t('terminal.reconnecting')}\x1b[0m`)
   try {
     const session = await openTerminal(
       props.sshSessionId,
@@ -275,8 +282,11 @@ async function connectTerminal(reconnect = false): Promise<void> {
     terminalSessionID = session.id
     reconnectAttempts = 0
     for (const event of pendingEvents.splice(0)) handleTerminalEvent(event)
-    status.value = `已连接 · ${terminal?.cols ?? 80} × ${terminal?.rows ?? 24}`
-    if (reconnect) terminal?.writeln('\r\n\x1b[32m[MineOps] 已重新连接\x1b[0m')
+    status.value = locale.t('terminal.connected', {
+      cols: terminal?.cols ?? 80,
+      rows: terminal?.rows ?? 24,
+    })
+    if (reconnect) terminal?.writeln(`\r\n\x1b[32m${locale.t('terminal.reconnected')}\x1b[0m`)
     if (props.active && terminalSettings.value.autoFocus) terminal?.focus()
   } catch (error) {
     if (generation !== connectionGeneration || disposed) return
@@ -284,21 +294,21 @@ async function connectTerminal(reconnect = false): Promise<void> {
     if (error instanceof ApplicationError && error.code === 'io.not_found') {
       notifications.push({
         kind: 'error',
-        title: 'Terminal 打开失败',
-        content: `后端未找到请求的 SSH Session（ID：${props.sshSessionId}）。标签已保留，可在确认 Session 后重试。`,
+        title: locale.t('terminal.openSessionFailed'),
+        content: locale.t('terminal.openSessionFailedContent', { id: props.sshSessionId }),
         dedupeKey: `terminal:missing-ssh-session:${props.sshSessionId}`,
       })
       return
     }
     if (isHostKeyRejected(error)) {
-      status.value = 'SSH 主机指纹待确认'
+      status.value = locale.t('terminal.hostKeyPending')
       const trusted = await confirmAndTrustHostKey(error)
       if (disposed || generation !== connectionGeneration) return
       if (trusted) {
         void connectTerminal(true)
         return
       }
-      status.value = 'SSH 主机指纹未被信任，连接已停止。'
+      status.value = locale.t('terminal.hostKeyRejected')
       return
     }
     showError(error)
@@ -325,21 +335,21 @@ function handleTerminalEvent(event: TerminalEvent): void {
   if (event.type === 'data' && event.data) terminal?.write(decodeBase64(event.data))
   if (event.type === 'closed') {
     terminalSessionID = ''
-    status.value = '远程 Terminal 已关闭'
+    status.value = locale.t('terminal.closed')
     scheduleReconnect()
   }
   if (event.type === 'dropped') {
-    status.value = event.message || 'Terminal 输出过快，部分内容已丢弃'
+    status.value = event.message || locale.t('terminal.backpressure')
     notifications.push({
       kind: 'warning',
-      title: 'Terminal 输出触发背压保护',
+      title: locale.t('terminal.backpressureTitle'),
       content: status.value,
       dedupeKey: `terminal:dropped:${terminalSessionID}`,
     })
   }
   if (event.type === 'error') {
     terminalSessionID = ''
-    status.value = event.error?.message ?? '远程 Terminal 发生错误'
+    status.value = event.error?.message ?? locale.t('terminal.error')
     showError(new Error(status.value))
     scheduleReconnect()
   }
@@ -431,17 +441,17 @@ onUnmounted(() => {
           :loading="connecting || reconnecting"
           @click="connectTerminal(true)"
         >
-          重连
+          {{ locale.t('terminal.reconnect') }}
         </NButton>
         <NInput
           ref="searchInput"
           v-model:value="searchText"
           clearable
-          placeholder="搜索终端内容"
+          :placeholder="locale.t('terminal.searchPlaceholder')"
           @keyup.enter="findNext"
         />
-        <NButton @click="findNext">查找</NButton>
-        <NButton @click="copySelection">复制</NButton>
+        <NButton @click="findNext">{{ locale.t('terminal.find') }}</NButton>
+        <NButton @click="copySelection">{{ locale.t('common.copy') }}</NButton>
       </NFlex>
     </NFlex>
     <div ref="terminalElement" class="terminal-host" />

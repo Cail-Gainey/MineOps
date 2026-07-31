@@ -10,6 +10,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import type { RemoteTextDocument } from '../../models/remote-file'
 import { useUnsavedGuard } from '../../composables/use-unsaved-guard'
 import { useInteractionStore } from '../../stores/interactions'
+import { useLocaleStore } from '../../stores/locale'
 import { useThemeStore } from '../../stores/theme'
 
 const workerScope = self as typeof self & {
@@ -34,15 +35,16 @@ const emit = defineEmits<{
 }>()
 
 const interactions = useInteractionStore()
+const locale = useLocaleStore()
 const theme = useThemeStore()
 const editorElement = ref<HTMLElement | null>(null)
 const dirty = ref(false)
-const status = computed(() => (dirty.value ? '有未保存修改' : '与远端版本一致'))
+const status = computed(() => (dirty.value ? locale.t('editor.dirty') : locale.t('editor.clean')))
 const modelInstanceID = crypto.randomUUID()
 
 useUnsavedGuard(
   computed(() => `remote-editor:${modelInstanceID}:${props.document.path}`),
-  computed(() => `远程文件 ${props.document.path} 有未保存修改`),
+  computed(() => locale.t('editor.unsavedGuard', { path: props.document.path })),
   dirty,
 )
 
@@ -141,10 +143,10 @@ function saveAs(): void {
 async function requestClose(): Promise<boolean> {
   if (dirty.value) {
     const confirmed = await interactions.confirm({
-      title: '关闭未保存的远程文件？',
-      content: '当前编辑内容尚未写回远端，关闭后将丢失。',
+      title: locale.t('editor.closeTitle'),
+      content: locale.t('editor.closeContent'),
       objectLabel: props.document.path,
-      positiveText: '放弃并关闭',
+      positiveText: locale.t('editor.closeConfirm'),
       danger: true,
     })
     if (!confirmed) return false
@@ -185,26 +187,39 @@ onUnmounted(() => {
       <div>
         <NText strong>{{ document.path }}</NText>
         <NText depth="3" class="editor-metadata">
-          {{ document.encoding }} · {{ document.size }} bytes · {{ status }}
+          {{
+            locale.t('editor.metadata', {
+              encoding: document.encoding,
+              size: document.size,
+              status,
+            })
+          }}
         </NText>
       </div>
       <NFlex>
         <NTag :type="dirty ? 'warning' : 'success'">{{ dirty ? 'Dirty' : 'Saved' }}</NTag>
-        <NButton @click="$emit('reload')">重新加载</NButton>
-        <NButton @click="saveAs">另存为</NButton>
+        <NButton @click="$emit('reload')">{{ locale.t('editor.reload') }}</NButton>
+        <NButton @click="saveAs">{{ locale.t('editor.saveAs') }}</NButton>
         <NButton
           type="primary"
           :disabled="!dirty || Boolean(conflictMessage) || saveBlocked"
           :loading="saving"
           @click="save"
         >
-          保存
+          {{ locale.t('common.save') }}
         </NButton>
-        <NButton :disabled="closeBlocked" @click="requestClose">关闭</NButton>
+        <NButton :disabled="closeBlocked" @click="requestClose">
+          {{ locale.t('common.close') }}
+        </NButton>
       </NFlex>
     </NFlex>
-    <NAlert v-if="conflictMessage" type="warning" title="远端文件已变化" class="conflict-alert">
-      {{ conflictMessage }} 请重新加载或另存为，MineOps 不会静默覆盖远端修改。
+    <NAlert
+      v-if="conflictMessage"
+      type="warning"
+      :title="locale.t('editor.conflictTitle')"
+      class="conflict-alert"
+    >
+      {{ locale.t('editor.conflictContent', { message: conflictMessage }) }}
     </NAlert>
     <div ref="editorElement" class="editor-host" />
   </section>

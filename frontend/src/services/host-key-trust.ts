@@ -3,6 +3,7 @@ import { ApplicationError } from './api-client'
 import { replaceKnownHost, trustFirstKnownHost } from './known-host-api'
 import { useInteractionStore } from '../stores/interactions'
 import { useNotificationStore } from '../stores/notifications'
+import { translate } from '../locales/runtime'
 
 /**
  * 判断错误是否为 SSH 主机指纹被拒绝(首次连接未信任或指纹变更)。
@@ -33,15 +34,15 @@ export async function confirmAndTrustHostKey(error: ApplicationError): Promise<b
     fingerprint: String(details.fingerprint ?? ''),
   }
   const confirmed = await interactions.confirm({
-    title: changed ? '警告：SSH 主机指纹已变化' : '首次连接：信任 SSH 主机？',
-    content: changed
-      ? '这可能表示服务器已重装、密钥已轮换，或连接正被中间人攻击。请通过可信渠道核对新指纹。'
-      : 'MineOps 尚未保存该主机的密钥。请通过可信渠道核对算法和 SHA256 指纹。',
+    title: changed ? translate('hostKey.changedTitle') : translate('hostKey.firstTitle'),
+    content: changed ? translate('hostKey.changedContent') : translate('hostKey.firstContent'),
     objectLabel: `${input.host}:${input.port} · ${input.algorithm} · ${input.fingerprint}`,
     impact: changed
-      ? `旧指纹：${String(details.previousFingerprint ?? '未知')}。确认后旧记录会保留为变更历史。`
-      : '确认后该指纹会写入 SQLCipher，后续变化将默认拒绝连接。',
-    positiveText: changed ? '我已核对，替换指纹' : '我已核对，信任主机',
+      ? translate('hostKey.changedImpact', {
+          fingerprint: String(details.previousFingerprint ?? translate('common.unknown')),
+        })
+      : translate('hostKey.firstImpact'),
+    positiveText: changed ? translate('hostKey.changedConfirm') : translate('hostKey.firstConfirm'),
     danger: changed,
   })
   if (!confirmed) return false
@@ -50,7 +51,7 @@ export async function confirmAndTrustHostKey(error: ApplicationError): Promise<b
     else await trustFirstKnownHost(input)
     notifications.push({
       kind: changed ? 'warning' : 'success',
-      title: changed ? 'SSH 主机指纹已替换' : 'SSH 主机已加入信任',
+      title: changed ? translate('hostKey.replaced') : translate('hostKey.trusted'),
       content: input.fingerprint,
       dedupeKey: `known-host:accepted:${input.hostIdentifier}:${input.fingerprint}`,
     })
@@ -58,7 +59,7 @@ export async function confirmAndTrustHostKey(error: ApplicationError): Promise<b
   } catch (reason) {
     notifications.push({
       kind: 'error',
-      title: '保存 SSH 主机指纹失败',
+      title: translate('hostKey.saveFailed'),
       content: reason instanceof Error ? reason.message : String(reason),
       dedupeKey: `known-host:accept-error:${input.hostIdentifier}`,
     })
@@ -78,7 +79,7 @@ export async function runWithHostKeyTrustConfirmation<T>(operation: () => Promis
     if (!isHostKeyRejected(error)) throw error
     const trusted = await confirmAndTrustHostKey(error)
     if (!trusted) {
-      throw new Error('SSH 主机指纹未被信任，连接已停止', { cause: error })
+      throw new Error(translate('hostKey.rejected'), { cause: error })
     }
     return operation()
   }

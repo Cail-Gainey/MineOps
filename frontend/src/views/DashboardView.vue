@@ -38,6 +38,7 @@ import type {
 } from '../../bindings/github.com/Cail-Gainey/MineOps/internal/model/models'
 import { listMinecraftServers } from '../services/minecraft-server-api'
 import { listPlayers, subscribePlayerEvents } from '../services/player-api'
+import { useLocaleStore } from '../stores/locale'
 import { useOperationsStore } from '../stores/operations'
 
 interface DashboardOnlinePlayer {
@@ -48,6 +49,7 @@ interface DashboardOnlinePlayer {
 }
 
 const router = useRouter()
+const locale = useLocaleStore()
 const operations = useOperationsStore()
 const servers = ref<MinecraftServer[]>([])
 const loading = ref(false)
@@ -92,20 +94,22 @@ const permissionDenied = computed(() =>
   ),
 )
 const errorTitle = computed(() => {
-  if (permissionDenied.value && allSourcesFailed.value) return '概览权限不足'
-  if (allSourcesFailed.value) return '概览加载失败'
-  return '部分概览数据不可用'
+  if (permissionDenied.value && allSourcesFailed.value) return locale.t('dashboard.errorPermission')
+  if (allSourcesFailed.value) return locale.t('dashboard.errorFailed')
+  return locale.t('dashboard.errorPartial')
 })
 const errorMessage = computed(() => {
   const messages = errors.value
     .map((error) => (error instanceof Error ? error.message : String(error)))
     .map((message) => message.trim())
     .filter(Boolean)
-  return messages.length ? messages.join('；') : '部分数据接口未返回有效结果。'
+  return messages.length
+    ? messages.join(locale.t('common.listSeparator'))
+    : locale.t('dashboard.errorFallback')
 })
 const serverStatusRows = computed(() => [
   {
-    label: '运行中',
+    label: locale.t('dashboard.statusRunning'),
     count: runningServerCount.value,
     percentage: serverCount.value
       ? Math.round((runningServerCount.value / serverCount.value) * 100)
@@ -113,7 +117,7 @@ const serverStatusRows = computed(() => [
     tone: 'success',
   },
   {
-    label: '需要关注',
+    label: locale.t('dashboard.statusAttention'),
     count: attentionServerCount.value,
     percentage: serverCount.value
       ? Math.round((attentionServerCount.value / serverCount.value) * 100)
@@ -121,7 +125,7 @@ const serverStatusRows = computed(() => [
     tone: 'warning',
   },
   {
-    label: '已停止',
+    label: locale.t('dashboard.statusStopped'),
     count: Math.max(serverCount.value - runningServerCount.value - attentionServerCount.value, 0),
     percentage: serverCount.value
       ? Math.round(
@@ -146,7 +150,7 @@ const recentOperations = computed(() => {
 const serverGroupRows = computed(() => {
   const grouped = new Map<string, number>()
   for (const server of servers.value) {
-    const group = server.group?.trim() || '未分组'
+    const group = server.group?.trim() || locale.t('dashboard.ungrouped')
     grouped.set(group, (grouped.get(group) ?? 0) + 1)
   }
   return [...grouped.entries()]
@@ -161,7 +165,7 @@ const serverGroupRows = computed(() => {
 
 const serverTypeSummary = computed(() => {
   const types = [...new Set(servers.value.map((server) => server.type))]
-  return types.length ? types.slice(0, 3).join(' · ') : '尚未配置服务器类型'
+  return types.length ? types.slice(0, 3).join(' · ') : locale.t('dashboard.noServerTypes')
 })
 
 /**
@@ -330,18 +334,18 @@ onUnmounted(() => {
       <section class="dashboard-hero">
         <div class="hero-copy">
           <div class="hero-eyebrow"><span class="hero-eyebrow__dot" /> MineOps Control Center</div>
-          <NText tag="h2">运维概览</NText>
+          <NText tag="h2">{{ locale.t('dashboard.title') }}</NText>
           <NText depth="2" class="hero-description">
-            快速掌握服务器健康度、后台任务与资源分组状态。
+            {{ locale.t('dashboard.subtitle') }}
           </NText>
           <NFlex class="hero-actions" wrap>
             <NButton type="primary" @click="navigate('/servers')">
               <template #icon><Server :size="16" /></template>
-              管理服务器
+              {{ locale.t('dashboard.manageServers') }}
             </NButton>
             <NButton secondary @click="navigate('/monitoring')">
               <template #icon><Activity :size="16" /></template>
-              查看监控
+              {{ locale.t('dashboard.viewMonitoring') }}
             </NButton>
           </NFlex>
         </div>
@@ -357,9 +361,14 @@ onUnmounted(() => {
             class="health-summary__ring"
           />
           <div class="health-summary__content">
-            <NText depth="3">服务器健康度</NText>
+            <NText depth="3">{{ locale.t('dashboard.health') }}</NText>
             <NText tag="strong">{{ healthPercentage }}%</NText>
-            <NText depth="3">{{ runningServerCount }} / {{ serverCount }} 运行中</NText>
+            <NText depth="3">{{
+              locale.t('dashboard.healthRunning', {
+                running: runningServerCount,
+                total: serverCount,
+              })
+            }}</NText>
           </div>
         </div>
       </section>
@@ -373,7 +382,7 @@ onUnmounted(() => {
           <span>{{ errorMessage }}</span>
           <NButton size="small" :loading="loading" @click="refresh">
             <template #icon><RefreshCw :size="14" /></template>
-            重试
+            {{ locale.t('common.retry') }}
           </NButton>
         </NFlex>
       </NAlert>
@@ -382,35 +391,48 @@ onUnmounted(() => {
         <NGridItem>
           <NCard class="kpi-card kpi-card--accent">
             <div class="kpi-card__icon"><Server :size="19" /></div>
-            <NStatistic label="托管服务器" :value="serverCount" />
-            <NText depth="3" class="kpi-card__meta">{{ runningServerCount }} 台正在运行</NText>
+            <NStatistic :label="locale.t('dashboard.kpiServers')" :value="serverCount" />
+            <NText depth="3" class="kpi-card__meta">{{
+              locale.t('dashboard.kpiServersMeta', { count: runningServerCount })
+            }}</NText>
           </NCard>
         </NGridItem>
         <NGridItem>
           <NCard class="kpi-card kpi-card--success">
             <div class="kpi-card__icon"><CheckCircle2 :size="19" /></div>
-            <NStatistic label="在线实例" :value="runningServerCount" />
-            <NText depth="3" class="kpi-card__meta">健康度 {{ healthPercentage }}%</NText>
+            <NStatistic
+              :label="locale.t('dashboard.kpiOnlineInstances')"
+              :value="runningServerCount"
+            />
+            <NText depth="3" class="kpi-card__meta">{{
+              locale.t('dashboard.kpiHealthMeta', { percentage: healthPercentage })
+            }}</NText>
           </NCard>
         </NGridItem>
         <NGridItem>
           <NCard class="kpi-card kpi-card--warning">
             <div class="kpi-card__icon"><Zap :size="19" /></div>
-            <NStatistic label="活动任务" :value="operations.activeCount" />
-            <NText depth="3" class="kpi-card__meta"
-              >{{ operations.history.length }} 条历史记录</NText
-            >
+            <NStatistic
+              :label="locale.t('dashboard.kpiActiveOperations')"
+              :value="operations.activeCount"
+            />
+            <NText depth="3" class="kpi-card__meta">{{
+              locale.t('dashboard.kpiHistoryMeta', { count: operations.history.length })
+            }}</NText>
           </NCard>
         </NGridItem>
         <NGridItem>
           <NCard class="kpi-card kpi-card--info">
             <div class="kpi-card__icon"><Users :size="19" /></div>
-            <NStatistic label="在线玩家" :value="onlinePlayerCount" />
+            <NStatistic
+              :label="locale.t('dashboard.kpiOnlinePlayers')"
+              :value="onlinePlayerCount"
+            />
             <NText depth="3" class="kpi-card__meta">
               {{
                 onlinePlayerErrors.length
-                  ? '部分服务器数据不可用'
-                  : `分布在 ${onlinePlayerServerCount} 台服务器`
+                  ? locale.t('dashboard.kpiPlayersPartial')
+                  : locale.t('dashboard.kpiPlayersSpread', { count: onlinePlayerServerCount })
               }}
             </NText>
           </NCard>
@@ -418,8 +440,10 @@ onUnmounted(() => {
         <NGridItem>
           <NCard class="kpi-card kpi-card--info">
             <div class="kpi-card__icon"><Star :size="19" /></div>
-            <NStatistic label="收藏服务器" :value="favouriteServerCount" />
-            <NText depth="3" class="kpi-card__meta">覆盖 {{ serverTypeCount }} 种服务器类型</NText>
+            <NStatistic :label="locale.t('dashboard.kpiFavourite')" :value="favouriteServerCount" />
+            <NText depth="3" class="kpi-card__meta">{{
+              locale.t('dashboard.kpiFavouriteMeta', { count: serverTypeCount })
+            }}</NText>
           </NCard>
         </NGridItem>
       </NGrid>
@@ -428,26 +452,35 @@ onUnmounted(() => {
         <template #header>
           <div class="card-heading">
             <div>
-              <NText tag="h3">当前在线玩家</NText>
-              <NText depth="3">按运行中的服务器实时汇总</NText>
+              <NText tag="h3">{{ locale.t('dashboard.onlinePlayersTitle') }}</NText>
+              <NText depth="3">{{ locale.t('dashboard.onlinePlayersSubtitle') }}</NText>
             </div>
-            <NTag type="success" :bordered="false">{{ onlinePlayerCount }} 人在线</NTag>
+            <NTag type="success" :bordered="false">{{
+              locale.t('dashboard.onlinePlayersTag', { count: onlinePlayerCount })
+            }}</NTag>
           </div>
         </template>
         <NAlert
           v-if="onlinePlayerErrors.length"
           type="warning"
-          title="部分在线玩家数据不可用"
+          :title="locale.t('dashboard.onlinePlayersPartialTitle')"
           class="online-player-alert"
         >
-          已加载可用服务器的数据；刷新后会继续尝试同步。
+          {{ locale.t('dashboard.onlinePlayersPartialContent') }}
         </NAlert>
         <NSpin :show="onlinePlayerLoading">
           <NEmpty
             v-if="onlinePlayerCount === 0 && !onlinePlayerErrors.length"
-            :description="runningServerCount ? '当前没有在线玩家' : '当前没有运行中的服务器'"
+            :description="
+              runningServerCount
+                ? locale.t('dashboard.onlinePlayersEmpty')
+                : locale.t('dashboard.noRunningServers')
+            "
           />
-          <NEmpty v-else-if="onlinePlayerCount === 0" description="暂时无法读取在线玩家" />
+          <NEmpty
+            v-else-if="onlinePlayerCount === 0"
+            :description="locale.t('dashboard.onlinePlayersUnavailable')"
+          />
           <div v-else class="online-player-list">
             <button
               v-for="entry in onlinePlayers"
@@ -472,19 +505,19 @@ onUnmounted(() => {
           <template #header>
             <div class="card-heading">
               <div>
-                <NText tag="h3">服务器健康分布</NText>
-                <NText depth="3">按当前生命周期状态汇总</NText>
+                <NText tag="h3">{{ locale.t('dashboard.healthTitle') }}</NText>
+                <NText depth="3">{{ locale.t('dashboard.healthSubtitle') }}</NText>
               </div>
               <NButton text type="primary" @click="navigate('/servers')">
-                查看全部 <ArrowRight :size="15" />
+                {{ locale.t('dashboard.viewAll') }} <ArrowRight :size="15" />
               </NButton>
             </div>
           </template>
-          <NEmpty v-if="serverCount === 0" description="还没有登记 Minecraft Server">
+          <NEmpty v-if="serverCount === 0" :description="locale.t('dashboard.noServers')">
             <template #extra>
               <NButton type="primary" secondary @click="navigate('/servers')">
                 <template #icon><Plus :size="16" /></template>
-                添加第一台服务器
+                {{ locale.t('dashboard.addFirstServer') }}
               </NButton>
             </template>
           </NEmpty>
@@ -493,7 +526,9 @@ onUnmounted(() => {
               <div class="status-row__label">
                 <span class="status-dot" :class="`status-dot--${row.tone}`" />
                 <NText>{{ row.label }}</NText>
-                <NText depth="3">{{ row.count }} 台</NText>
+                <NText depth="3">{{
+                  locale.t('dashboard.serverUnit', { count: row.count })
+                }}</NText>
               </div>
               <NProgress
                 type="line"
@@ -512,8 +547,12 @@ onUnmounted(() => {
           </div>
           <div v-if="attentionServerCount" class="health-callout">
             <TriangleAlert :size="16" />
-            <NText>有 {{ attentionServerCount }} 台服务器需要检查</NText>
-            <NButton text type="warning" @click="navigate('/servers')">去处理</NButton>
+            <NText>{{
+              locale.t('dashboard.attentionCallout', { count: attentionServerCount })
+            }}</NText>
+            <NButton text type="warning" @click="navigate('/servers')">
+              {{ locale.t('dashboard.attentionAction') }}
+            </NButton>
           </div>
         </NCard>
 
@@ -521,8 +560,8 @@ onUnmounted(() => {
           <template #header>
             <div class="card-heading">
               <div>
-                <NText tag="h3">快捷入口</NText>
-                <NText depth="3">常用运维动作</NText>
+                <NText tag="h3">{{ locale.t('dashboard.quickTitle') }}</NText>
+                <NText depth="3">{{ locale.t('dashboard.quickSubtitle') }}</NText>
               </div>
               <Gauge :size="20" class="card-heading__icon" />
             </div>
@@ -532,21 +571,30 @@ onUnmounted(() => {
               <span class="quick-action__icon quick-action__icon--green"
                 ><Server :size="18"
               /></span>
-              <span><strong>服务器列表</strong><small>启动、停止与配置</small></span>
+              <span>
+                <strong>{{ locale.t('dashboard.quickServersTitle') }}</strong>
+                <small>{{ locale.t('dashboard.quickServersDesc') }}</small>
+              </span>
               <ArrowRight :size="16" />
             </button>
             <button type="button" class="quick-action" @click="navigate('/monitoring')">
               <span class="quick-action__icon quick-action__icon--blue"
                 ><Activity :size="18"
               /></span>
-              <span><strong>实时监控</strong><small>查看 CPU、内存与 TPS</small></span>
+              <span>
+                <strong>{{ locale.t('dashboard.quickMonitoringTitle') }}</strong>
+                <small>{{ locale.t('dashboard.quickMonitoringDesc') }}</small>
+              </span>
               <ArrowRight :size="16" />
             </button>
             <button type="button" class="quick-action" @click="navigate('/operations')">
               <span class="quick-action__icon quick-action__icon--amber"
                 ><ListChecks :size="18"
               /></span>
-              <span><strong>任务中心</strong><small>跟踪后台操作进度</small></span>
+              <span>
+                <strong>{{ locale.t('dashboard.quickOperationsTitle') }}</strong>
+                <small>{{ locale.t('dashboard.quickOperationsDesc') }}</small>
+              </span>
               <ArrowRight :size="16" />
             </button>
           </div>
@@ -558,15 +606,18 @@ onUnmounted(() => {
           <template #header>
             <div class="card-heading">
               <div>
-                <NText tag="h3">最近任务</NText>
-                <NText depth="3">后台 Operation 活动</NText>
+                <NText tag="h3">{{ locale.t('dashboard.recentTitle') }}</NText>
+                <NText depth="3">{{ locale.t('dashboard.recentSubtitle') }}</NText>
               </div>
               <NButton text type="primary" @click="navigate('/operations')">
-                任务中心 <ArrowRight :size="15" />
+                {{ locale.t('dashboard.recentLink') }} <ArrowRight :size="15" />
               </NButton>
             </div>
           </template>
-          <NEmpty v-if="recentOperations.length === 0" description="暂无后台任务" />
+          <NEmpty
+            v-if="recentOperations.length === 0"
+            :description="locale.t('dashboard.recentEmpty')"
+          />
           <div v-else class="operation-list">
             <div v-for="operation in recentOperations" :key="operation.id" class="operation-row">
               <div class="operation-row__main">
@@ -597,20 +648,25 @@ onUnmounted(() => {
           <template #header>
             <div class="card-heading">
               <div>
-                <NText tag="h3">服务器分组</NText>
-                <NText depth="3">按业务用途快速浏览</NText>
+                <NText tag="h3">{{ locale.t('dashboard.groupsTitle') }}</NText>
+                <NText depth="3">{{ locale.t('dashboard.groupsSubtitle') }}</NText>
               </div>
               <Layers :size="20" class="card-heading__icon" />
             </div>
           </template>
-          <NEmpty v-if="serverGroupRows.length === 0" description="暂无服务器分组" />
+          <NEmpty
+            v-if="serverGroupRows.length === 0"
+            :description="locale.t('dashboard.groupsEmpty')"
+          />
           <div v-else class="group-list">
             <div v-for="group in serverGroupRows" :key="group.name" class="group-row">
               <span class="group-row__icon"><Layers :size="16" /></span>
               <div class="group-row__main">
                 <div class="group-row__label">
                   <NText strong>{{ group.name }}</NText>
-                  <NText depth="3">{{ group.count }} 台</NText>
+                  <NText depth="3">{{
+                    locale.t('dashboard.serverUnit', { count: group.count })
+                  }}</NText>
                 </div>
                 <NProgress type="line" :percentage="group.percentage" :show-indicator="false" />
               </div>
@@ -620,7 +676,9 @@ onUnmounted(() => {
             <NTag type="info" :bordered="false">
               {{ serverTypeSummary }}
             </NTag>
-            <NButton text type="primary" @click="navigate('/servers')">管理分组</NButton>
+            <NButton text type="primary" @click="navigate('/servers')">
+              {{ locale.t('dashboard.manageGroups') }}
+            </NButton>
           </div>
         </NCard>
       </div>

@@ -13,7 +13,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// SSHSessionRecord is the encrypted SQLite representation of reusable SSH connection metadata.
+// SSHSessionRecord 是可复用 SSH 连接元数据在加密 SQLite 中的表示。
 type SSHSessionRecord struct {
 	ID                  string `gorm:"primaryKey;size:36"`
 	Name                string `gorm:"uniqueIndex;size:160"`
@@ -41,7 +41,7 @@ type SSHSessionRecord struct {
 	UpdatedAt            time.Time `gorm:"index"`
 }
 
-// SSHCredentialRecord stores secret bytes only inside the SQLCipher-encrypted database.
+// SSHCredentialRecord 仅在 SQLCipher 加密的数据库内存放密文字节。
 type SSHCredentialRecord struct {
 	ID         string `gorm:"primaryKey;size:36"`
 	AuthType   string `gorm:"size:24"`
@@ -51,7 +51,7 @@ type SSHCredentialRecord struct {
 	UpdatedAt  time.Time
 }
 
-// KnownHostRecord stores active and historical SSH host keys in encrypted SQLite.
+// KnownHostRecord 在加密 SQLite 中存放生效与历史的 SSH 主机密钥。
 type KnownHostRecord struct {
 	ID             string `gorm:"primaryKey;size:36"`
 	HostIdentifier string `gorm:"index:idx_known_host_active,priority:1;size:512"`
@@ -391,7 +391,7 @@ func recordToSSHSession(record SSHSessionRecord) model.SSHSession {
 	}
 }
 
-// copyTime clones an optional timestamp so records and domain values never share mutable state.
+// copyTime 复制一个可选时间戳,避免记录与领域对象共享可变状态。
 func copyTime(value *time.Time) *time.Time {
 	if value == nil {
 		return nil

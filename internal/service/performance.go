@@ -9,7 +9,7 @@ import (
 	"github.com/Cail-Gainey/MineOps/internal/repository"
 )
 
-// PerformanceOverview combines Spark capability, snapshots, reports, and related host/process metrics.
+// PerformanceOverview 汇总 Spark 能力、Snapshot、报告与相关的主机及进程指标。
 type PerformanceOverview struct {
 	ServerID       model.ID               `json:"serverID"`
 	Capability     *model.SparkCapability `json:"capability,omitempty"`
@@ -19,14 +19,14 @@ type PerformanceOverview struct {
 	RelatedMetrics []model.MetricSample   `json:"relatedMetrics"`
 }
 
-// PerformanceManager provides the Performance Center query and workflow boundary.
+// PerformanceManager 提供性能中心的查询与流程边界。
 type PerformanceManager struct {
 	store   repository.Store
 	spark   *SparkManager
 	metrics *MetricManager
 }
 
-// NewPerformanceManager creates the Spark and correlated metric query service.
+// NewPerformanceManager 创建 Spark 与关联指标的查询服务。
 func NewPerformanceManager(store repository.Store, spark *SparkManager, metrics *MetricManager) (*PerformanceManager, error) {
 	if store == nil || spark == nil || metrics == nil {
 		return nil, apperror.New(apperror.CodeValidationRequired, "Performance Service 依赖不能为空")
@@ -34,7 +34,7 @@ func NewPerformanceManager(store repository.Store, spark *SparkManager, metrics 
 	return &PerformanceManager{store: store, spark: spark, metrics: metrics}, nil
 }
 
-// Overview returns bounded Performance Center state for one Server.
+// Overview 返回某台 Server 有界的性能中心状态。
 func (m *PerformanceManager) Overview(ctx context.Context, serverID model.ID) (PerformanceOverview, error) {
 	server, err := m.store.MinecraftServers().Get(ctx, serverID, false)
 	if err != nil {
@@ -79,37 +79,37 @@ func (m *PerformanceManager) Overview(ctx context.Context, serverID model.ID) (P
 	return overview, nil
 }
 
-// Probe delegates Spark capability detection for the selected Server.
+// Probe 把所选 Server 的 Spark 能力探测委托下去。
 func (m *PerformanceManager) Probe(ctx context.Context, serverID model.ID) (model.SparkCapability, error) {
 	return m.spark.Probe(ctx, serverID)
 }
 
-// PlanInstall delegates exact official Spark installation planning.
+// PlanInstall 把确切的官方 Spark 安装计划委托下去。
 func (m *PerformanceManager) PlanInstall(ctx context.Context, serverID model.ID) (SparkInstallPlan, error) {
 	return m.spark.PlanInstall(ctx, serverID)
 }
 
-// Install delegates confirmed Spark install or upgrade execution.
+// Install 把已确认的 Spark 安装或升级执行委托下去。
 func (m *PerformanceManager) Install(ctx context.Context, serverID model.ID, planDigest string, confirmed bool) (SparkInstallResult, error) {
 	return m.spark.Install(ctx, serverID, planDigest, confirmed)
 }
 
-// Rollback delegates confirmed Spark artifact rollback.
+// Rollback 把已确认的 Spark 构件回滚委托下去。
 func (m *PerformanceManager) Rollback(ctx context.Context, serverID model.ID, confirmed bool) (model.SparkCapability, error) {
 	return m.spark.Rollback(ctx, serverID, confirmed)
 }
 
-// CollectSnapshot delegates one versioned TPS/MSPT collection pass.
+// CollectSnapshot 把一次带版本的 TPS/MSPT 采集委托下去。
 func (m *PerformanceManager) CollectSnapshot(ctx context.Context, serverID model.ID) (model.SparkSnapshot, error) {
 	return m.spark.CollectSnapshot(ctx, serverID)
 }
 
-// StartHealthReport delegates one privacy-confirmed health report operation.
+// StartHealthReport 把一次已确认隐私风险的健康报告任务委托下去。
 func (m *PerformanceManager) StartHealthReport(ctx context.Context, serverID model.ID, privacyAcknowledged bool) (model.SparkReport, error) {
 	return m.spark.StartHealthReport(ctx, serverID, privacyAcknowledged)
 }
 
-// StartProfiler delegates one explicit-duration cancellable profiler operation.
+// StartProfiler 把一次时长显式、可取消的性能分析任务委托下去。
 func (m *PerformanceManager) StartProfiler(ctx context.Context, serverID model.ID, durationSeconds int, privacyAcknowledged bool) (model.SparkReport, error) {
 	return m.spark.StartProfiler(ctx, serverID, durationSeconds, privacyAcknowledged)
 }

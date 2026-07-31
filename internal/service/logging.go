@@ -11,7 +11,7 @@ import (
 	"github.com/Cail-Gainey/MineOps/internal/model"
 )
 
-// LogStatus describes the actual runtime mode, active log file, and bounded directory usage.
+// LogStatus 描述真实运行模式、当前日志文件与有界的目录占用。
 type LogStatus struct {
 	RuntimeMode string `json:"runtimeMode"`
 	Directory   string `json:"directory"`
@@ -20,13 +20,13 @@ type LogStatus struct {
 	Bytes       int64  `json:"bytes"`
 }
 
-// LogManager applies committed logging policy and exposes safe directory maintenance.
+// LogManager 应用已提交的日志策略,并暴露安全的目录维护操作。
 type LogManager struct {
 	writer *applog.RotatingWriter
 	mode   applog.RuntimeMode
 }
 
-// NewLogManager creates the runtime logging settings boundary.
+// NewLogManager 创建运行期日志设置边界。
 func NewLogManager(writer *applog.RotatingWriter) (*LogManager, error) {
 	if writer == nil {
 		return nil, apperror.New(apperror.CodeValidationRequired, "LogManager Writer 不能为空")
@@ -34,12 +34,12 @@ func NewLogManager(writer *applog.RotatingWriter) (*LogManager, error) {
 	return &LogManager{writer: writer, mode: applog.DetectRuntimeMode()}, nil
 }
 
-// Apply updates file rotation and retention policy after Settings transaction commit.
+// Apply 在设置事务提交后更新文件轮转与保留策略。
 func (m *LogManager) Apply(settings model.LoggingSettings) error {
 	return m.writer.UpdatePolicy(int64(settings.MaxFileMiB)*1024*1024, settings.RetentionDays, int64(settings.TotalCapacityMiB)*1024*1024)
 }
 
-// Status returns the current runtime log location and aggregate usage.
+// Status 返回当前运行期日志位置与总体占用。
 func (m *LogManager) Status() (LogStatus, error) {
 	status, err := m.writer.Status()
 	if err != nil {
@@ -48,7 +48,7 @@ func (m *LogManager) Status() (LogStatus, error) {
 	return LogStatus{RuntimeMode: string(m.mode), Directory: status.Directory, CurrentPath: status.CurrentPath, Files: status.Files, Bytes: status.Bytes}, nil
 }
 
-// ClearArchived removes rotated logs immediately while preserving the active process log.
+// ClearArchived 立即删除已轮转日志,保留当前进程正在写的日志。
 func (m *LogManager) ClearArchived() error {
 	if err := m.writer.ClearArchived(); err != nil {
 		return apperror.Wrap(apperror.CodeIOWriteFailed, "清理历史日志失败", err)
@@ -56,7 +56,7 @@ func (m *LogManager) ClearArchived() error {
 	return nil
 }
 
-// OpenDirectory opens the actual runtime log directory with the platform file manager.
+// OpenDirectory 用系统文件管理器打开真实的运行期日志目录。
 func (m *LogManager) OpenDirectory(ctx context.Context) error {
 	status, err := m.writer.Status()
 	if err != nil {

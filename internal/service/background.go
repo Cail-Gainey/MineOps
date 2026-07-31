@@ -19,7 +19,7 @@ import (
 
 const maximumBackgroundImageBytes int64 = 16 * 1024 * 1024
 
-// BackgroundResource describes the current controlled application background image.
+// BackgroundResource 描述当前受控的应用背景图。
 type BackgroundResource struct {
 	Configured bool   `json:"configured"`
 	Available  bool   `json:"available"`
@@ -29,13 +29,13 @@ type BackgroundResource struct {
 	Reason     string `json:"reason,omitempty"`
 }
 
-// BackgroundManager imports, resolves, and resets controlled local background resources.
+// BackgroundManager 负责受控本地背景资源的导入、解析与重置。
 type BackgroundManager struct {
 	settings      *appsettings.Manager
 	dataDirectory string
 }
 
-// NewBackgroundManager creates the controlled background resource boundary.
+// NewBackgroundManager 创建受控背景资源边界。
 func NewBackgroundManager(settings *appsettings.Manager, dataDirectory string) (*BackgroundManager, error) {
 	if settings == nil || strings.TrimSpace(dataDirectory) == "" {
 		return nil, apperror.New(apperror.CodeValidationRequired, "BackgroundManager 依赖不能为空")
@@ -43,7 +43,7 @@ func NewBackgroundManager(settings *appsettings.Manager, dataDirectory string) (
 	return &BackgroundManager{settings: settings, dataDirectory: filepath.Clean(dataDirectory)}, nil
 }
 
-// Import copies one supported image into the MineOps data directory and commits its relative path.
+// Import 把一张受支持的图片复制进 MineOps 数据目录并提交其相对路径。
 func (m *BackgroundManager) Import(ctx context.Context, sourcePath string) (model.SettingsSnapshot, error) {
 	resolvedSource, err := filepath.EvalSymlinks(filepath.Clean(strings.TrimSpace(sourcePath)))
 	if err != nil {
@@ -119,7 +119,7 @@ func (m *BackgroundManager) Import(ctx context.Context, sourcePath string) (mode
 	return m.settings.Snapshot(), nil
 }
 
-// Resolve returns a bounded Data URL for the current controlled background image.
+// Resolve 返回当前受控背景图的有界 Data URL。
 func (m *BackgroundManager) Resolve() (BackgroundResource, error) {
 	configured := strings.TrimSpace(m.settings.Snapshot().Paths.BackgroundImage)
 	if configured == "" {
@@ -153,7 +153,7 @@ func (m *BackgroundManager) Resolve() (BackgroundResource, error) {
 	}, nil
 }
 
-// Reset removes the current controlled background resource reference and restores the theme background.
+// Reset 移除当前受控背景资源引用并恢复主题背景。
 func (m *BackgroundManager) Reset(ctx context.Context) (model.SettingsSnapshot, error) {
 	snapshot := m.settings.Snapshot()
 	previous := snapshot.Paths.BackgroundImage

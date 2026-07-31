@@ -26,7 +26,7 @@ type uploadSource struct {
 	size int64
 }
 
-// StartUpload starts one durable Operation that streams selected local files through SSH stdin.
+// StartUpload 启动一个持久化任务,把所选本地文件经 SSH 标准输入流式上传。
 func (m *FileManager) StartUpload(ctx context.Context, sshSessionID model.ID, localPaths []string, remoteDirectory, currentDirectory string) (model.ID, error) {
 	if !sshSessionID.Valid() {
 		return "", apperror.New(apperror.CodeValidationInvalidArgument, "SSH Session ID 无效")
@@ -47,7 +47,7 @@ func (m *FileManager) StartUpload(ctx context.Context, sshSessionID model.ID, lo
 	})
 }
 
-// StartDownload starts one durable Operation that streams a remote regular file into a local temporary file.
+// StartDownload 启动一个持久化任务,把远端普通文件流式写入本地临时文件。
 func (m *FileManager) StartDownload(ctx context.Context, sshSessionID model.ID, remotePath, currentDirectory, localDestination string) (model.ID, error) {
 	if !sshSessionID.Valid() {
 		return "", apperror.New(apperror.CodeValidationInvalidArgument, "SSH Session ID 无效")

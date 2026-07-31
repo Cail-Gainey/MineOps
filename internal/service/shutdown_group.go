@@ -11,7 +11,7 @@ import (
 	"github.com/Cail-Gainey/MineOps/internal/global/applog"
 )
 
-// ShutdownGroup owns a root Context, registered goroutines, panic recovery, and bounded shutdown.
+// ShutdownGroup 持有根 Context、已登记的 goroutine、panic 恢复与有界关闭。
 type ShutdownGroup struct {
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -23,7 +23,7 @@ type ShutdownGroup struct {
 	wait      sync.WaitGroup
 }
 
-// NewShutdownGroup creates the application root Context and goroutine ownership boundary.
+// NewShutdownGroup 创建应用根 Context 与 goroutine 归属边界。
 func NewShutdownGroup(parent context.Context, logger *applog.Logger) *ShutdownGroup {
 	ctx, cancel := context.WithCancel(parent)
 	if logger == nil {
@@ -32,12 +32,12 @@ func NewShutdownGroup(parent context.Context, logger *applog.Logger) *ShutdownGr
 	return &ShutdownGroup{ctx: ctx, cancel: cancel, logger: logger, accepting: true}
 }
 
-// Context returns the root Context inherited by owned services and goroutines.
+// Context 返回被其持有的服务与 goroutine 所继承的根 Context。
 func (g *ShutdownGroup) Context() context.Context {
 	return g.ctx
 }
 
-// Go starts one named owned goroutine and records returned errors or panics.
+// Go 启动一个具名的受管 goroutine,并记录其返回的错误或 panic。
 func (g *ShutdownGroup) Go(name string, action func(context.Context) error) error {
 	if name == "" || action == nil {
 		return apperror.New(apperror.CodeValidationInvalidArgument, "Goroutine 名称和操作不能为空")
@@ -63,7 +63,7 @@ func (g *ShutdownGroup) Go(name string, action func(context.Context) error) erro
 	return nil
 }
 
-// Shutdown stops new goroutines, cancels the root Context, and waits for every owner to exit.
+// Shutdown 停止接受新 goroutine、取消根 Context,并等待每个持有者退出。
 func (g *ShutdownGroup) Shutdown(ctx context.Context) error {
 	g.mu.Lock()
 	g.accepting = false

@@ -20,14 +20,14 @@ const (
 	remoteDirectoryFindFormat = `%y\000%f\000%s\000%m\000%T@\000%l\000`
 )
 
-// RemoteDirectory contains one normalized directory, remote Home, and stable-sorted entries.
+// RemoteDirectory 承载一个规范化目录、远端 Home 与稳定排序后的条目。
 type RemoteDirectory struct {
 	Path    string             `json:"path"`
 	Home    string             `json:"home"`
 	Entries []model.RemoteFile `json:"entries"`
 }
 
-// FileManager provides remote Linux file operations through bounded structured SSH commands.
+// FileManager 通过有界的结构化 SSH 命令提供远端 Linux 文件操作。
 type FileManager struct {
 	clock    model.Clock
 	store    repository.Store
@@ -36,7 +36,7 @@ type FileManager struct {
 	runner   *OperationRunner
 }
 
-// NewFileManager creates the remote file application service without adding an SFTP dependency.
+// NewFileManager 创建远端文件应用服务,不引入 SFTP 依赖。
 func NewFileManager(clock model.Clock, store repository.Store, settings *appsettings.Manager, clients *SSHClientFactory, runner *OperationRunner) (*FileManager, error) {
 	if clock == nil || store == nil || settings == nil || clients == nil || runner == nil {
 		return nil, apperror.New(apperror.CodeValidationRequired, "FileManager 依赖不能为空")
@@ -44,7 +44,7 @@ func NewFileManager(clock model.Clock, store repository.Store, settings *appsett
 	return &FileManager{clock: clock, store: store, settings: settings, clients: clients, runner: runner}, nil
 }
 
-// List returns one remote directory with directories first and names in stable order.
+// List 返回一个远端目录,目录在前,名称按稳定顺序排列。
 func (m *FileManager) List(ctx context.Context, sshSessionID model.ID, requestedPath, currentDirectory string) (RemoteDirectory, error) {
 	client, home, err := m.connect(ctx, sshSessionID)
 	if err != nil {
@@ -99,7 +99,7 @@ func (m *FileManager) List(ctx context.Context, sshSessionID model.ID, requested
 	return RemoteDirectory{Path: normalized, Home: home, Entries: entries}, nil
 }
 
-// ReadText reads one bounded UTF-8 remote document and rejects concurrent modification during the read.
+// ReadText 读取一份有界的 UTF-8 远端文档,并拒绝读取期间发生的并发修改。
 func (m *FileManager) ReadText(ctx context.Context, sshSessionID model.ID, requestedPath, currentDirectory string) (*model.RemoteTextDocument, error) {
 	client, home, err := m.connect(ctx, sshSessionID)
 	if err != nil {
@@ -113,7 +113,7 @@ func (m *FileManager) ReadText(ctx context.Context, sshSessionID model.ID, reque
 	return readRemoteText(ctx, client, normalized)
 }
 
-// SaveText performs conflict detection and atomically replaces one existing remote text file.
+// SaveText 做冲突检测并原子替换一个已存在的远端文本文件。
 func (m *FileManager) SaveText(ctx context.Context, sshSessionID model.ID, requestedPath, currentDirectory, content, expectedVersion string) (*model.RemoteTextDocument, error) {
 	client, home, err := m.connect(ctx, sshSessionID)
 	if err != nil {
@@ -152,7 +152,7 @@ func (m *FileManager) SaveText(ctx context.Context, sshSessionID model.ID, reque
 	return readRemoteText(ctx, client, normalized)
 }
 
-// SaveTextAs atomically creates a new remote text file and refuses to replace an existing path.
+// SaveTextAs 原子创建一个新的远端文本文件,拒绝覆盖已存在的路径。
 func (m *FileManager) SaveTextAs(ctx context.Context, sshSessionID model.ID, requestedPath, currentDirectory, content string) (*model.RemoteTextDocument, error) {
 	client, home, err := m.connect(ctx, sshSessionID)
 	if err != nil {
@@ -178,12 +178,12 @@ func (m *FileManager) SaveTextAs(ctx context.Context, sshSessionID model.ID, req
 	return readRemoteText(ctx, client, normalized)
 }
 
-// CreateDirectory creates one remote directory without recursively creating missing parents.
+// CreateDirectory 创建一个远端目录,不递归创建缺失的上级目录。
 func (m *FileManager) CreateDirectory(ctx context.Context, sshSessionID model.ID, requestedPath, currentDirectory string) error {
 	return m.runPathCommand(ctx, sshSessionID, requestedPath, currentDirectory, RemoteCommand{Executable: "mkdir", Arguments: []string{"--mode=0755", "--"}})
 }
 
-// CreateFile creates one empty remote file and refuses to overwrite an existing entry.
+// CreateFile 创建一个空的远端文件,拒绝覆盖已存在的条目。
 func (m *FileManager) CreateFile(ctx context.Context, sshSessionID model.ID, requestedPath, currentDirectory string) error {
 	client, home, err := m.connect(ctx, sshSessionID)
 	if err != nil {
@@ -202,7 +202,7 @@ func (m *FileManager) CreateFile(ctx context.Context, sshSessionID model.ID, req
 	return nil
 }
 
-// Rename moves one remote entry after normalizing both source and destination paths.
+// Rename 在规范化源路径与目标路径后移动一个远端条目。
 func (m *FileManager) Rename(ctx context.Context, sshSessionID model.ID, sourcePath, targetPath, currentDirectory string) error {
 	client, home, err := m.connect(ctx, sshSessionID)
 	if err != nil {
@@ -224,7 +224,7 @@ func (m *FileManager) Rename(ctx context.Context, sshSessionID model.ID, sourceP
 	return nil
 }
 
-// Delete removes one remote file or directory after applying dangerous-path rejection.
+// Delete 在通过危险路径拒绝检查后删除一个远端文件或目录。
 func (m *FileManager) Delete(ctx context.Context, sshSessionID model.ID, requestedPath, currentDirectory string, recursive bool) error {
 	client, home, err := m.connect(ctx, sshSessionID)
 	if err != nil {
@@ -248,7 +248,7 @@ func (m *FileManager) Delete(ctx context.Context, sshSessionID model.ID, request
 	return nil
 }
 
-// Chmod changes one remote entry mode using a validated octal value.
+// Chmod 用已校验的八进制值修改一个远端条目的权限。
 func (m *FileManager) Chmod(ctx context.Context, sshSessionID model.ID, requestedPath, currentDirectory, mode string) error {
 	parsed, err := strconv.ParseUint(strings.TrimSpace(mode), 8, 32)
 	if err != nil || parsed > 0o7777 {

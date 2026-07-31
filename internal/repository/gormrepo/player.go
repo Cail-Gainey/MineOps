@@ -13,7 +13,7 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-// PlayerIdentityRecord is the encrypted SQLite player identity representation.
+// PlayerIdentityRecord 是玩家身份在加密 SQLite 中的表示。
 type PlayerIdentityRecord struct {
 	ID                   string  `gorm:"primaryKey;size:36"`
 	ServerID             string  `gorm:"index:idx_player_identity_name,priority:1;index:idx_player_identity_uuid,priority:1;uniqueIndex:idx_player_identity_uuid_unique,priority:1,where:uuid IS NOT NULL;uniqueIndex:idx_player_identity_name_only_unique,priority:1,where:uuid IS NULL;size:36"`
@@ -25,7 +25,7 @@ type PlayerIdentityRecord struct {
 	SchemaVersion        int
 }
 
-// PlayerActivityEventRecord is immutable idempotent collected player evidence.
+// PlayerActivityEventRecord 是采集到的不可变幂等玩家证据。
 type PlayerActivityEventRecord struct {
 	ID                         string  `gorm:"primaryKey;size:36"`
 	ServerID                   string  `gorm:"index:idx_player_event_server_time,priority:1;size:36"`
@@ -40,7 +40,7 @@ type PlayerActivityEventRecord struct {
 	SchemaVersion              int
 }
 
-// PlayerSessionRecord is one durable player connection.
+// PlayerSessionRecord 是一次持久化的玩家连接。
 type PlayerSessionRecord struct {
 	ID                   string    `gorm:"primaryKey;size:36"`
 	ServerID             string    `gorm:"index:idx_player_session_query,priority:1;uniqueIndex:idx_player_open_session_unique,priority:1,where:state = 'open';size:36"`
@@ -56,7 +56,7 @@ type PlayerSessionRecord struct {
 	SchemaVersion        int
 }
 
-// PlayerStatisticsRecord is the rebuildable player aggregate representation.
+// PlayerStatisticsRecord 是可重算的玩家聚合表示。
 type PlayerStatisticsRecord struct {
 	PlayerIdentityID                                                   string `gorm:"primaryKey;size:36"`
 	ServerID                                                           string `gorm:"index;size:36"`
@@ -67,7 +67,7 @@ type PlayerStatisticsRecord struct {
 	SchemaVersion                                                      int
 }
 
-// PlayerDirectorySnapshotRecord is the latest authoritative permission snapshot.
+// PlayerDirectorySnapshotRecord 是最新的权威权限快照。
 type PlayerDirectorySnapshotRecord struct {
 	ID                                                string `gorm:"primaryKey;size:36"`
 	ServerID                                          string `gorm:"index;size:36"`
@@ -78,7 +78,7 @@ type PlayerDirectorySnapshotRecord struct {
 	SchemaVersion                                     int
 }
 
-// PlayerCollectorStatusRecord is the per-Server collector synchronization checkpoint.
+// PlayerCollectorStatusRecord 是每台 Server 的采集器同步检查点。
 type PlayerCollectorStatusRecord struct {
 	ServerID                              string  `gorm:"primaryKey;size:36"`
 	ProcessIdentityID                     *string `gorm:"size:36"`

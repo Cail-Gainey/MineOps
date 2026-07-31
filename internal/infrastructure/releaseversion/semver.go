@@ -1,4 +1,4 @@
-// Package releaseversion provides strict reusable SemVer parsing and ordering for release catalogs.
+// Package releaseversion 为发行版目录提供严格且可复用的 SemVer 解析与排序。
 package releaseversion
 
 import (
@@ -18,7 +18,7 @@ type semanticVersion struct {
 	prerelease []string
 }
 
-// Compare compares two SemVer values, accepts an optional leading v, and returns -1, 0, or 1.
+// Compare 比较两个 SemVer 值,允许可选的前导 v,返回 -1、0 或 1。
 func Compare(current, target string) (int, error) {
 	left, err := parse(current)
 	if err != nil {
@@ -36,7 +36,7 @@ func Compare(current, target string) (int, error) {
 	return comparePrerelease(left.prerelease, right.prerelease), nil
 }
 
-// Normalize validates one SemVer value and removes its optional leading v.
+// Normalize 校验一个 SemVer 值并去掉其可选的前导 v。
 func Normalize(value string) (string, error) {
 	if _, err := parse(value); err != nil {
 		return "", apperror.Wrap(apperror.CodeValidationInvalidArgument, "版本不是有效 SemVer", err)
@@ -44,7 +44,7 @@ func Normalize(value string) (string, error) {
 	return strings.TrimPrefix(strings.TrimSpace(value), "v"), nil
 }
 
-// IsPrerelease reports whether one valid SemVer value contains prerelease identifiers.
+// IsPrerelease 返回一个合法 SemVer 值是否包含预发布标识。
 func IsPrerelease(value string) (bool, error) {
 	parsed, err := parse(value)
 	if err != nil {

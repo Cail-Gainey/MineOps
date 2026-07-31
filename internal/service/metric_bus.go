@@ -18,7 +18,7 @@ const (
 	metricBusMaximumSamplesPerServer = 256
 )
 
-// MetricEventPublisher emits throttled latest-value snapshots outside the ingest transaction.
+// MetricEventPublisher 在写入事务之外发布经节流的最新值快照。
 type MetricEventPublisher interface {
 	PublishMetrics(context.Context, model.MetricRealtimeEvent) error
 }
@@ -33,7 +33,7 @@ type metricBusServer struct {
 	updatedAt time.Time
 }
 
-// MetricBus keeps a bounded latest-value cache and emits dirty Server snapshots at a controlled rate.
+// MetricBus 维护有界的最新值缓存,并以受控速率发布发生变化的 Server 快照。
 type MetricBus struct {
 	clock     model.Clock
 	publisher MetricEventPublisher
@@ -44,7 +44,7 @@ type MetricBus struct {
 	dirty   map[model.ID]struct{}
 }
 
-// NewMetricBus creates the bounded realtime metric cache.
+// NewMetricBus 创建有界的实时指标缓存。
 func NewMetricBus(clock model.Clock, publisher MetricEventPublisher, logger *applog.Logger) *MetricBus {
 	if logger == nil {
 		logger = applog.Default()
@@ -55,7 +55,7 @@ func NewMetricBus(clock model.Clock, publisher MetricEventPublisher, logger *app
 	}
 }
 
-// Publish updates latest values without blocking on Wails event delivery.
+// Publish 更新最新值,不因 Wails 事件投递而阻塞。
 func (b *MetricBus) Publish(samples []model.MetricSample) {
 	if b == nil || len(samples) == 0 {
 		return
@@ -85,7 +85,7 @@ func (b *MetricBus) Publish(samples []model.MetricSample) {
 	}
 }
 
-// Latest returns a stable copy of the cached latest values for one Server.
+// Latest 返回某台 Server 缓存最新值的稳定副本。
 func (b *MetricBus) Latest(serverID model.ID) []model.MetricSample {
 	if b == nil {
 		return nil
@@ -97,7 +97,7 @@ func (b *MetricBus) Latest(serverID model.ID) []model.MetricSample {
 	return result
 }
 
-// ClearServer removes one Server's cached latest values and pending realtime event.
+// ClearServer 清除某台 Server 的缓存最新值与待发实时事件。
 func (b *MetricBus) ClearServer(serverID model.ID) {
 	if b == nil {
 		return
@@ -108,7 +108,7 @@ func (b *MetricBus) ClearServer(serverID model.ID) {
 	b.mu.Unlock()
 }
 
-// Run emits dirty snapshots until the application context is cancelled.
+// Run 持续发布发生变化的快照,直到应用上下文被取消。
 func (b *MetricBus) Run(ctx context.Context, throttle func() time.Duration) error {
 	for {
 		delay := time.Second

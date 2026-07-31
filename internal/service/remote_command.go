@@ -16,7 +16,7 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-// RemoteCommand contains a structured POSIX command without pre-concatenated user shell text.
+// RemoteCommand 承载结构化的 POSIX 命令,不预先拼接用户 shell 文本。
 type RemoteCommand struct {
 	Executable       string
 	Arguments        []string
@@ -30,13 +30,13 @@ type RemoteCommand struct {
 	OnOutput         func(RemoteCommandOutput)
 }
 
-// RemoteCommandOutput is one bounded best-effort stdout/stderr batch from a running command.
+// RemoteCommandOutput 是运行中命令的一个有界、尽力而为的 stdout/stderr 批次。
 type RemoteCommandOutput struct {
 	Stream string
 	Data   string
 }
 
-// RemoteCommandResult contains bounded stdout/stderr, exit status, and duration.
+// RemoteCommandResult 承载有界的 stdout/stderr、退出状态与耗时。
 type RemoteCommandResult struct {
 	Stdout    string
 	Stderr    string
@@ -45,7 +45,7 @@ type RemoteCommandResult struct {
 	Truncated bool
 }
 
-// RunCommand opens a short-lived SSH channel and executes one structured POSIX command.
+// RunCommand 打开一条短生命周期的 SSH 通道并执行一条结构化 POSIX 命令。
 func (c *SSHClient) RunCommand(ctx context.Context, command RemoteCommand) (RemoteCommandResult, error) {
 	if c == nil || c.client == nil {
 		return RemoteCommandResult{}, apperror.New(apperror.CodeSSHConnectionFailed, "SSH Client 不可用")
@@ -254,7 +254,7 @@ func (b *boundedCommandBuffer) Truncated() bool {
 	return b.truncated
 }
 
-// RunCommand connects using one SSH Session, executes a structured command, and closes the transport.
+// RunCommand 用一个 SSH Session 建连、执行结构化命令,随后关闭传输层。
 func (f *SSHClientFactory) RunCommand(ctx context.Context, session *model.SSHSession, settings model.SSHSettings, command RemoteCommand) (RemoteCommandResult, error) {
 	client, err := f.Connect(ctx, session, settings)
 	if err != nil {

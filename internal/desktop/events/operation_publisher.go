@@ -1,4 +1,4 @@
-// Package events bridges application events to the Wails desktop runtime.
+// Package events 把应用事件桥接到 Wails 桌面运行时。
 package events
 
 import (
@@ -14,10 +14,10 @@ func init() {
 	application.RegisterEvent[model.Operation](constants.OperationProgressEventName)
 }
 
-// OperationPublisher emits throttled and final Operation snapshots through Wails Events.
+// OperationPublisher 通过 Wails 事件发布经节流的与终态的 Operation 快照。
 type OperationPublisher struct{}
 
-// PublishOperation emits one immutable Operation snapshot to subscribed desktop windows.
+// PublishOperation 向已订阅的桌面窗口发布一份不可变的 Operation 快照。
 func (OperationPublisher) PublishOperation(ctx context.Context, operation model.Operation) error {
 	if err := ctx.Err(); err != nil {
 		return err

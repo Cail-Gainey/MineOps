@@ -11,7 +11,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// InstallationTaskRecord is the encrypted SQLite task representation.
+// InstallationTaskRecord 是安装任务在加密 SQLite 中的表示。
 type InstallationTaskRecord struct {
 	ID          string  `gorm:"primaryKey;size:36"`
 	ServerID    string  `gorm:"index;size:36"`
@@ -25,7 +25,7 @@ type InstallationTaskRecord struct {
 	UpdatedAt   time.Time `gorm:"index"`
 }
 
-// InstallationStepRecord is the encrypted SQLite checkpoint representation.
+// InstallationStepRecord 是安装检查点在加密 SQLite 中的表示。
 type InstallationStepRecord struct {
 	ID           string `gorm:"primaryKey;size:36"`
 	TaskID       string `gorm:"uniqueIndex:idx_installation_step_order,priority:1;index;size:36"`

@@ -246,7 +246,7 @@ func (c *MetricCollector) Status(serverID model.ID) CollectorStatus {
 	return status
 }
 
-// Pause stops future automatic collection passes for one Server.
+// Pause 停止某台 Server 后续的自动采集。
 func (c *MetricCollector) Pause(serverID model.ID) error {
 	if !serverID.Valid() {
 		return apperror.New(apperror.CodeValidationInvalidArgument, "Metric Server ID 无效")
@@ -257,7 +257,7 @@ func (c *MetricCollector) Pause(serverID model.ID) error {
 	return nil
 }
 
-// Resume restores automatic collection for one Server.
+// Resume 恢复某台 Server 的自动采集。
 func (c *MetricCollector) Resume(serverID model.ID) error {
 	if !serverID.Valid() {
 		return apperror.New(apperror.CodeValidationInvalidArgument, "Metric Server ID 无效")
@@ -268,7 +268,7 @@ func (c *MetricCollector) Resume(serverID model.ID) error {
 	return nil
 }
 
-// IsPaused reports whether automatic collection is paused for one Server.
+// IsPaused 返回某台 Server 的自动采集是否已暂停。
 func (c *MetricCollector) IsPaused(serverID model.ID) bool {
 	c.mu.Lock()
 	paused := c.paused[serverID]
@@ -276,7 +276,7 @@ func (c *MetricCollector) IsPaused(serverID model.ID) bool {
 	return paused
 }
 
-// ClearStatus removes the last collection result for one Server.
+// ClearStatus 清除某台 Server 最近一次的采集结果。
 func (c *MetricCollector) ClearStatus(serverID model.ID) {
 	c.mu.Lock()
 	delete(c.statuses, serverID)

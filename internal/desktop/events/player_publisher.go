@@ -13,10 +13,10 @@ func init() {
 	application.RegisterEvent[model.PlayerEvent](constants.PlayerEventName)
 }
 
-// PlayerPublisher emits versioned player activity updates through Wails Events.
+// PlayerPublisher 通过 Wails 事件发布带版本的玩家活动更新。
 type PlayerPublisher struct{}
 
-// PublishPlayer emits one immutable Server/player-scoped update.
+// PublishPlayer 发布一条不可变的、按 Server 与玩家限定的更新。
 func (PlayerPublisher) PublishPlayer(ctx context.Context, event model.PlayerEvent) error {
 	if err := ctx.Err(); err != nil {
 		return err

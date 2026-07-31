@@ -40,7 +40,7 @@ var (
 	opaqueValuePattern     = regexp.MustCompile(`\b[A-Za-z0-9+/=]{40,}\b`)
 )
 
-// DiagnosticPackage describes one completed redacted diagnostic archive.
+// DiagnosticPackage 描述一份已完成的脱敏诊断归档。
 type DiagnosticPackage struct {
 	Path        string    `json:"path"`
 	SizeBytes   int64     `json:"sizeBytes"`
@@ -49,7 +49,7 @@ type DiagnosticPackage struct {
 	Warnings    []string  `json:"warnings"`
 }
 
-// DiagnosticManager exports bounded platform, settings, Agent, Spark, and redacted log evidence.
+// DiagnosticManager 导出有界的平台、设置、采集、Spark 与脱敏日志证据。
 type DiagnosticManager struct {
 	clock        model.Clock
 	store        repository.Store
@@ -58,7 +58,7 @@ type DiagnosticManager struct {
 	runtimeMode  applog.RuntimeMode
 }
 
-// NewDiagnosticManager creates the diagnostic export boundary without accepting credential repositories.
+// NewDiagnosticManager 创建诊断导出边界,不接收任何凭据仓储。
 func NewDiagnosticManager(clock model.Clock, store repository.Store, settings *appsettings.Manager, logDirectory string, runtimeMode applog.RuntimeMode) (*DiagnosticManager, error) {
 	if clock == nil || store == nil || settings == nil {
 		return nil, apperror.New(apperror.CodeValidationRequired, "Diagnostic Clock、Store 和 Settings 不能为空")
@@ -73,7 +73,7 @@ func NewDiagnosticManager(clock model.Clock, store repository.Store, settings *a
 	return &DiagnosticManager{clock: clock, store: store, settings: settings, logDirectory: filepath.Clean(logDirectory), runtimeMode: runtimeMode}, nil
 }
 
-// Export writes one atomic .zip or .mineops-diagnostic.zip archive to the selected local path.
+// Export 把一份 .zip 或 .mineops-diagnostic.zip 归档原子写入所选本地路径。
 func (m *DiagnosticManager) Export(ctx context.Context, destination string) (DiagnosticPackage, error) {
 	destination, err := normalizeDiagnosticDestination(destination)
 	if err != nil {

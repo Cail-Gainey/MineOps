@@ -23,12 +23,12 @@ const (
 	playerSynchronizationMaximumOutput = remotePlayerActivityMaximumOutput
 )
 
-// PlayerEventPublisher publishes versioned player state changes.
+// PlayerEventPublisher 发布带版本的玩家状态变更。
 type PlayerEventPublisher interface {
 	PublishPlayer(context.Context, model.PlayerEvent) error
 }
 
-// PlayerActivityManager applies durable player evidence and lifecycle boundaries.
+// PlayerActivityManager 应用持久化的玩家证据与生命周期边界。
 type PlayerActivityManager struct {
 	clock     model.Clock
 	store     repository.Store
@@ -50,7 +50,7 @@ type PlayerActivityManager struct {
 	nextAttempt map[model.ID]time.Time
 }
 
-// NewPlayerActivityManager creates the player evidence state machine and synchronization coordinator.
+// NewPlayerActivityManager 创建玩家证据状态机与同步协调器。
 func NewPlayerActivityManager(clock model.Clock, store repository.Store, settings *appsettings.Manager, clients *SSHClientFactory, processes *RemoteProcessController, logger *applog.Logger, publisher PlayerEventPublisher) (*PlayerActivityManager, error) {
 	if clock == nil || store == nil {
 		return nil, apperror.New(apperror.CodeValidationRequired, "Player Activity Manager 依赖不能为空")
@@ -66,7 +66,7 @@ func NewPlayerActivityManager(clock model.Clock, store repository.Store, setting
 	}, nil
 }
 
-// Ingest applies one complete claimed batch atomically and idempotently.
+// Ingest 原子且幂等地应用一个已认领的完整批次。
 func (m *PlayerActivityManager) Ingest(ctx context.Context, events []model.PlayerActivityEvent, dropped uint64) error {
 	if len(events) == 0 && dropped == 0 {
 		return nil
@@ -151,7 +151,7 @@ func (m *PlayerActivityManager) Ingest(ctx context.Context, events []model.Playe
 	return nil
 }
 
-// ReconcileServer closes all open sessions at one verified lifecycle boundary.
+// ReconcileServer 在一个已校验的生命周期边界上关闭全部未结束会话。
 func (m *PlayerActivityManager) ReconcileServer(ctx context.Context, serverID model.ID, processIdentityID model.ID, boundary time.Time, reason enums.PlayerSessionCloseReason, accuracy enums.PlayerActivityAccuracy) error {
 	if !serverID.Valid() || !processIdentityID.Valid() || boundary.IsZero() || !reason.Valid() || !accuracy.Valid() {
 		return apperror.New(apperror.CodeValidationInvalidArgument, "玩家生命周期结算边界无效")
@@ -186,7 +186,7 @@ func (m *PlayerActivityManager) ReconcileServer(ctx context.Context, serverID mo
 	return nil
 }
 
-// MarkIncomplete records dropped remote evidence until a trustworthy process boundary is established.
+// MarkIncomplete 记录被丢弃的远端证据,直到建立起可信的进程边界。
 func (m *PlayerActivityManager) MarkIncomplete(ctx context.Context, serverID model.ID, processIdentityID *model.ID, dropped uint64, message string) error {
 	if !serverID.Valid() || dropped == 0 {
 		return apperror.New(apperror.CodeValidationInvalidArgument, "玩家丢失事件状态无效")

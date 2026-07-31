@@ -21,13 +21,13 @@ import (
 	"github.com/Cail-Gainey/MineOps/internal/repository"
 )
 
-// ArtifactStreamProgress reports byte progress for one bounded local Artifact stream.
+// ArtifactStreamProgress 汇报一路有界本地构件流的字节进度。
 type ArtifactStreamProgress struct {
 	Downloaded int64
 	Total      int64
 }
 
-// DownloadSourceStatus contains current reachability, latency, and stable failure details.
+// DownloadSourceStatus 承载当前可达性、时延与稳定的失败细节。
 type DownloadSourceStatus struct {
 	Category     string        `json:"category"`
 	Name         string        `json:"name"`
@@ -39,7 +39,7 @@ type DownloadSourceStatus struct {
 	ErrorMessage string        `json:"errorMessage,omitempty"`
 }
 
-// DownloadCacheStatus describes the current local artifact cache footprint.
+// DownloadCacheStatus 描述当前本地构件缓存的占用情况。
 type DownloadCacheStatus struct {
 	Directory     string `json:"directory"`
 	Files         int    `json:"files"`
@@ -47,14 +47,14 @@ type DownloadCacheStatus struct {
 	CapacityBytes int64  `json:"capacityBytes"`
 }
 
-// ProxyCredentialStatus exposes non-secret proxy credential state.
+// ProxyCredentialStatus 暴露非机密的代理凭据状态。
 type ProxyCredentialStatus struct {
 	CredentialID string `json:"credentialID,omitempty"`
 	Username     string `json:"username,omitempty"`
 	Configured   bool   `json:"configured"`
 }
 
-// DownloadManager owns encrypted proxy credentials, HTTP hot reload, source checks, and cache management.
+// DownloadManager 负责加密代理凭据、HTTP 热重载、源探测与缓存管理。
 type DownloadManager struct {
 	clock       model.Clock
 	store       repository.Store
@@ -66,7 +66,7 @@ type DownloadManager struct {
 	unsubscribe func()
 }
 
-// NewDownloadManager creates the download settings owner and loads the initial HTTP transport.
+// NewDownloadManager 创建下载设置的所有者并载入初始 HTTP 传输层。
 func NewDownloadManager(clock model.Clock, store repository.Store, settings *appsettings.Manager, client *httpclient.Client, pool *appthread.Pool, logger *applog.Logger, dataRoot string) (*DownloadManager, error) {
 	if clock == nil || store == nil || settings == nil || client == nil || strings.TrimSpace(dataRoot) == "" {
 		return nil, apperror.New(apperror.CodeValidationRequired, "DownloadManager 依赖不能为空")
@@ -91,7 +91,7 @@ func NewDownloadManager(clock model.Clock, store repository.Store, settings *app
 	return manager, nil
 }
 
-// Close removes the settings subscription owned by the manager.
+// Close 移除该 Manager 持有的设置订阅。
 func (m *DownloadManager) Close() {
 	if m != nil && m.unsubscribe != nil {
 		m.unsubscribe()
@@ -99,7 +99,7 @@ func (m *DownloadManager) Close() {
 	}
 }
 
-// ReloadHTTP atomically applies timeout, retry, proxy, bypass, and encrypted credentials.
+// ReloadHTTP 原子应用超时、重试、代理、绕行与加密凭据。
 func (m *DownloadManager) ReloadHTTP(ctx context.Context) error {
 	snapshot := m.settings.Snapshot()
 	proxy := snapshot.Downloads.Proxy
@@ -129,7 +129,7 @@ func (m *DownloadManager) ReloadHTTP(ctx context.Context) error {
 	return nil
 }
 
-// SaveProxyCredential creates or replaces the SQLCipher-only proxy username/password record and commits its reference.
+// SaveProxyCredential 创建或替换仅存于 SQLCipher 的代理账号口令记录,并提交其引用。
 func (m *DownloadManager) SaveProxyCredential(ctx context.Context, username string, password []byte) (ProxyCredentialStatus, error) {
 	defer clearBytes(password)
 	snapshot := m.settings.Snapshot()
@@ -168,7 +168,7 @@ func (m *DownloadManager) SaveProxyCredential(ctx context.Context, username stri
 	return ProxyCredentialStatus{CredentialID: credentialID.String(), Username: strings.TrimSpace(username), Configured: true}, nil
 }
 
-// ProxyCredentialStatus returns non-secret credential state for the Settings UI.
+// ProxyCredentialStatus 为设置界面返回非机密的凭据状态。
 func (m *DownloadManager) ProxyCredentialStatus(ctx context.Context) (ProxyCredentialStatus, error) {
 	id := model.ID(m.settings.Snapshot().Downloads.Proxy.CredentialID)
 	if !id.Valid() {
@@ -182,7 +182,7 @@ func (m *DownloadManager) ProxyCredentialStatus(ctx context.Context) (ProxyCrede
 	return ProxyCredentialStatus{CredentialID: id.String(), Username: credential.Username, Configured: true}, nil
 }
 
-// ClearProxyCredential removes the Settings reference before deleting the encrypted credential record.
+// ClearProxyCredential 先移除设置中的引用,再删除加密凭据记录。
 func (m *DownloadManager) ClearProxyCredential(ctx context.Context) error {
 	snapshot := m.settings.Snapshot()
 	id := model.ID(snapshot.Downloads.Proxy.CredentialID)
@@ -199,9 +199,8 @@ func (m *DownloadManager) ClearProxyCredential(ctx context.Context) error {
 	return m.ReloadHTTP(ctx)
 }
 
-// CheckSources concurrently probes every enabled source through the active proxy and returns
-// results in configured priority order. Each source is measured independently on the global
-// thread pool, so a slow or timing-out mirror never blocks the rest of the speed test.
+// CheckSources 通过当前代理并发探测每个启用的源,并按配置的优先级顺序返回结果。
+// 每个源在全局线程池上独立测量,因此某个缓慢或超时的镜像不会拖住整轮测速。
 func (m *DownloadManager) CheckSources(ctx context.Context) []DownloadSourceStatus {
 	sources := append([]model.DownloadSourceSettings(nil), m.settings.Snapshot().Downloads.Sources...)
 	sort.SliceStable(sources, func(left, right int) bool { return sources[left].Priority < sources[right].Priority })
@@ -214,8 +213,8 @@ func (m *DownloadManager) CheckSources(ctx context.Context) []DownloadSourceStat
 	return appthread.Map(ctx, m.pool, enabled, m.probeSource)
 }
 
-// probeSource runs one bounded connectivity and latency probe for a single source through the
-// active HTTP transport, converting any failure into stable error metadata.
+// probeSource 通过当前 HTTP 传输层对单个源执行一次有界的连通性与时延探测,
+// 并把任何失败转换成稳定的错误元数据。
 func (m *DownloadManager) probeSource(ctx context.Context, source model.DownloadSourceSettings) DownloadSourceStatus {
 	startedAt := time.Now()
 	response, err := m.client.Do(ctx, http.MethodGet, source.ProbeURL, http.Header{"Accept": []string{"application/json, text/plain, */*"}})
@@ -231,7 +230,7 @@ func (m *DownloadManager) probeSource(ctx context.Context, source model.Download
 	return status
 }
 
-// ResolveSource returns the highest-priority enabled endpoint for one stable provider key.
+// ResolveSource 返回某个稳定 provider 键下优先级最高的启用端点。
 func (m *DownloadManager) ResolveSource(provider, fallback string) string {
 	snapshot := m.settings.Snapshot()
 	sources := append([]model.DownloadSourceSettings(nil), snapshot.Downloads.Sources...)
@@ -252,7 +251,7 @@ func (m *DownloadManager) ResolveSource(provider, fallback string) string {
 	return strings.TrimRight(fallback, "/")
 }
 
-// ResolveArtifactURL replaces one approved Artifact origin with the configured provider source while preserving its path and query.
+// ResolveArtifactURL 把已核准构件的源站替换成配置的 provider 源,同时保留路径与查询串。
 func (m *DownloadManager) ResolveArtifactURL(provider, original string) (string, error) {
 	originalURL, err := url.Parse(strings.TrimSpace(original))
 	if err != nil || originalURL.Scheme != "https" || originalURL.Host == "" || originalURL.User != nil {
@@ -272,7 +271,7 @@ func (m *DownloadManager) ResolveArtifactURL(provider, original string) (string,
 	return baseURL.String(), nil
 }
 
-// StreamArtifact downloads one authenticated HTTPS Artifact into dst while enforcing its declared size.
+// StreamArtifact 把一个经认证的 HTTPS 构件下载到 dst,并强制校验其声明大小。
 func (m *DownloadManager) StreamArtifact(ctx context.Context, artifactURL string, expectedSize int64, dst io.Writer, onProgress func(ArtifactStreamProgress)) error {
 	parsed, err := url.Parse(strings.TrimSpace(artifactURL))
 	if err != nil || parsed.Scheme != "https" || parsed.Host == "" || parsed.User != nil || dst == nil || expectedSize <= 0 {
@@ -336,7 +335,7 @@ func categoryMirror(settings model.MirrorSettings, provider string) string {
 	return strings.TrimRight(strings.TrimSpace(mirror), "/")
 }
 
-// CacheStatus calculates current local download cache usage.
+// CacheStatus 计算当前本地下载缓存的占用。
 func (m *DownloadManager) CacheStatus() (DownloadCacheStatus, error) {
 	directory := m.cacheDirectory()
 	status := DownloadCacheStatus{Directory: directory, CapacityBytes: int64(m.settings.Snapshot().Downloads.CacheCapacityMiB) * 1024 * 1024}
@@ -364,7 +363,7 @@ func (m *DownloadManager) CacheStatus() (DownloadCacheStatus, error) {
 	return status, nil
 }
 
-// ClearCache removes cache children while retaining the configured root directory.
+// ClearCache 删除缓存目录下的内容,保留已配置的根目录本身。
 func (m *DownloadManager) ClearCache() error {
 	directory := m.cacheDirectory()
 	entries, err := os.ReadDir(directory)

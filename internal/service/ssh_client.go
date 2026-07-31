@@ -20,7 +20,7 @@ import (
 	"golang.org/x/crypto/ssh/knownhosts"
 )
 
-// SSHClient owns an authenticated SSH transport, optional Agent socket, and KeepAlive loop.
+// SSHClient 持有已认证的 SSH 传输层、可选的 Agent 套接字与 KeepAlive 循环。
 type SSHClient struct {
 	client        *ssh.Client
 	jump          *SSHClient
@@ -32,7 +32,7 @@ type SSHClient struct {
 	closeOnce     sync.Once
 }
 
-// Raw returns the authenticated x/crypto SSH client for Terminal and SFTP adapters.
+// Raw 返回已认证的 x/crypto SSH 客户端,供终端与 SFTP 适配器使用。
 func (c *SSHClient) Raw() *ssh.Client {
 	if c == nil {
 		return nil
@@ -40,7 +40,7 @@ func (c *SSHClient) Raw() *ssh.Client {
 	return c.client
 }
 
-// RemoteAddress returns the configured SSH target address even when the transport is tunneled through a Jump Host.
+// RemoteAddress 返回配置的 SSH 目标地址,即使传输经 Jump Host 隧道也是如此。
 func (c *SSHClient) RemoteAddress() string {
 	if c == nil {
 		return ""
@@ -48,7 +48,7 @@ func (c *SSHClient) RemoteAddress() string {
 	return c.remoteAddress
 }
 
-// Close stops KeepAlive and releases the SSH transport and Agent socket.
+// Close 停止 KeepAlive 并释放 SSH 传输层与 Agent 套接字。
 func (c *SSHClient) Close() error {
 	if c == nil {
 		return nil
@@ -72,13 +72,13 @@ func (c *SSHClient) Close() error {
 	return closeError
 }
 
-// SSHClientFactory builds authenticated clients using encrypted credentials and strict host-key decisions.
+// SSHClientFactory 依据加密凭据与严格的主机密钥决策构建已认证客户端。
 type SSHClientFactory struct {
 	sessions   *SSHSessionManager
 	knownHosts *KnownHostManager
 }
 
-// SSHConnectionTestResult contains authenticated handshake and command-channel evidence.
+// SSHConnectionTestResult 承载认证握手与命令通道的证据。
 type SSHConnectionTestResult struct {
 	ServerVersion   string
 	RemoteAddress   string
@@ -86,7 +86,7 @@ type SSHConnectionTestResult struct {
 	ConnectDuration time.Duration
 }
 
-// NewSSHClientFactory creates the unified SSH transport factory.
+// NewSSHClientFactory 创建统一的 SSH 传输层工厂。
 func NewSSHClientFactory(sessions *SSHSessionManager, knownHosts *KnownHostManager) (*SSHClientFactory, error) {
 	if sessions == nil || knownHosts == nil {
 		return nil, apperror.New(apperror.CodeValidationRequired, "SSH Client Factory 依赖不能为空")
@@ -94,7 +94,7 @@ func NewSSHClientFactory(sessions *SSHSessionManager, knownHosts *KnownHostManag
 	return &SSHClientFactory{sessions: sessions, knownHosts: knownHosts}, nil
 }
 
-// Connect performs TCP, SSH handshake, strict host-key verification, and configured authentication.
+// Connect 依次完成 TCP、SSH 握手、严格主机密钥校验与已配置的认证。
 func (f *SSHClientFactory) Connect(ctx context.Context, session *model.SSHSession, settings model.SSHSettings) (*SSHClient, error) {
 	return f.connect(ctx, session, settings, nil)
 }
@@ -228,12 +228,12 @@ func dialThroughJump(ctx context.Context, jump *ssh.Client, address string, time
 	}
 }
 
-// TestConnection authenticates, opens a session channel, and runs the no-op `true` command.
+// TestConnection 完成认证、打开会话通道并执行空操作命令 `true`。
 func (f *SSHClientFactory) TestConnection(ctx context.Context, session *model.SSHSession, settings model.SSHSettings) (SSHConnectionTestResult, error) {
 	return f.testConnection(ctx, session, settings, nil)
 }
 
-// TestConnectionWithCredential tests an in-memory draft without loading or persisting its credential.
+// TestConnectionWithCredential 测试内存中的草稿,不加载也不持久化其凭据。
 func (f *SSHClientFactory) TestConnectionWithCredential(ctx context.Context, session *model.SSHSession, credential *model.SSHCredential, settings model.SSHSettings) (SSHConnectionTestResult, error) {
 	if session != nil && session.AuthType != enums.SSHAuthAgent && credential == nil {
 		return SSHConnectionTestResult{}, apperror.New(apperror.CodeValidationRequired, "SSH 连接测试凭据不能为空")

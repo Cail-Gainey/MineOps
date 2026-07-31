@@ -13,10 +13,10 @@ func init() {
 	application.RegisterEvent[model.MetricRealtimeEvent](constants.MetricRealtimeEventName)
 }
 
-// MetricPublisher emits throttled latest-value snapshots through Wails Events.
+// MetricPublisher 通过 Wails 事件发布经节流的最新值快照。
 type MetricPublisher struct{}
 
-// PublishMetrics emits one immutable Server metric snapshot to subscribed desktop windows.
+// PublishMetrics 向已订阅的桌面窗口发布一份不可变的 Server 指标快照。
 func (MetricPublisher) PublishMetrics(ctx context.Context, event model.MetricRealtimeEvent) error {
 	if err := ctx.Err(); err != nil {
 		return err

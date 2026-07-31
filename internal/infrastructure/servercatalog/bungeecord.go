@@ -10,23 +10,23 @@ import (
 
 const bungeeDefaultBaseURL = "https://ci.md-5.net"
 
-// BungeeCatalog exposes the intentionally floating official Jenkins artifact strategy.
+// BungeeCatalog 暴露官方 Jenkins 构件那套有意浮动的策略。
 type BungeeCatalog struct{ sources SourceResolver }
 
-// NewBungeeCatalog creates the BungeeCord Jenkins artifact adapter.
+// NewBungeeCatalog 创建 BungeeCord 的 Jenkins 构件适配器。
 func NewBungeeCatalog(sources SourceResolver) *BungeeCatalog { return &BungeeCatalog{sources: sources} }
 
-// Distribution returns BungeeCord.
+// Distribution 返回 BungeeCord。
 func (c *BungeeCatalog) Distribution() enums.MinecraftServerType { return enums.ServerBungee }
 
-// ResolveVersions returns the only supported floating latest strategy.
+// ResolveVersions 返回唯一受支持的浮动最新版策略。
 func (c *BungeeCatalog) ResolveVersions(context.Context) ([]port.ServerVersion, error) {
 	return []port.ServerVersion{{
 		Distribution: enums.ServerBungee, Version: "latest", Build: "lastSuccessfulBuild", Stable: true, JavaMajor: 17,
 	}}, nil
 }
 
-// ResolveArtifact returns the official Jenkins bootstrap Jar and explicit lock-version risk.
+// ResolveArtifact 返回官方 Jenkins 引导 Jar,并显式标注无法锁版本的风险。
 func (c *BungeeCatalog) ResolveArtifact(context.Context, string, string) (port.ServerArtifact, error) {
 	baseURL := bungeeDefaultBaseURL
 	if c.sources != nil {

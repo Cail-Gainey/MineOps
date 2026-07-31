@@ -7,20 +7,20 @@ import (
 	"github.com/Cail-Gainey/MineOps/internal/model"
 )
 
-// PlayerIdentityQuery contains UUID/name fallback identity evidence.
+// PlayerIdentityQuery 承载 UUID 与名称兜底的身份证据。
 type PlayerIdentityQuery struct {
 	ServerID             model.ID
 	UUID, NormalizedName string
 }
 
-// PlayerSessionQuery contains bounded Server/player session filters.
+// PlayerSessionQuery 承载有界的 Server 与玩家会话过滤条件。
 type PlayerSessionQuery struct {
 	ServerID, PlayerIdentityID model.ID
 	OpenOnly                   bool
 	Limit, Offset              int
 }
 
-// PlayerRepository persists player identities, evidence, sessions, projections, and collector checkpoints.
+// PlayerRepository 持久化玩家身份、活动证据、会话、投影与采集器检查点。
 type PlayerRepository interface {
 	CreateIdentity(context.Context, *model.PlayerIdentity) error
 	FindIdentity(context.Context, PlayerIdentityQuery) (*model.PlayerIdentity, error)

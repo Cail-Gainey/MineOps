@@ -1,4 +1,4 @@
-// Package servercatalog implements provider-isolated Minecraft server version catalogs and a dynamic registry.
+// Package servercatalog 实现按供应方隔离的 Minecraft 服务端版本目录与动态注册表。
 package servercatalog
 
 import (
@@ -11,12 +11,12 @@ import (
 	"github.com/Cail-Gainey/MineOps/internal/port"
 )
 
-// SourceResolver selects the highest-priority enabled official or mirror endpoint for a provider.
+// SourceResolver 为某个供应方选出优先级最高且已启用的官方或镜像端点。
 type SourceResolver interface {
 	ResolveSource(string, string) string
 }
 
-// Registry owns dynamically registered server catalogs and installer capability metadata.
+// Registry 持有动态注册的服务端目录与安装器能力元数据。
 type Registry struct {
 	mu         sync.RWMutex
 	catalogs   map[enums.MinecraftServerType]port.ServerCatalog
@@ -25,7 +25,7 @@ type Registry struct {
 	names      map[enums.MinecraftServerType]string
 }
 
-// NewRegistry creates the complete first-release server type registry.
+// NewRegistry 创建完整的首发服务端类型注册表。
 func NewRegistry(catalogs ...port.ServerCatalog) *Registry {
 	registry := &Registry{
 		catalogs:   make(map[enums.MinecraftServerType]port.ServerCatalog),
@@ -46,7 +46,7 @@ func NewRegistry(catalogs ...port.ServerCatalog) *Registry {
 	return registry
 }
 
-// EnableGenericInstallers marks distributions handled by the shared verified Jar installation pipeline.
+// EnableGenericInstallers 标记由共享的、经校验 Jar 安装流水线处理的发行版。
 func (r *Registry) EnableGenericInstallers(distributions ...enums.MinecraftServerType) {
 	if r == nil {
 		return
@@ -60,7 +60,7 @@ func (r *Registry) EnableGenericInstallers(distributions ...enums.MinecraftServe
 	r.mu.Unlock()
 }
 
-// RegisterInstaller adds or replaces the installer implementation for one distribution.
+// RegisterInstaller 为某个发行版新增或替换安装器实现。
 func (r *Registry) RegisterInstaller(installer port.Installer) {
 	if r == nil || installer == nil {
 		return
@@ -71,7 +71,7 @@ func (r *Registry) RegisterInstaller(installer port.Installer) {
 	r.mu.Unlock()
 }
 
-// List returns every supported first-release distribution without frontend hard-coding.
+// List 返回全部受支持的首发发行版,前端无需硬编码。
 func (r *Registry) List() []port.ServerDistribution {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -89,7 +89,7 @@ func (r *Registry) List() []port.ServerDistribution {
 	return result
 }
 
-// ResolveVersions delegates to the registered provider adapter.
+// ResolveVersions 委托给已注册的供应方适配器。
 func (r *Registry) ResolveVersions(ctx context.Context, distribution enums.MinecraftServerType) ([]port.ServerVersion, error) {
 	r.mu.RLock()
 	catalog := r.catalogs[distribution]
@@ -102,7 +102,7 @@ func (r *Registry) ResolveVersions(ctx context.Context, distribution enums.Minec
 	return catalog.ResolveVersions(ctx)
 }
 
-// ResolveArtifact delegates immutable artifact resolution to the registered provider adapter.
+// ResolveArtifact 把不可变构件的解析委托给已注册的供应方适配器。
 func (r *Registry) ResolveArtifact(ctx context.Context, distribution enums.MinecraftServerType, version, build string) (port.ServerArtifact, error) {
 	r.mu.RLock()
 	catalog := r.catalogs[distribution]
@@ -113,7 +113,7 @@ func (r *Registry) ResolveArtifact(ctx context.Context, distribution enums.Minec
 	return catalog.ResolveArtifact(ctx, version, build)
 }
 
-// Installer returns the registered distribution-specific installer.
+// Installer 返回该发行版已注册的专属安装器。
 func (r *Registry) Installer(distribution enums.MinecraftServerType) (port.Installer, error) {
 	r.mu.RLock()
 	installer := r.installers[distribution]

@@ -35,11 +35,11 @@ const (
 	maximumSignatureSize       = 16 * 1024
 )
 
-// PublicKeyBase64 is the build-injected raw Ed25519 update public key.
-// Production builds must set it with -ldflags; an empty value fails closed.
+// PublicKeyBase64 是构建期注入的原始 Ed25519 更新公钥。
+// 生产构建必须通过 -ldflags 设置;取值为空时按失败关闭处理。
 var PublicKeyBase64 string
 
-// Artifact describes one authenticated self-update payload.
+// Artifact 描述一份经认证的自更新负载。
 type Artifact struct {
 	URL           string `json:"url"`
 	Platform      string `json:"platform"`
@@ -53,7 +53,7 @@ type Artifact struct {
 	Signature     string `json:"signature"`
 }
 
-// Manifest is the authenticated MineOps Desktop update document.
+// Manifest 是经认证的 MineOps 桌面更新文档。
 type Manifest struct {
 	SchemaVersion int        `json:"schemaVersion"`
 	Version       string     `json:"version"`
@@ -64,7 +64,7 @@ type Manifest struct {
 	Artifacts     []Artifact `json:"artifacts"`
 }
 
-// Release describes one authenticated GitHub Desktop release and selected Artifact.
+// Release 描述一个经认证的 GitHub 桌面发行版及选中的构件。
 type Release struct {
 	Version     string
 	PublishedAt string
@@ -101,7 +101,7 @@ type manifestSignature struct {
 	Signature     string `json:"signature"`
 }
 
-// Catalog fetches and authenticates MineOps GitHub Desktop releases.
+// Catalog 拉取并认证 MineOps 的 GitHub 桌面发行版。
 type Catalog struct {
 	client    requestClient
 	publicKey ed25519.PublicKey
@@ -111,7 +111,7 @@ type requestClient interface {
 	Do(ctx context.Context, method, endpoint string, headers http.Header) (*http.Response, error)
 }
 
-// NewCatalog creates a GitHub release catalog using the build-injected public key.
+// NewCatalog 用构建期注入的公钥创建 GitHub 发行版目录。
 func NewCatalog(client *httpclient.Client) *Catalog {
 	key := parsePublicKeyBase64(PublicKeyBase64)
 	return NewCatalogWithPublicKey(client, key)
@@ -136,17 +136,17 @@ func parsePublicKeyBase64(value string) ed25519.PublicKey {
 	return publicKey
 }
 
-// NewCatalogWithPublicKey creates a GitHub release catalog with an explicit Ed25519 trust root.
+// NewCatalogWithPublicKey 用显式指定的 Ed25519 信任根创建 GitHub 发行版目录。
 func NewCatalogWithPublicKey(client *httpclient.Client, publicKey []byte) *Catalog {
 	return &Catalog{client: client, publicKey: append(ed25519.PublicKey(nil), publicKey...)}
 }
 
-// Resolve returns the highest authenticated release for the current runtime platform.
+// Resolve 返回当前运行平台上版本最高的已认证发行版。
 func (c *Catalog) Resolve(ctx context.Context, sourceURL, channel string) (Release, error) {
 	return c.ResolveFor(ctx, sourceURL, channel, "", runtime.GOOS, runtime.GOARCH)
 }
 
-// ResolveFor returns the highest authenticated release newer than currentVersion for one target.
+// ResolveFor 返回某个目标平台上高于 currentVersion 的最高已认证发行版。
 func (c *Catalog) ResolveFor(ctx context.Context, sourceURL, channel, currentVersion, platform, architecture string) (Release, error) {
 	if c == nil || c.client == nil {
 		return Release{}, apperror.New(apperror.CodeValidationRequired, "Desktop Release Catalog HTTP Client 不能为空")

@@ -11,10 +11,10 @@ import (
 	"github.com/Cail-Gainey/MineOps/internal/global/applog"
 )
 
-// Group runs a batch of related tasks on a Pool and waits for their combined completion.
+// Group 在一个 Pool 上运行一批相关任务,并等待它们整体完成。
 //
-// Every task shares the group's Context and the pool's concurrency budget. Errors and recovered
-// panics are collected and returned together by Wait. A Group must not be reused after Wait.
+// 每个任务共享该组的 Context 与线程池的并发预算。错误与被恢复的 panic 会被收集,
+// 由 Wait 一并返回。Wait 之后不得复用同一个 Group。
 type Group struct {
 	pool *Pool
 	ctx  context.Context
@@ -24,7 +24,7 @@ type Group struct {
 	err []error
 }
 
-// NewGroup starts a task batch bound to ctx and this pool's concurrency budget.
+// NewGroup 启动一批绑定到 ctx 与该线程池并发预算的任务。
 func (p *Pool) NewGroup(ctx context.Context) *Group {
 	if ctx == nil {
 		ctx = context.Background()
@@ -32,8 +32,8 @@ func (p *Pool) NewGroup(ctx context.Context) *Group {
 	return &Group{pool: p, ctx: ctx}
 }
 
-// Go schedules one named task in the group. It never blocks the caller; concurrency is bounded
-// inside the goroutine by the pool. Task errors and panics are captured for Wait.
+// Go 在组内调度一个具名任务。它绝不阻塞调用方;并发在 goroutine 内部由线程池限制。
+// 任务的错误与 panic 会被捕获,供 Wait 汇总。
 func (g *Group) Go(name string, task func(context.Context) error) {
 	if task == nil {
 		return
@@ -65,7 +65,7 @@ func (g *Group) Go(name string, task func(context.Context) error) {
 	}()
 }
 
-// Wait blocks until every scheduled task has finished and returns their joined error, if any.
+// Wait 阻塞至全部已调度任务结束,并返回合并后的错误(若有)。
 func (g *Group) Wait() error {
 	g.wg.Wait()
 	g.mu.Lock()
@@ -82,12 +82,12 @@ func (g *Group) record(err error) {
 	g.mu.Unlock()
 }
 
-// Map applies fn to every item concurrently on the pool and returns the outputs in input order.
+// Map 在线程池上对每个元素并发执行 fn,并按输入顺序返回结果。
 //
-// It is the primary fan-out helper: fn is invoked exactly once per item, at most Pool.Limit at a
-// time, and the caller receives results aligned with items. A nil pool (or empty input) falls back
-// to sequential execution so callers always get a fully populated slice. Panics inside fn are
-// recovered and leave that slot's zero value.
+// 它是主要的扇出辅助函数:fn 对每个元素恰好调用一次,同时最多 Pool.Limit 个并发,
+// 调用方拿到的结果与输入一一对应。线程池为 nil(或输入为空)时回落到顺序执行,
+// 因此调用方总能拿到完整填充的切片。fn 内部的 panic 会被恢复,
+// 对应位置保留零值。
 func Map[Input any, Output any](ctx context.Context, pool *Pool, items []Input, fn func(context.Context, Input) Output) []Output {
 	results := make([]Output, len(items))
 	if fn == nil || len(items) == 0 {
@@ -114,7 +114,7 @@ func Map[Input any, Output any](ctx context.Context, pool *Pool, items []Input, 
 	return results
 }
 
-// ForEach runs fn over every item concurrently on the pool and returns their joined error.
+// ForEach 在线程池上对每个元素并发执行 fn,并返回合并后的错误。
 func ForEach[Input any](ctx context.Context, pool *Pool, items []Input, fn func(context.Context, Input) error) error {
 	if fn == nil || len(items) == 0 {
 		return nil

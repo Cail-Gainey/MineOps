@@ -15,20 +15,20 @@ import (
 	"github.com/Cail-Gainey/MineOps/internal/repository"
 )
 
-// OperationHandler executes one durable operation and reports cancellable progress.
+// OperationHandler 执行一个持久化任务并上报可取消的进度。
 type OperationHandler func(context.Context, OperationReporter) error
 
-// OperationReporter persists and publishes normalized progress for the active operation.
+// OperationReporter 持久化并发布进行中任务的归一化进度。
 type OperationReporter interface {
 	SetProgress(stage string, progress float64, message string) error
 }
 
-// OperationPublisher publishes throttled progress and mandatory final-state events.
+// OperationPublisher 发布经节流的进度事件与必发的终态事件。
 type OperationPublisher interface {
 	PublishOperation(context.Context, model.Operation) error
 }
 
-// OperationRequest describes a new durable operation and its execution handler.
+// OperationRequest 描述一个新的持久化任务及其执行 handler。
 type OperationRequest struct {
 	Type       enums.OperationType
 	TargetType enums.OperationTargetType
@@ -45,7 +45,7 @@ type operationJob struct {
 	lastPublished time.Time
 }
 
-// OperationRunner persists before execution, owns cancellation, resource locks, panic recovery, and waits.
+// OperationRunner 先落盘再执行,并负责取消、资源锁、panic 恢复与等待。
 type OperationRunner struct {
 	rootCtx   context.Context
 	clock     model.Clock
@@ -59,7 +59,7 @@ type OperationRunner struct {
 	wait      sync.WaitGroup
 }
 
-// NewOperationRunner creates the single owner of durable operation execution.
+// NewOperationRunner 创建持久化任务执行的唯一所有者。
 func NewOperationRunner(rootCtx context.Context, clock model.Clock, store repository.Store, logger *applog.Logger, publisher OperationPublisher) (*OperationRunner, error) {
 	if rootCtx == nil || clock == nil || store == nil {
 		return nil, apperror.New(apperror.CodeValidationRequired, "OperationRunner 依赖不能为空")
@@ -73,7 +73,7 @@ func NewOperationRunner(rootCtx context.Context, clock model.Clock, store reposi
 	}, nil
 }
 
-// Start persists a pending operation, reserves its resource, and then starts the handler asynchronously.
+// Start 落盘一个待执行任务、预留其资源,然后异步启动 handler。
 func (r *OperationRunner) Start(ctx context.Context, request OperationRequest) (model.ID, error) {
 	if request.Handler == nil {
 		return "", apperror.New(apperror.CodeValidationRequired, "Operation Handler 不能为空")
@@ -85,7 +85,7 @@ func (r *OperationRunner) Start(ctx context.Context, request OperationRequest) (
 	return r.startPersisted(ctx, operation, request.Prepare, request.Handler)
 }
 
-// Retry creates a new operation linked by RetryOf and never reuses the previous operation identity.
+// Retry 创建一个由 RetryOf 关联的新任务,绝不复用此前的任务标识。
 func (r *OperationRunner) Retry(ctx context.Context, previousID model.ID, handler OperationHandler) (model.ID, error) {
 	previous, err := r.store.Operations().Get(ctx, previousID)
 	if err != nil {
@@ -202,7 +202,7 @@ func (r *OperationRunner) execute(ctx context.Context, resourceKey string, job *
 	}
 }
 
-// Cancel requests idempotent cancellation of an active operation.
+// Cancel 幂等地请求取消一个进行中的任务。
 func (r *OperationRunner) Cancel(ctx context.Context, id model.ID) error {
 	r.mu.Lock()
 	job := r.jobs[id]
@@ -221,7 +221,7 @@ func (r *OperationRunner) Cancel(ctx context.Context, id model.ID) error {
 	return apperror.New(apperror.CodeValidationConflict, "Operation 当前不在本进程执行，无法直接取消")
 }
 
-// Wait blocks until an active operation completes or returns its already persisted final state.
+// Wait 阻塞至任务完成,或直接返回其已落盘的终态。
 func (r *OperationRunner) Wait(ctx context.Context, id model.ID) (*model.Operation, error) {
 	r.mu.Lock()
 	job := r.jobs[id]
@@ -237,7 +237,7 @@ func (r *OperationRunner) Wait(ctx context.Context, id model.ID) (*model.Operati
 	}
 }
 
-// RecoverInterrupted marks operations left active by an earlier process as failed for later retry.
+// RecoverInterrupted 把上一个进程遗留为活动状态的任务标记为失败,供后续重试。
 func (r *OperationRunner) RecoverInterrupted(ctx context.Context) error {
 	operations, err := r.store.Operations().ListActive(ctx, "")
 	if err != nil {
@@ -256,7 +256,7 @@ func (r *OperationRunner) RecoverInterrupted(ctx context.Context) error {
 	return nil
 }
 
-// Shutdown cancels all active operations and waits until they stop or the shutdown context expires.
+// Shutdown 取消全部活动任务,并等待其停止或关闭上下文超时。
 func (r *OperationRunner) Shutdown(ctx context.Context) error {
 	r.mu.Lock()
 	for _, job := range r.jobs {

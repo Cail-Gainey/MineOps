@@ -8,25 +8,25 @@ import (
 	"github.com/Cail-Gainey/MineOps/internal/global/apperror"
 )
 
-// UnsavedItem identifies one frontend editor or form currently holding uncommitted work.
+// UnsavedItem 标识一个当前持有未提交内容的前端编辑器或表单。
 type UnsavedItem struct {
 	Owner string `json:"owner"`
 	Label string `json:"label"`
 }
 
-// ExitGuard coordinates synchronous native close interception with frontend dirty-state reporting.
+// ExitGuard 把原生关闭的同步拦截与前端未保存状态上报协调起来。
 type ExitGuard struct {
 	mu        sync.Mutex
 	items     map[string]string
 	forceNext bool
 }
 
-// NewExitGuard creates the application-wide unsaved content registry.
+// NewExitGuard 创建应用级的未保存内容登记表。
 func NewExitGuard() *ExitGuard {
 	return &ExitGuard{items: make(map[string]string)}
 }
 
-// SetDirty registers or clears one bounded editor/form dirty state.
+// SetDirty 登记或清除一个有界的编辑器或表单未保存状态。
 func (g *ExitGuard) SetDirty(owner, label string, dirty bool) error {
 	owner, label = strings.TrimSpace(owner), strings.TrimSpace(label)
 	if owner == "" || len(owner) > 160 || len(label) > 240 || strings.ContainsAny(owner+label, "\x00\r\n") {
@@ -45,7 +45,7 @@ func (g *ExitGuard) SetDirty(owner, label string, dirty bool) error {
 	return nil
 }
 
-// RequestQuit returns false with a stable dirty-item snapshot unless one confirmed force request is pending.
+// RequestQuit 返回 false 并附带稳定的未保存项快照,除非已有一次确认过的强制退出请求。
 func (g *ExitGuard) RequestQuit() (bool, []UnsavedItem) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
@@ -61,14 +61,14 @@ func (g *ExitGuard) RequestQuit() (bool, []UnsavedItem) {
 	return len(items) == 0, items
 }
 
-// ConfirmQuit authorizes exactly one native quit request without silently discarding registry state early.
+// ConfirmQuit 恰好放行一次原生退出请求,且不提前静默丢弃登记表状态。
 func (g *ExitGuard) ConfirmQuit() {
 	g.mu.Lock()
 	g.forceNext = true
 	g.mu.Unlock()
 }
 
-// Items returns the current stable unsaved-content snapshot.
+// Items 返回当前稳定的未保存内容快照。
 func (g *ExitGuard) Items() []UnsavedItem {
 	g.mu.Lock()
 	items := make([]UnsavedItem, 0, len(g.items))

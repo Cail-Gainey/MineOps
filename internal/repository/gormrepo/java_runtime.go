@@ -11,7 +11,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// JavaRuntimeRecord is the encrypted SQLite representation of a remote Java installation.
+// JavaRuntimeRecord 是远端 Java 安装在加密 SQLite 中的表示。
 type JavaRuntimeRecord struct {
 	ID           string `gorm:"primaryKey;size:36"`
 	SSHSessionID string `gorm:"uniqueIndex:idx_java_runtime_path,priority:1;index;size:36"`

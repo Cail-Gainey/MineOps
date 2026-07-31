@@ -15,19 +15,19 @@ import (
 
 const maximumServerPropertiesBackups = 10
 
-// ServerPropertyValue is the effective last value for one server.properties key.
+// ServerPropertyValue 是某个 server.properties 键的最终生效值。
 type ServerPropertyValue struct {
 	Key   string `json:"key"`
 	Value string `json:"value"`
 }
 
-// ServerPropertyUpdate changes one key while preserving all unrelated physical lines.
+// ServerPropertyUpdate 修改一个键,同时完整保留所有无关的物理行。
 type ServerPropertyUpdate struct {
 	Key   string `json:"key"`
 	Value string `json:"value"`
 }
 
-// ServerPropertiesSnapshot contains raw text, effective values, and validation information.
+// ServerPropertiesSnapshot 承载原文、生效值与校验信息。
 type ServerPropertiesSnapshot struct {
 	Document         *model.RemoteTextDocument `json:"document"`
 	Values           []ServerPropertyValue     `json:"values"`
@@ -35,7 +35,7 @@ type ServerPropertiesSnapshot struct {
 	ValidationNotice string                    `json:"validationNotice,omitempty"`
 }
 
-// ServerPropertiesBackup is one retained pre-save server.properties revision.
+// ServerPropertiesBackup 是一份保存前保留的 server.properties 历史版本。
 type ServerPropertiesBackup struct {
 	Name       string    `json:"name"`
 	Path       string    `json:"path"`
@@ -43,7 +43,7 @@ type ServerPropertiesBackup struct {
 	ModifiedAt time.Time `json:"modifiedAt"`
 }
 
-// ReadProperties reads and parses one Server's bounded regular server.properties file.
+// ReadProperties 读取并解析某台 Server 有界的普通 server.properties 文件。
 func (m *MinecraftServerManager) ReadProperties(ctx context.Context, serverID model.ID) (*ServerPropertiesSnapshot, error) {
 	server, err := m.store.MinecraftServers().Get(ctx, serverID, false)
 	if err != nil {
@@ -67,7 +67,7 @@ func (m *MinecraftServerManager) ReadProperties(ctx context.Context, serverID mo
 	return serverPropertiesSnapshot(document), nil
 }
 
-// SaveProperties saves raw content or structured key updates with conflict detection and retained backups.
+// SaveProperties 按原文或结构化键更新保存,带冲突检测并保留备份。
 func (m *MinecraftServerManager) SaveProperties(ctx context.Context, serverID model.ID, mode, rawContent, expectedVersion string, updates []ServerPropertyUpdate, firewallConfirmed bool) (*ServerPropertiesSnapshot, error) {
 	server, err := m.store.MinecraftServers().Get(ctx, serverID, false)
 	if err != nil {
@@ -135,7 +135,7 @@ func (m *MinecraftServerManager) SaveProperties(ctx context.Context, serverID mo
 	return snapshot, nil
 }
 
-// ListPropertyBackups lists retained pre-save revisions for one Server.
+// ListPropertyBackups 列出某台 Server 保存前保留的历史版本。
 func (m *MinecraftServerManager) ListPropertyBackups(ctx context.Context, serverID model.ID) ([]ServerPropertiesBackup, error) {
 	server, err := m.store.MinecraftServers().Get(ctx, serverID, false)
 	if err != nil {
@@ -187,7 +187,7 @@ find "$2" -mindepth 1 -maxdepth 1 -type f -name 'server.properties-*.bak' -print
 	return backups, nil
 }
 
-// RestorePropertyBackup restores one retained revision after checking the current version token.
+// RestorePropertyBackup 在校验当前版本标识后恢复一个保留的历史版本。
 func (m *MinecraftServerManager) RestorePropertyBackup(ctx context.Context, serverID model.ID, backupPath, expectedVersion string, firewallConfirmed bool) (*ServerPropertiesSnapshot, error) {
 	server, err := m.store.MinecraftServers().Get(ctx, serverID, false)
 	if err != nil {

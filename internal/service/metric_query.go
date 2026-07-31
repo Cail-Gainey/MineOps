@@ -17,7 +17,7 @@ type metricSeriesBuilder struct {
 	points     []model.MetricPoint
 }
 
-// Query returns indexed raw or aggregate Metric series with timezone conversion and explicit gap markers.
+// Query 返回走索引的原始或聚合 Metric 序列,含时区转换与显式空洞标记。
 func (m *MetricManager) Query(ctx context.Context, query model.MetricQuery) (model.MetricQueryResult, error) {
 	if query.TimeZone == "" {
 		query.TimeZone = "UTC"

@@ -33,7 +33,7 @@ type portableBackupManifest struct {
 	IntegrityHMAC  string    `json:"integrityHMAC"`
 }
 
-// BackupInfo describes a completed portable encrypted SQLite backup.
+// BackupInfo 描述一份已完成的便携加密 SQLite 备份。
 type BackupInfo struct {
 	Path          string    `json:"path"`
 	DatabaseID    string    `json:"databaseID"`
@@ -43,14 +43,14 @@ type BackupInfo struct {
 	Bytes         int64     `json:"bytes"`
 }
 
-// BackupManager creates consistent online snapshots from one active SQLCipher connection.
+// BackupManager 基于一条活动 SQLCipher 连接创建一致的在线快照。
 type BackupManager struct {
 	connection   *Connection
 	databasePath string
 	keyStore     KeyStore
 }
 
-// InspectPortableBackup verifies one backup without modifying the active database or system key store.
+// InspectPortableBackup 校验一份备份,不改动当前数据库与系统密钥存储。
 func InspectPortableBackup(backupPath string) (BackupInfo, error) {
 	if strings.TrimSpace(backupPath) == "" {
 		return BackupInfo{}, apperror.New(apperror.CodeValidationRequired, "备份路径不能为空")
@@ -74,7 +74,7 @@ func InspectPortableBackup(backupPath string) (BackupInfo, error) {
 	}, nil
 }
 
-// NewBackupManager creates the portable backup boundary for one active encrypted database.
+// NewBackupManager 为一个活动加密数据库创建便携备份边界。
 func NewBackupManager(connection *Connection, databasePath string, keyStore KeyStore) (*BackupManager, error) {
 	if connection == nil || databasePath == "" || keyStore == nil {
 		return nil, apperror.New(apperror.CodeValidationRequired, "BackupManager 依赖不能为空")
@@ -82,7 +82,7 @@ func NewBackupManager(connection *Connection, databasePath string, keyStore KeyS
 	return &BackupManager{connection: connection, databasePath: databasePath, keyStore: keyStore}, nil
 }
 
-// Create writes one atomic .mineops-backup containing an online snapshot, identity, schema, checksum, and recovery key package.
+// Create 原子写入一个 .mineops-backup,内含在线快照、身份、schema、校验和与恢复密钥包。
 func (m *BackupManager) Create(ctx context.Context, destination string) (BackupInfo, error) {
 	if filepath.Ext(destination) != ".mineops-backup" {
 		return BackupInfo{}, apperror.New(apperror.CodeValidationInvalidArgument, "备份文件必须使用 .mineops-backup 扩展名")
@@ -147,7 +147,7 @@ func (m *BackupManager) Create(ctx context.Context, destination string) (BackupI
 	}, nil
 }
 
-// RestorePortableBackup verifies and atomically installs a backup while importing its system key record.
+// RestorePortableBackup 校验并原子安装一份备份,同时导入其系统密钥记录。
 func RestorePortableBackup(ctx context.Context, backupPath string, databasePath string, keyStore KeyStore) (BackupInfo, error) {
 	if backupPath == "" || databasePath == "" || keyStore == nil {
 		return BackupInfo{}, apperror.New(apperror.CodeValidationRequired, "恢复路径和 KeyStore 不能为空")

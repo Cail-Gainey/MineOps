@@ -11,7 +11,7 @@ import (
 	"github.com/Cail-Gainey/MineOps/internal/repository"
 )
 
-// SSHSessionCommand contains connection metadata plus write-only credential material.
+// SSHSessionCommand 承载连接元数据以及只写的凭据材料。
 type SSHSessionCommand struct {
 	Name                string
 	Host                string
@@ -31,13 +31,13 @@ type SSHSessionCommand struct {
 	OverrideSettings    bool
 }
 
-// SSHSessionManager coordinates SSH Session and Credential persistence as complete transactions.
+// SSHSessionManager 以完整事务的方式协调 SSH Session 与凭据的持久化。
 type SSHSessionManager struct {
 	clock model.Clock
 	store repository.Store
 }
 
-// NewSSHSessionManager creates the SSH Session application service.
+// NewSSHSessionManager 创建 SSH Session 应用服务。
 func NewSSHSessionManager(clock model.Clock, store repository.Store) (*SSHSessionManager, error) {
 	if clock == nil || store == nil {
 		return nil, apperror.New(apperror.CodeValidationRequired, "SSH Session Manager 依赖不能为空")
@@ -45,7 +45,7 @@ func NewSSHSessionManager(clock model.Clock, store repository.Store) (*SSHSessio
 	return &SSHSessionManager{clock: clock, store: store}, nil
 }
 
-// Create transactionally persists a credential and its SSH Session metadata.
+// Create 在事务内持久化一份凭据及其 SSH Session 元数据。
 func (m *SSHSessionManager) Create(ctx context.Context, command SSHSessionCommand) (*model.SSHSession, error) {
 	var credential *model.SSHCredential
 	var credentialID *model.ID
@@ -75,7 +75,7 @@ func (m *SSHSessionManager) Create(ctx context.Context, command SSHSessionComman
 	return session, nil
 }
 
-// Update persists metadata and optionally replaces credential contents without returning secrets.
+// Update 持久化元数据并可选替换凭据内容,不回传任何密文。
 func (m *SSHSessionManager) Update(ctx context.Context, id model.ID, command SSHSessionCommand) (*model.SSHSession, error) {
 	existing, err := m.store.SSHSessions().Get(ctx, id)
 	if err != nil {
@@ -129,7 +129,7 @@ func (m *SSHSessionManager) Update(ctx context.Context, id model.ID, command SSH
 	return &updated, nil
 }
 
-// Delete removes an unreferenced SSH Session and its credential in one transaction.
+// Delete 在同一事务内删除一个无引用的 SSH Session 及其凭据。
 func (m *SSHSessionManager) Delete(ctx context.Context, id model.ID) error {
 	session, err := m.store.SSHSessions().Get(ctx, id)
 	if err != nil {
@@ -155,7 +155,7 @@ func (m *SSHSessionManager) Delete(ctx context.Context, id model.ID) error {
 	})
 }
 
-// Get returns one SSH Session without exposing its encrypted credential material.
+// Get 返回一个 SSH Session,不暴露其加密凭据材料。
 func (m *SSHSessionManager) Get(ctx context.Context, id model.ID) (*model.SSHSession, error) {
 	if !id.Valid() {
 		return nil, apperror.New(apperror.CodeValidationInvalidArgument, "SSH Session ID 无效")
@@ -163,7 +163,7 @@ func (m *SSHSessionManager) Get(ctx context.Context, id model.ID) (*model.SSHSes
 	return m.store.SSHSessions().Get(ctx, id)
 }
 
-// LoadCredential retrieves secret material for one authentication attempt; the caller must defer Clear.
+// LoadCredential 为一次认证尝试取出密文材料;调用方必须 defer Clear。
 func (m *SSHSessionManager) LoadCredential(ctx context.Context, session *model.SSHSession) (*model.SSHCredential, error) {
 	if session == nil || session.AuthType == enums.SSHAuthAgent || session.CredentialID == nil {
 		return nil, apperror.New(apperror.CodeValidationRequired, "SSH Session 没有可加载的数据库凭据")
@@ -179,7 +179,7 @@ func (m *SSHSessionManager) LoadCredential(ctx context.Context, session *model.S
 	return credential, nil
 }
 
-// PrepareConnectionTest builds a validated in-memory Session and Credential without persisting the draft.
+// PrepareConnectionTest 构建已校验的内存 Session 与凭据,不持久化草稿。
 func (m *SSHSessionManager) PrepareConnectionTest(ctx context.Context, id model.ID, command SSHSessionCommand) (*model.SSHSession, *model.SSHCredential, error) {
 	var existing *model.SSHSession
 	var err error
@@ -231,7 +231,7 @@ func (m *SSHSessionManager) PrepareConnectionTest(ctx context.Context, id model.
 	return &draft, credential, nil
 }
 
-// sshTargetChanged reports whether an edit points the Session at a different host account.
+// sshTargetChanged 返回本次编辑是否把 Session 指向了不同的主机账号。
 // 端口只有在启用 per-connection 覆盖时才决定拨号目标,否则由全局 Settings 解析,改它不算目标变更。
 func sshTargetChanged(existing, updated model.SSHSession) bool {
 	if existing.Host != updated.Host || existing.Username != updated.Username {

@@ -11,7 +11,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// ProcessIdentityRecord is the encrypted SQLite remote PID identity representation.
+// ProcessIdentityRecord 是远端 PID 身份在加密 SQLite 中的表示。
 type ProcessIdentityRecord struct {
 	ID                 string `gorm:"primaryKey;size:36"`
 	ServerID           string `gorm:"uniqueIndex;size:36"`

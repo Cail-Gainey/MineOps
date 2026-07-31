@@ -8,7 +8,7 @@ import (
 	"github.com/Cail-Gainey/MineOps/internal/global/apperror"
 )
 
-// RotateDatabaseKeyOffline rotates the SQLCipher key with rollback when secure-store persistence fails.
+// RotateDatabaseKeyOffline 轮换 SQLCipher 密钥;安全存储写入失败时回滚。
 func RotateDatabaseKeyOffline(ctx context.Context, databasePath string, keyStore KeyStore) (int, error) {
 	current, err := keyStore.Load(ctx)
 	if err != nil {

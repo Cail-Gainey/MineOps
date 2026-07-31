@@ -9,31 +9,31 @@ import (
 	"github.com/Cail-Gainey/MineOps/internal/repository"
 )
 
-// HostKeyDecision distinguishes first trust, unchanged keys, and dangerous fingerprint changes.
+// HostKeyDecision 区分首次信任、密钥未变与危险的指纹变更。
 type HostKeyDecision string
 
 const (
-	// HostKeyFirstTrust requires an explicit first-use confirmation before persistence.
+	// HostKeyFirstTrust 表示持久化之前需要显式的首次使用确认。
 	HostKeyFirstTrust HostKeyDecision = "first_trust"
-	// HostKeyTrusted indicates the observed fingerprint matches the active record.
+	// HostKeyTrusted 表示观测到的指纹与当前生效记录一致。
 	HostKeyTrusted HostKeyDecision = "trusted"
-	// HostKeyChanged requires a distinct high-risk replacement confirmation and defaults to rejection.
+	// HostKeyChanged 表示需要单独的高风险替换确认,默认拒绝。
 	HostKeyChanged HostKeyDecision = "changed"
 )
 
-// HostKeyCheck contains the host-key verification outcome and existing record when available.
+// HostKeyCheck 承载主机密钥校验结论,以及存在时的既有记录。
 type HostKeyCheck struct {
 	Decision HostKeyDecision
 	Existing *model.KnownHost
 }
 
-// KnownHostManager coordinates strict host-key lookup, first trust, and replacement history.
+// KnownHostManager 统筹严格的主机密钥查找、首次信任与替换历史。
 type KnownHostManager struct {
 	clock model.Clock
 	store repository.Store
 }
 
-// NewKnownHostManager creates the Known Hosts application service.
+// NewKnownHostManager 创建 Known Hosts 应用服务。
 func NewKnownHostManager(clock model.Clock, store repository.Store) (*KnownHostManager, error) {
 	if clock == nil || store == nil {
 		return nil, apperror.New(apperror.CodeValidationRequired, "Known Host Manager 依赖不能为空")
@@ -41,7 +41,7 @@ func NewKnownHostManager(clock model.Clock, store repository.Store) (*KnownHostM
 	return &KnownHostManager{clock: clock, store: store}, nil
 }
 
-// Check compares an observed fingerprint against the active encrypted SQLite record.
+// Check 把观测到的指纹与加密 SQLite 中的生效记录做比对。
 func (m *KnownHostManager) Check(ctx context.Context, hostIdentifier, fingerprint string) (HostKeyCheck, error) {
 	existing, err := m.store.KnownHosts().FindActive(ctx, hostIdentifier)
 	if err != nil {
@@ -60,7 +60,7 @@ func (m *KnownHostManager) Check(ctx context.Context, hostIdentifier, fingerprin
 	return HostKeyCheck{Decision: HostKeyTrusted, Existing: existing}, nil
 }
 
-// TrustFirst persists a host key only when no active record already exists.
+// TrustFirst 仅在不存在生效记录时持久化一条主机密钥。
 func (m *KnownHostManager) TrustFirst(ctx context.Context, hostIdentifier, host string, port uint16, algorithm string, publicKey []byte, fingerprint string) (*model.KnownHost, error) {
 	check, err := m.Check(ctx, hostIdentifier, fingerprint)
 	if err != nil {
@@ -79,7 +79,7 @@ func (m *KnownHostManager) TrustFirst(ctx context.Context, hostIdentifier, host 
 	return knownHost, nil
 }
 
-// Replace records a confirmed fingerprint change while preserving the previous key as history.
+// Replace 记录一次已确认的指纹变更,并把旧密钥保留为历史。
 func (m *KnownHostManager) Replace(ctx context.Context, hostIdentifier, host string, port uint16, algorithm string, publicKey []byte, fingerprint string) (*model.KnownHost, error) {
 	check, err := m.Check(ctx, hostIdentifier, fingerprint)
 	if err != nil {
@@ -98,7 +98,7 @@ func (m *KnownHostManager) Replace(ctx context.Context, hostIdentifier, host str
 	return replacement, nil
 }
 
-// Touch updates a trusted host's last-seen timestamp after successful strict verification.
+// Touch 在严格校验成功后更新受信任主机的最近可见时间。
 func (m *KnownHostManager) Touch(ctx context.Context, knownHost *model.KnownHost, now time.Time) error {
 	if knownHost == nil {
 		return apperror.New(apperror.CodeValidationRequired, "Known Host 不能为空")

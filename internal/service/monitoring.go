@@ -30,7 +30,7 @@ type MonitoringOverview struct {
 	CollectedAt  *time.Time             `json:"collectedAt,omitempty"`
 }
 
-// MonitoringManager provides the unified stage 12 monitoring query boundary.
+// MonitoringManager 提供统一的监控查询边界。
 type MonitoringManager struct {
 	clock     model.Clock
 	store     repository.Store
@@ -40,7 +40,7 @@ type MonitoringManager struct {
 	spark     *SparkManager
 }
 
-// NewMonitoringManager creates the unified Collector, Metric, Spark, and Alert query service.
+// NewMonitoringManager 创建采集器、Metric、Spark 与告警的统一查询服务。
 func NewMonitoringManager(clock model.Clock, store repository.Store, settings *appsettings.Manager, metrics *MetricManager, collector *MetricCollector, spark *SparkManager) (*MonitoringManager, error) {
 	if clock == nil || store == nil || settings == nil || metrics == nil || collector == nil || spark == nil {
 		return nil, apperror.New(apperror.CodeValidationRequired, "Monitoring Service 依赖不能为空")
@@ -48,7 +48,7 @@ func NewMonitoringManager(clock model.Clock, store repository.Store, settings *a
 	return &MonitoringManager{clock: clock, store: store, settings: settings, metrics: metrics, collector: collector, spark: spark}, nil
 }
 
-// Overview returns unified current state while preserving distinct failure categories.
+// Overview 返回统一的当前状态,同时保留各自独立的失败分类。
 func (m *MonitoringManager) Overview(ctx context.Context, serverID model.ID) (MonitoringOverview, error) {
 	if _, err := m.store.MinecraftServers().Get(ctx, serverID, false); err != nil {
 		return MonitoringOverview{}, err
@@ -117,7 +117,7 @@ func (m *MonitoringManager) Overview(ctx context.Context, serverID model.ID) (Mo
 	return overview, nil
 }
 
-// CollectNow triggers one immediate pull collection pass for the selected Server.
+// CollectNow 为所选 Server 立即触发一次拉取采集。
 func (m *MonitoringManager) CollectNow(ctx context.Context, serverID model.ID) error {
 	if _, err := m.store.MinecraftServers().Get(ctx, serverID, false); err != nil {
 		return err
@@ -125,7 +125,7 @@ func (m *MonitoringManager) CollectNow(ctx context.Context, serverID model.ID) e
 	return m.collector.CollectNow(ctx, serverID)
 }
 
-// Pause stops future automatic collection passes for one Server.
+// Pause 停止某台 Server 后续的自动采集。
 func (m *MonitoringManager) Pause(ctx context.Context, serverID model.ID) error {
 	server, err := m.store.MinecraftServers().Get(ctx, serverID, false)
 	if err != nil {
@@ -146,7 +146,7 @@ func (m *MonitoringManager) Pause(ctx context.Context, serverID model.ID) error 
 	return nil
 }
 
-// Resume restores automatic collection for one Server.
+// Resume 恢复某台 Server 的自动采集。
 func (m *MonitoringManager) Resume(ctx context.Context, serverID model.ID) error {
 	server, err := m.store.MinecraftServers().Get(ctx, serverID, false)
 	if err != nil {
@@ -166,7 +166,7 @@ func (m *MonitoringManager) Resume(ctx context.Context, serverID model.ID) error
 	return nil
 }
 
-// ClearHistory deletes every persisted Metric row and cached latest value for one Server.
+// ClearHistory 删除某台 Server 的全部持久化 Metric 数据与缓存最新值。
 func (m *MonitoringManager) ClearHistory(ctx context.Context, serverID model.ID) error {
 	server, err := m.store.MinecraftServers().Get(ctx, serverID, false)
 	if err != nil {
@@ -188,7 +188,7 @@ func (m *MonitoringManager) ClearHistory(ctx context.Context, serverID model.ID)
 	return nil
 }
 
-// Query delegates indexed history and explicit gap handling to Metric Manager.
+// Query 把走索引的历史查询与显式空洞处理委托给 Metric Manager。
 func (m *MonitoringManager) Query(ctx context.Context, query model.MetricQuery) (model.MetricQueryResult, error) {
 	return m.metrics.Query(ctx, query)
 }

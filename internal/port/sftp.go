@@ -1,4 +1,4 @@
-// Package port defines infrastructure boundaries implemented by remote adapters.
+// Package port 定义由远端适配器实现的基础设施边界。
 package port
 
 import (
@@ -8,7 +8,7 @@ import (
 	"github.com/Cail-Gainey/MineOps/internal/model"
 )
 
-// SFTPSession is one cancellable remote filesystem connection owned by an application service.
+// SFTPSession 是由应用服务持有、可取消的一条远端文件系统连接。
 type SFTPSession interface {
 	List(context.Context, string) ([]model.RemoteFile, error)
 	Stat(context.Context, string) (model.RemoteFile, error)
@@ -22,7 +22,7 @@ type SFTPSession interface {
 	Close() error
 }
 
-// SFTPFactory opens isolated SFTP Sessions over an existing SSH Session identity.
+// SFTPFactory 基于既有 SSH Session 身份打开相互隔离的 SFTP 会话。
 type SFTPFactory interface {
 	Open(context.Context, model.ID) (SFTPSession, error)
 }

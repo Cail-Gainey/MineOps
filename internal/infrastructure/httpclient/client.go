@@ -1,4 +1,4 @@
-// Package httpclient provides the bounded, retry-aware HTTP baseline shared by external catalogs and downloads.
+// Package httpclient 提供外部目录与下载共用的、有界且带重试的 HTTP 基线。
 package httpclient
 
 import (
@@ -18,7 +18,7 @@ import (
 	"github.com/Cail-Gainey/MineOps/internal/global/constants"
 )
 
-// Config contains safe HTTP transport, retry, and response limits.
+// Config 承载安全的 HTTP 传输、重试与响应上限设置。
 type Config struct {
 	UserAgent                    string
 	RequestTimeout               time.Duration
@@ -40,7 +40,7 @@ type Config struct {
 	BandwidthLimitBytesPerSecond int64
 }
 
-// Client owns one reusable connection pool and normalized request behavior.
+// Client 持有一个可复用的连接池与归一化的请求行为。
 type Client struct {
 	mu                           sync.RWMutex
 	client                       *http.Client
@@ -52,14 +52,14 @@ type Client struct {
 	semaphore                    chan struct{}
 }
 
-// New creates an HTTP client with conservative defaults and a reusable connection pool.
+// New 创建带保守默认值与可复用连接池的 HTTP 客户端。
 func New(config Config) *Client {
 	client := &Client{}
 	_ = client.Reload(config)
 	return client
 }
 
-// Reload atomically replaces the transport so existing requests finish on the old pool and new requests use current settings.
+// Reload 原子替换传输层:进行中的请求在旧池上收尾,新请求使用当前设置。
 func (c *Client) Reload(config Config) error {
 	if config.UserAgent == "" {
 		config.UserAgent = constants.ApplicationUserAgent
@@ -164,7 +164,7 @@ func (c *Client) Reload(config Config) error {
 	return nil
 }
 
-// Do performs a request with User-Agent, finite retry, and retryable status handling.
+// Do 执行一次请求,带 User-Agent、有限重试与可重试状态码处理。
 func (c *Client) Do(ctx context.Context, method, endpoint string, headers http.Header) (*http.Response, error) {
 	if c == nil {
 		return nil, apperror.New(apperror.CodeValidationRequired, "HTTP Client 不能为空")
@@ -251,7 +251,7 @@ func (r *rateLimitedReadCloser) Read(payload []byte) (int, error) {
 	return read, err
 }
 
-// GetJSON reads and decodes a bounded JSON response.
+// GetJSON 读取并解码一个有界的 JSON 响应。
 func (c *Client) GetJSON(ctx context.Context, endpoint string, target any) error {
 	response, err := c.Do(ctx, http.MethodGet, endpoint, http.Header{"Accept": []string{"application/json"}})
 	if err != nil {
@@ -277,7 +277,7 @@ func (c *Client) GetJSON(ctx context.Context, endpoint string, target any) error
 	return nil
 }
 
-// GetText reads a bounded UTF-8-compatible text response.
+// GetText 读取一个有界的、UTF-8 兼容的文本响应。
 func (c *Client) GetText(ctx context.Context, endpoint string) (string, error) {
 	response, err := c.Do(ctx, http.MethodGet, endpoint, http.Header{"Accept": []string{"text/plain, application/xml, application/json"}})
 	if err != nil {

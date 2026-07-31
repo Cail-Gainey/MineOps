@@ -7,10 +7,10 @@ var (
 	defaultPool *Pool
 )
 
-// SetDefault installs the process-wide pool returned by Default.
+// SetDefault 安装 Default 返回的进程级线程池。
 //
-// The composition root calls this once during startup so that code paths without an injected
-// pool still share the same bounded concurrency budget. It returns the previously installed pool.
+// 组装根在启动时调用一次,使未注入线程池的代码路径也共享同一份有界并发预算。
+// 返回此前已安装的线程池。
 func SetDefault(pool *Pool) *Pool {
 	defaultMu.Lock()
 	defer defaultMu.Unlock()
@@ -19,10 +19,10 @@ func SetDefault(pool *Pool) *Pool {
 	return previous
 }
 
-// Default returns the process-wide pool, lazily creating a conservative fallback if unset.
+// Default 返回进程级线程池;尚未设置时惰性创建一个保守的兜底池。
 //
-// Prefer injecting a *Pool where ownership matters; Default exists for leaf code that cannot
-// reasonably thread a pool through its call chain.
+// 在归属关系重要的地方优先注入 *Pool;Default 面向那些无法在调用链中
+// 合理传递线程池的叶子代码。
 func Default() *Pool {
 	defaultMu.RLock()
 	pool := defaultPool

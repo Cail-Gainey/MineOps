@@ -12,7 +12,7 @@ import (
 
 const nestedJarMaximumBytes = 64 * 1024 * 1024
 
-// RequiredJavaMajor returns the highest base class-file Java requirement in one Jar.
+// RequiredJavaMajor 返回一个 Jar 中基础 class 文件所要求的最高 Java 版本。
 // Fabric Jar-in-Jar 包装（如 fabric-api 顶层无任何 class 文件）会下钻 META-INF/jars 内嵌 Jar 取最高要求。
 func RequiredJavaMajor(jarPath string) (int, error) {
 	archive, err := zip.OpenReader(jarPath)
@@ -37,7 +37,7 @@ func RequiredJavaMajor(jarPath string) (int, error) {
 	return maximum, nil
 }
 
-// scanClassFileMajors returns the highest base class-file Java requirement inside one opened Jar, or 0 when none exist.
+// scanClassFileMajors 返回已打开 Jar 内基础 class 文件的最高 Java 要求;不存在时返回 0。
 func scanClassFileMajors(archive *zip.Reader) (int, error) {
 	maximum := 0
 	for _, file := range archive.File {
@@ -70,7 +70,7 @@ func scanClassFileMajors(archive *zip.Reader) (int, error) {
 	return maximum, nil
 }
 
-// scanNestedJarMajors returns the highest Java requirement across Fabric Jar-in-Jar entries under META-INF/jars.
+// scanNestedJarMajors 返回 META-INF/jars 下 Fabric 内嵌 Jar 中的最高 Java 要求。
 func scanNestedJarMajors(archive *zip.Reader) (int, error) {
 	maximum := 0
 	for _, file := range archive.File {

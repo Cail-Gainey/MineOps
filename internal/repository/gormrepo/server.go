@@ -13,7 +13,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// ServerRecord is the encrypted SQLite representation of one Minecraft Server.
+// ServerRecord 是一台 Minecraft Server 在加密 SQLite 中的表示。
 type ServerRecord struct {
 	ID               string   `gorm:"primaryKey;size:36"`
 	SSHSessionID     string   `gorm:"uniqueIndex:idx_server_ssh_name,priority:1;uniqueIndex:idx_server_ssh_path,priority:1;index;size:36"`
@@ -40,7 +40,7 @@ type ServerRecord struct {
 	DeletedAt        *time.Time `gorm:"index"`
 }
 
-// TableName keeps the table contract aligned with cross-repository reference queries.
+// TableName 让表名契约与跨仓储的引用查询保持一致。
 func (ServerRecord) TableName() string { return "server_records" }
 
 type minecraftServerRepository struct{ database *gorm.DB }

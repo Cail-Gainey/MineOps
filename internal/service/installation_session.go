@@ -13,10 +13,10 @@ import (
 	"github.com/Cail-Gainey/MineOps/internal/repository"
 )
 
-// InstallationSessionFactory creates the shared SSH session used by every step of one installation task.
+// InstallationSessionFactory 创建单个安装任务各步骤共用的 SSH 会话。
 type InstallationSessionFactory func(serverID model.ID) *InstallationSession
 
-// InstallationSession owns the single SSH connection shared by all steps of one installation task.
+// InstallationSession 持有单个安装任务全部步骤共享的那条 SSH 连接。
 //
 // 一次安装只握手一次:步骤通过 Client 取用共享连接、通过 Home 取用缓存的远程 $HOME,不再各自 Connect/Close。
 // x/crypto/ssh 的 *ssh.Client 允许并发开通道,所以同一波次内的并发步骤可以共用它。
@@ -38,7 +38,7 @@ func newInstallationSession(clients *SSHClientFactory, store repository.Store, s
 	return &InstallationSession{clients: clients, store: store, settings: settings, serverID: serverID}
 }
 
-// Client returns the shared authenticated client, dialing it at most once per task.
+// Client 返回共享的已认证客户端,每个任务最多建连一次。
 //
 // 连接建立后不再替换:步骤会把 client 存进局部变量并跨数分钟的命令持有它
 // (install_java 与 download_server 的超时都是 20 分钟),中途重连会把在途命令的通道一起关掉。
@@ -68,7 +68,7 @@ func (s *InstallationSession) Client(ctx context.Context) (*SSHClient, error) {
 	return client, nil
 }
 
-// SSHSession returns the SSH Session metadata backing the shared connection.
+// SSHSession 返回支撑该共享连接的 SSH Session 元数据。
 func (s *InstallationSession) SSHSession(ctx context.Context) (*model.SSHSession, error) {
 	if _, err := s.Client(ctx); err != nil {
 		return nil, err
@@ -81,14 +81,14 @@ func (s *InstallationSession) SSHSession(ctx context.Context) (*model.SSHSession
 	return s.session, nil
 }
 
-// Server returns a freshly read Minecraft Server row.
+// Server 返回一条重新读取的 Minecraft Server 记录。
 //
 // 不缓存:resolve_java、install_java、write_eula 都会更新这一行,缓存会让后续步骤读到过期数据。
 func (s *InstallationSession) Server(ctx context.Context) (*model.MinecraftServer, error) {
 	return s.store.MinecraftServers().Get(ctx, s.serverID, false)
 }
 
-// Home returns the remote $HOME, resolving it at most once per connection.
+// Home 返回远端 $HOME,每条连接最多解析一次。
 func (s *InstallationSession) Home(ctx context.Context) (string, error) {
 	s.mu.Lock()
 	cached := s.home
@@ -114,7 +114,7 @@ func (s *InstallationSession) Home(ctx context.Context) (string, error) {
 	return home, nil
 }
 
-// Close releases the shared connection; it is idempotent and safe to call from a defer.
+// Close 释放共享连接;该方法幂等,可安全用于 defer。
 func (s *InstallationSession) Close() error {
 	if s == nil {
 		return nil
@@ -131,7 +131,7 @@ func (s *InstallationSession) Close() error {
 	return client.Close()
 }
 
-// sshSessionID reads the server row only to learn which SSH Session to dial. Caller holds s.mu.
+// sshSessionID 读取 server 行仅为确定该拨号哪个 SSH Session。调用方需持有 s.mu。
 func (s *InstallationSession) sshSessionID(ctx context.Context) (model.ID, error) {
 	if s.session != nil {
 		return s.session.ID, nil

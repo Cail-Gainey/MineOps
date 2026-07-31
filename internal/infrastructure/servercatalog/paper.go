@@ -15,7 +15,7 @@ import (
 
 const paperDefaultBaseURL = "https://fill.papermc.io"
 
-// PaperCatalog resolves Paper, Folia, Velocity, or Waterfall builds from the PaperMC API.
+// PaperCatalog 从 PaperMC API 解析 Paper、Folia、Velocity 或 Waterfall 的构建。
 type PaperCatalog struct {
 	client       *httpclient.Client
 	sources      SourceResolver
@@ -23,16 +23,16 @@ type PaperCatalog struct {
 	project      string
 }
 
-// NewPaperCatalog creates a PaperMC project adapter for Paper, Folia, Velocity, or Waterfall.
+// NewPaperCatalog 为 Paper、Folia、Velocity 或 Waterfall 创建 PaperMC 项目适配器。
 func NewPaperCatalog(client *httpclient.Client, sources SourceResolver, distribution enums.MinecraftServerType) *PaperCatalog {
 	project := distribution.String()
 	return &PaperCatalog{client: client, sources: sources, distribution: distribution, project: project}
 }
 
-// Distribution returns the configured PaperMC distribution.
+// Distribution 返回已配置的 PaperMC 发行版。
 func (c *PaperCatalog) Distribution() enums.MinecraftServerType { return c.distribution }
 
-// ResolveVersions returns the latest available build for every project version.
+// ResolveVersions 为项目的每个版本返回最新可用构建。
 func (c *PaperCatalog) ResolveVersions(ctx context.Context) ([]port.ServerVersion, error) {
 	if c == nil || c.client == nil || c.distribution != enums.ServerPaper && c.distribution != enums.ServerFolia && c.distribution != enums.ServerVelocity && c.distribution != enums.ServerWaterfall {
 		return nil, apperror.New(apperror.CodeValidationInvalidArgument, "PaperMC Catalog 配置无效")
@@ -84,7 +84,7 @@ func (c *PaperCatalog) ResolveVersions(ctx context.Context) ([]port.ServerVersio
 	return result, nil
 }
 
-// ResolveArtifact resolves one exact PaperMC build and its SHA-256 metadata.
+// ResolveArtifact 解析一个确切的 PaperMC 构建及其 SHA-256 元数据。
 func (c *PaperCatalog) ResolveArtifact(ctx context.Context, version, build string) (port.ServerArtifact, error) {
 	if strings.TrimSpace(build) == "" {
 		versions, err := c.ResolveVersions(ctx)

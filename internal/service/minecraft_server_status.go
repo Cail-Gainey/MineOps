@@ -12,7 +12,7 @@ import (
 	"github.com/Cail-Gainey/MineOps/internal/model"
 )
 
-// ServerInstallationStatus summarizes remote files against durable Server and Installation metadata.
+// ServerInstallationStatus 把远端文件与持久化的 Server 及安装元数据比对后给出汇总。
 type ServerInstallationStatus struct {
 	State                string                  `json:"state"`
 	DirectoryFound       bool                    `json:"directoryFound"`
@@ -31,7 +31,7 @@ type ServerInstallationStatus struct {
 	InspectedAt          time.Time               `json:"inspectedAt"`
 }
 
-// InspectInstallationStatus compares remote artifacts, EULA, Properties, and the latest Installation checkpoints.
+// InspectInstallationStatus 比对远端构件、EULA、Properties 与最近的安装检查点。
 func (m *MinecraftServerManager) InspectInstallationStatus(ctx context.Context, serverID model.ID) (ServerInstallationStatus, error) {
 	server, err := m.store.MinecraftServers().Get(ctx, serverID, false)
 	if err != nil {

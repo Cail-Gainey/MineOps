@@ -6,7 +6,7 @@ import (
 	"github.com/Cail-Gainey/MineOps/internal/model"
 )
 
-// ProxyCredentialRepository persists proxy secrets only in SQLCipher-encrypted SQLite.
+// ProxyCredentialRepository 仅在 SQLCipher 加密的 SQLite 中持久化代理密文。
 type ProxyCredentialRepository interface {
 	Create(context.Context, *model.ProxyCredential) error
 	Update(context.Context, *model.ProxyCredential) error

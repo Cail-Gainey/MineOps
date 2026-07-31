@@ -12,7 +12,7 @@ import (
 	"github.com/Cail-Gainey/MineOps/internal/repository"
 )
 
-// MinecraftServerCommand contains editable server metadata and structured launch settings.
+// MinecraftServerCommand 承载可编辑的服务器元数据与结构化启动设置。
 type MinecraftServerCommand struct {
 	SSHSessionID   model.ID
 	JavaRuntimeID  *model.ID
@@ -28,7 +28,7 @@ type MinecraftServerCommand struct {
 	EULAAccepted   bool
 }
 
-// MinecraftServerManager coordinates SSH/Java references and durable Server metadata.
+// MinecraftServerManager 统筹 SSH 与 Java 引用以及持久化的 Server 元数据。
 type MinecraftServerManager struct {
 	clock    model.Clock
 	store    repository.Store
@@ -38,7 +38,7 @@ type MinecraftServerManager struct {
 	firewall *FirewallManager
 }
 
-// NewMinecraftServerManager creates the Server application service.
+// NewMinecraftServerManager 创建 Server 应用服务。
 func NewMinecraftServerManager(clock model.Clock, store repository.Store, settings *appsettings.Manager, clients *SSHClientFactory, runner *OperationRunner, firewall *FirewallManager) (*MinecraftServerManager, error) {
 	if clock == nil || store == nil || settings == nil || clients == nil || runner == nil || firewall == nil {
 		return nil, apperror.New(apperror.CodeValidationRequired, "Minecraft Server Manager 依赖不能为空")
@@ -46,7 +46,7 @@ func NewMinecraftServerManager(clock model.Clock, store repository.Store, settin
 	return &MinecraftServerManager{clock: clock, store: store, settings: settings, clients: clients, runner: runner, firewall: firewall}, nil
 }
 
-// Create validates SSH/Java references and persists a Creating server record.
+// Create 校验 SSH 与 Java 引用,并持久化一条创建中状态的服务器记录。
 func (m *MinecraftServerManager) Create(ctx context.Context, command MinecraftServerCommand) (*model.MinecraftServer, error) {
 	if err := m.validateReferences(ctx, command.SSHSessionID, command.JavaRuntimeID); err != nil {
 		return nil, err
@@ -71,7 +71,7 @@ func (m *MinecraftServerManager) Create(ctx context.Context, command MinecraftSe
 	return server, nil
 }
 
-// Update changes metadata and LaunchProfile without implicitly moving the remote directory.
+// Update 修改元数据与 LaunchProfile,不会隐式移动远端目录。
 func (m *MinecraftServerManager) Update(ctx context.Context, id model.ID, command MinecraftServerCommand) (*model.MinecraftServer, error) {
 	server, err := m.store.MinecraftServers().Get(ctx, id, false)
 	if err != nil {
@@ -103,7 +103,7 @@ func (m *MinecraftServerManager) Update(ctx context.Context, id model.ID, comman
 	return server, nil
 }
 
-// SoftDelete marks a stopped/non-running Server deleted while preserving its remote directory.
+// SoftDelete 把已停止或未运行的 Server 标记为已删除,同时保留其远端目录。
 func (m *MinecraftServerManager) SoftDelete(ctx context.Context, id model.ID) error {
 	server, err := m.store.MinecraftServers().Get(ctx, id, false)
 	if err != nil {
@@ -122,12 +122,12 @@ func (m *MinecraftServerManager) SoftDelete(ctx context.Context, id model.ID) er
 	return m.store.MinecraftServers().SoftDelete(ctx, id, m.clock)
 }
 
-// Restore restores a soft-deleted Server record to Stopped state.
+// Restore 把已软删除的 Server 记录恢复为已停止状态。
 func (m *MinecraftServerManager) Restore(ctx context.Context, id model.ID) error {
 	return m.store.MinecraftServers().Restore(ctx, id, m.clock)
 }
 
-// HardDeleteRegistration removes only an already-soft-deleted database record after exact confirmation.
+// HardDeleteRegistration 在精确确认后,仅删除已软删除的数据库记录。
 func (m *MinecraftServerManager) HardDeleteRegistration(ctx context.Context, id model.ID, confirmedName, confirmedPath string) error {
 	server, err := m.store.MinecraftServers().Get(ctx, id, true)
 	if err != nil {

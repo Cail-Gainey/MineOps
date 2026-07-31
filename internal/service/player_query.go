@@ -12,7 +12,7 @@ import (
 	"github.com/Cail-Gainey/MineOps/internal/repository"
 )
 
-// ListPlayers returns one bounded unified player page.
+// ListPlayers 返回一页有界的统一玩家数据。
 func (m *PlayerActivityManager) ListPlayers(ctx context.Context, query model.PlayerQuery) (model.PlayerListResult, error) {
 	if query.Limit == 0 {
 		query.Limit = 50
@@ -50,7 +50,7 @@ func (m *PlayerActivityManager) ListPlayers(ctx context.Context, query model.Pla
 	return model.PlayerListResult{Players: players[start:end], Total: total, Limit: query.Limit, Offset: query.Offset, CollectorStatus: collector, DirectoryError: directoryError}, nil
 }
 
-// PlayerDetail returns one unified Server-scoped player projection.
+// PlayerDetail 返回一份 Server 范围内统一的玩家投影。
 func (m *PlayerActivityManager) PlayerDetail(ctx context.Context, serverID, playerID model.ID) (model.PlayerOverview, error) {
 	if !serverID.Valid() || !playerID.Valid() {
 		return model.PlayerOverview{}, apperror.New(apperror.CodeValidationInvalidArgument, "玩家详情身份无效")
@@ -67,7 +67,7 @@ func (m *PlayerActivityManager) PlayerDetail(ctx context.Context, serverID, play
 	return model.PlayerOverview{}, apperror.New(apperror.CodeIONotFound, "玩家不存在")
 }
 
-// RecentPlayerSessions returns one bounded newest-first session page.
+// RecentPlayerSessions 返回一页按时间倒序的有界会话数据。
 func (m *PlayerActivityManager) RecentPlayerSessions(ctx context.Context, query model.PlayerSessionQuery) ([]model.PlayerSession, error) {
 	if query.Limit == 0 {
 		query.Limit = 20

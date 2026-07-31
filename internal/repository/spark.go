@@ -8,14 +8,14 @@ import (
 	"github.com/Cail-Gainey/MineOps/internal/model"
 )
 
-// SparkSnapshotQuery contains bounded Server history pagination.
+// SparkSnapshotQuery 承载有界的 Server 历史分页条件。
 type SparkSnapshotQuery struct {
 	ServerID model.ID
 	Limit    int
 	Offset   int
 }
 
-// SparkReportQuery contains bounded Server and report-kind history filters.
+// SparkReportQuery 承载有界的 Server 与报告类型历史过滤条件。
 type SparkReportQuery struct {
 	ServerID model.ID
 	Kind     enums.SparkReportKind
@@ -23,7 +23,7 @@ type SparkReportQuery struct {
 	Offset   int
 }
 
-// SparkRepository persists capability, health snapshots, and report metadata.
+// SparkRepository 持久化能力、健康 Snapshot 与报告元数据。
 type SparkRepository interface {
 	SaveCapability(context.Context, *model.SparkCapability) error
 	GetCapability(context.Context, model.ID) (*model.SparkCapability, error)
@@ -41,7 +41,7 @@ type SparkRepository interface {
 	DeleteReport(context.Context, model.ID) error
 }
 
-// AlertRuleQuery contains bounded Server, Metric, and enabled filters.
+// AlertRuleQuery 承载有界的 Server、指标与启用状态过滤条件。
 type AlertRuleQuery struct {
 	ServerID model.ID
 	Metric   enums.MetricType
@@ -50,7 +50,7 @@ type AlertRuleQuery struct {
 	Offset   int
 }
 
-// AlertEventQuery contains bounded Server, Rule, state, and pagination filters.
+// AlertEventQuery 承载有界的 Server、规则、状态与分页过滤条件。
 type AlertEventQuery struct {
 	ServerID model.ID
 	RuleID   model.ID
@@ -59,7 +59,7 @@ type AlertEventQuery struct {
 	Offset   int
 }
 
-// AlertRepository persists threshold rules and active/recovered incidents.
+// AlertRepository 持久化阈值规则与活跃、已恢复的告警事件。
 type AlertRepository interface {
 	CreateRule(context.Context, *model.AlertRule) error
 	UpdateRule(context.Context, *model.AlertRule) error

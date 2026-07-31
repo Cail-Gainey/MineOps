@@ -10,14 +10,14 @@ import (
 	"github.com/Cail-Gainey/MineOps/internal/global/applog"
 )
 
-// ShutdownStep is one ordered component close action with an independent deadline.
+// ShutdownStep 是一个有序的组件关闭动作,带独立超时。
 type ShutdownStep struct {
 	Name    string
 	Timeout time.Duration
 	Action  func(context.Context) error
 }
 
-// ShutdownStepResult records one completed, failed, or timed-out close action.
+// ShutdownStepResult 记录一次已完成、失败或超时的关闭动作。
 type ShutdownStepResult struct {
 	Name       string        `json:"name"`
 	Duration   time.Duration `json:"duration"`
@@ -26,7 +26,7 @@ type ShutdownStepResult struct {
 	FinishedAt time.Time     `json:"finishedAt"`
 }
 
-// ShutdownCoordinator executes component shutdown sequentially and never waits forever for one component.
+// ShutdownCoordinator 顺序执行组件关闭,绝不为某个组件无限等待。
 type ShutdownCoordinator struct {
 	logger *applog.Logger
 	steps  []ShutdownStep
@@ -37,7 +37,7 @@ type ShutdownCoordinator struct {
 	results []ShutdownStepResult
 }
 
-// NewShutdownCoordinator creates an ordered bounded shutdown pipeline.
+// NewShutdownCoordinator 创建一条有序且有界的关闭流水线。
 func NewShutdownCoordinator(logger *applog.Logger, steps ...ShutdownStep) (*ShutdownCoordinator, error) {
 	if logger == nil {
 		logger = applog.Default()
@@ -50,7 +50,7 @@ func NewShutdownCoordinator(logger *applog.Logger, steps ...ShutdownStep) (*Shut
 	return &ShutdownCoordinator{logger: logger, steps: append([]ShutdownStep(nil), steps...)}, nil
 }
 
-// Shutdown runs the pipeline once; concurrent or repeated callers wait for and reuse the same result.
+// Shutdown 只运行一次流水线;并发或重复调用者等待并复用同一结果。
 func (c *ShutdownCoordinator) Shutdown(ctx context.Context) ([]ShutdownStepResult, error) {
 	c.mu.Lock()
 	if c.done != nil {
@@ -108,7 +108,7 @@ func (c *ShutdownCoordinator) Shutdown(ctx context.Context) ([]ShutdownStepResul
 	return append([]ShutdownStepResult(nil), results...), shutdownResultsError(results)
 }
 
-// Results returns the latest stable shutdown evidence.
+// Results 返回最近一次稳定的关闭证据。
 func (c *ShutdownCoordinator) Results() []ShutdownStepResult {
 	c.mu.Lock()
 	defer c.mu.Unlock()

@@ -12,7 +12,7 @@ import (
 
 const sshLatencySampleCount = 5
 
-// SSHLatencyResult contains authenticated SSH request round-trip statistics.
+// SSHLatencyResult 承载已认证 SSH 请求的往返统计。
 type SSHLatencyResult struct {
 	Minimum time.Duration
 	Median  time.Duration
@@ -21,7 +21,7 @@ type SSHLatencyResult struct {
 	Samples int
 }
 
-// SSHPreflightResult contains route-aware DNS and authenticated SSH latency evidence.
+// SSHPreflightResult 承载区分路由的 DNS 与已认证 SSH 时延证据。
 // 主机规格不在此采集:它是 SSH Session 的持久化元数据,仅在创建或连接目标变更时采集一次。
 type SSHPreflightResult struct {
 	Addresses   []string
@@ -31,7 +31,7 @@ type SSHPreflightResult struct {
 	Config      model.EffectiveSSHConfig
 }
 
-// Preflight authenticates through the configured direct or Jump Host route and measures SSH request RTT.
+// Preflight 按配置的直连或 Jump Host 路由完成认证,并测量 SSH 请求往返时延。
 func (f *SSHClientFactory) Preflight(ctx context.Context, session *model.SSHSession, settings model.SSHSettings) (SSHPreflightResult, error) {
 	if session == nil {
 		return SSHPreflightResult{}, apperror.New(apperror.CodeValidationRequired, "SSH Session 不能为空")
@@ -55,7 +55,7 @@ func (f *SSHClientFactory) Preflight(ctx context.Context, session *model.SSHSess
 	}, nil
 }
 
-// MeasureLatency sends authenticated SSH global requests and summarizes their round-trip durations.
+// MeasureLatency 发送已认证的 SSH 全局请求并汇总其往返耗时。
 func (c *SSHClient) MeasureLatency(ctx context.Context, sampleCount int, timeout time.Duration) (SSHLatencyResult, error) {
 	if c == nil || c.client == nil {
 		return SSHLatencyResult{}, apperror.New(apperror.CodeSSHConnectionFailed, "SSH Client 不可用")

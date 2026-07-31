@@ -35,7 +35,7 @@ type minecraftPlayerFileRecord struct {
 	Expires string `json:"expires"`
 }
 
-// ParsePlayerDirectoryFile parses one bounded Minecraft player JSON file.
+// ParsePlayerDirectoryFile 解析一个有界的 Minecraft 玩家 JSON 文件。
 func ParsePlayerDirectoryFile(fileName string, content []byte) ([]playerDirectoryEntry, error) {
 	if len(content) > maximumPlayerDirectoryBytes {
 		return nil, apperror.New(apperror.CodeValidationInvalidArgument, "Minecraft 玩家目录文件超过限制")
@@ -76,7 +76,7 @@ func ParsePlayerDirectoryFile(fileName string, content []byte) ([]playerDirector
 	return entries, nil
 }
 
-// SynchronizeDirectory refreshes authoritative player identity and permission snapshots.
+// SynchronizeDirectory 刷新权威的玩家身份与权限快照。
 func (m *PlayerActivityManager) SynchronizeDirectory(ctx context.Context, serverID model.ID, selectedFiles ...string) error {
 	if !serverID.Valid() || m.clients == nil || m.settings == nil {
 		return apperror.New(apperror.CodeValidationRequired, "玩家目录同步依赖或 Server ID 无效")
@@ -298,7 +298,7 @@ func containsPlayerDirectoryFile(value string) bool {
 	return false
 }
 
-// ManagePlayer sends one validated Minecraft command and refreshes authoritative directory state.
+// ManagePlayer 发送一条已校验的 Minecraft 命令并刷新权威名录状态。
 func (m *PlayerActivityManager) ManagePlayer(ctx context.Context, action string, input model.PlayerActionInput) (model.PlayerOverview, error) {
 	if err := input.Validate(); err != nil {
 		return model.PlayerOverview{}, err

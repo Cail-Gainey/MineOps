@@ -16,14 +16,14 @@ import (
 	"github.com/Cail-Gainey/MineOps/internal/repository"
 )
 
-// JavaCandidate contains a verified remote Java executable before persistence.
+// JavaCandidate 承载持久化之前已校验的远端 Java 可执行文件。
 type JavaCandidate struct {
 	ExecutablePath string                  `json:"executablePath"`
 	Source         model.JavaRuntimeSource `json:"source"`
 	Info           model.JavaVersionInfo   `json:"info"`
 }
 
-// JavaRuntimeManager discovers, validates, imports, recommends, and deletes remote Java installations.
+// JavaRuntimeManager 负责远端 Java 安装的探测、校验、导入、推荐与删除。
 type JavaRuntimeManager struct {
 	clock    model.Clock
 	store    repository.Store
@@ -34,9 +34,9 @@ type JavaRuntimeManager struct {
 	pool     *appthread.Pool
 }
 
-// NewJavaRuntimeManager creates the remote Java application service.
+// NewJavaRuntimeManager 创建远端 Java 应用服务。
 //
-// pool bounds the concurrent remote probes issued by Discover; a nil pool falls back to appthread.Default().
+// pool 限制 Discover 发起的并发远端探测数;池为 nil 时回落到 appthread.Default()。
 func NewJavaRuntimeManager(clock model.Clock, store repository.Store, clients *SSHClientFactory, settings *appsettings.Manager, catalog port.JDKCatalog, runner *OperationRunner, pool *appthread.Pool) (*JavaRuntimeManager, error) {
 	if clock == nil || store == nil || clients == nil || settings == nil || catalog == nil || runner == nil {
 		return nil, apperror.New(apperror.CodeValidationRequired, "Java Runtime Manager 依赖不能为空")
@@ -47,7 +47,7 @@ func NewJavaRuntimeManager(clock model.Clock, store repository.Store, clients *S
 	return &JavaRuntimeManager{clock: clock, store: store, clients: clients, settings: settings, catalog: catalog, runner: runner, pool: pool}, nil
 }
 
-// Discover verifies managed, JAVA_HOME, PATH, and common Linux Java candidates in priority order.
+// Discover 按优先级依次校验受管目录、JAVA_HOME、PATH 与常见 Linux 路径下的 Java 候选。
 func (m *JavaRuntimeManager) Discover(ctx context.Context, sshSessionID model.ID) ([]JavaCandidate, error) {
 	_, client, err := m.connect(ctx, sshSessionID)
 	if err != nil {
@@ -57,7 +57,7 @@ func (m *JavaRuntimeManager) Discover(ctx context.Context, sshSessionID model.ID
 	return m.DiscoverWithClient(ctx, client)
 }
 
-// DiscoverWithClient runs discovery on an already authenticated client so callers can reuse one SSH connection.
+// DiscoverWithClient 在已认证的客户端上执行探测,便于调用方复用同一条 SSH 连接。
 //
 // 远程探测通过线程池并发执行:环境变量合并成一次往返,系统目录 find 与候选校验按输入顺序扇出,
 // 因此 Managed→JAVA_HOME→PATH→System 的优先级顺序与串行实现完全一致。
@@ -146,7 +146,7 @@ const javaEnvironmentProbeScript = `printf '%s\n' "${HOME:-}"
 printf '%s\n' "${JAVA_HOME:-}"
 printf '%s\n' "$(command -v java 2>/dev/null || true)"`
 
-// discoverEnvironment reads HOME, JAVA_HOME, and the PATH java in one round trip instead of three.
+// discoverEnvironment 用一次往返读取 HOME、JAVA_HOME 与 PATH 中的 java,而不是三次。
 func (m *JavaRuntimeManager) discoverEnvironment(ctx context.Context, client *SSHClient) javaEnvironment {
 	output := m.commandOutput(ctx, client, RemoteCommand{
 		Executable: "sh", Arguments: []string{"-c", javaEnvironmentProbeScript},
@@ -162,17 +162,17 @@ func (m *JavaRuntimeManager) discoverEnvironment(ctx context.Context, client *SS
 	return javaEnvironment{home: value(0), javaHome: value(1), pathJava: value(2)}
 }
 
-// List returns persisted Java Runtimes using repository filters.
+// List 按仓储过滤条件返回已持久化的 Java 运行时。
 func (m *JavaRuntimeManager) List(ctx context.Context, query repository.JavaRuntimeQuery) ([]model.JavaRuntime, error) {
 	return m.store.JavaRuntimes().List(ctx, query)
 }
 
-// ListArtifacts returns approved provider-neutral JDK download artifacts.
+// ListArtifacts 返回已核准、与供应方无关的 JDK 下载构件。
 func (m *JavaRuntimeManager) ListArtifacts(ctx context.Context, majorVersion int, architecture string) ([]port.JDKArtifact, error) {
 	return m.catalog.List(ctx, majorVersion, architecture, "linux")
 }
 
-// Validate verifies one manually supplied Java executable through SSH.
+// Validate 通过 SSH 校验一个手工指定的 Java 可执行文件。
 func (m *JavaRuntimeManager) Validate(ctx context.Context, sshSessionID model.ID, executablePath string, source model.JavaRuntimeSource) (JavaCandidate, error) {
 	_, client, err := m.connect(ctx, sshSessionID)
 	if err != nil {
@@ -182,7 +182,7 @@ func (m *JavaRuntimeManager) Validate(ctx context.Context, sshSessionID model.ID
 	return m.validateWithClient(ctx, client, executablePath, source)
 }
 
-// ValidateWithClient verifies one Java executable on an already authenticated client.
+// ValidateWithClient 在已认证的客户端上校验一个 Java 可执行文件。
 func (m *JavaRuntimeManager) ValidateWithClient(ctx context.Context, client *SSHClient, executablePath string, source model.JavaRuntimeSource) (JavaCandidate, error) {
 	if client == nil {
 		return JavaCandidate{}, apperror.New(apperror.CodeValidationRequired, "Java 校验的 SSH Client 不能为空")
@@ -190,7 +190,7 @@ func (m *JavaRuntimeManager) ValidateWithClient(ctx context.Context, client *SSH
 	return m.validateWithClient(ctx, client, executablePath, source)
 }
 
-// Import validates and transactionally registers one remote Java installation, deduplicated by path.
+// Import 校验并在事务内登记一个远端 Java 安装,按路径去重。
 func (m *JavaRuntimeManager) Import(ctx context.Context, sshSessionID model.ID, executablePath string, source model.JavaRuntimeSource) (*model.JavaRuntime, error) {
 	candidate, err := m.Validate(ctx, sshSessionID, executablePath, source)
 	if err != nil {
@@ -199,7 +199,7 @@ func (m *JavaRuntimeManager) Import(ctx context.Context, sshSessionID model.ID, 
 	return m.registerCandidate(ctx, sshSessionID, candidate)
 }
 
-// ImportCandidate registers an already verified candidate without opening another SSH connection.
+// ImportCandidate 登记一个已校验的候选,不再新建 SSH 连接。
 //
 // Discover 返回的候选已经完成远程校验,重复 Import 会为每个候选再连一次并重跑 java -version;
 // 该入口让调用方直接复用校验结果,只做数据库写入。
@@ -247,7 +247,7 @@ func (m *JavaRuntimeManager) registerCandidate(ctx context.Context, sshSessionID
 	return javaRuntime, nil
 }
 
-// Recommend selects the default or closest compatible reusable Java Runtime for a Minecraft version.
+// Recommend 为某个 Minecraft 版本选出默认的或最接近的可复用兼容 Java 运行时。
 func (m *JavaRuntimeManager) Recommend(ctx context.Context, sshSessionID model.ID, serverType, minecraftVersion string) (*model.JavaRuntime, error) {
 	requirement, err := model.JavaRequirementForMinecraft(serverType, minecraftVersion)
 	if err != nil {
@@ -280,12 +280,12 @@ func (m *JavaRuntimeManager) Recommend(ctx context.Context, sshSessionID model.I
 	return &selected, nil
 }
 
-// SetDefault marks one Java Runtime as the default for its SSH Session.
+// SetDefault 把一条 Java 运行时标记为其 SSH Session 的默认项。
 func (m *JavaRuntimeManager) SetDefault(ctx context.Context, sshSessionID, id model.ID) error {
 	return m.store.JavaRuntimes().SetDefault(ctx, sshSessionID, id)
 }
 
-// Delete removes an unreferenced Java Runtime registration without deleting its remote files.
+// Delete 删除一条无引用的 Java 运行时登记,不删除其远端文件。
 func (m *JavaRuntimeManager) Delete(ctx context.Context, id model.ID) error {
 	references, err := m.store.JavaRuntimes().CountServerReferences(ctx, id)
 	if err != nil {

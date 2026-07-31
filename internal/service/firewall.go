@@ -15,7 +15,7 @@ import (
 	"github.com/Cail-Gainey/MineOps/internal/repository"
 )
 
-// FirewallPortChangePlan captures the rule prepared before a server.properties port update.
+// FirewallPortChangePlan 记录 server.properties 端口更新前预先准备好的规则。
 type FirewallPortChangePlan struct {
 	ServerID      model.ID
 	OldPort       uint16
@@ -25,7 +25,7 @@ type FirewallPortChangePlan struct {
 	RemoveOldPort bool
 }
 
-// FirewallManager detects, applies, owns, and safely releases remote Linux TCP rules.
+// FirewallManager 负责远端 Linux TCP 规则的探测、应用、归属与安全释放。
 type FirewallManager struct {
 	clock    model.Clock
 	store    repository.Store
@@ -33,7 +33,7 @@ type FirewallManager struct {
 	settings *appsettings.Manager
 }
 
-// NewFirewallManager creates the UFW/firewalld coordinator.
+// NewFirewallManager 创建 UFW 与 firewalld 的协调器。
 func NewFirewallManager(clock model.Clock, store repository.Store, clients *SSHClientFactory, settings *appsettings.Manager) (*FirewallManager, error) {
 	if clock == nil || store == nil || clients == nil || settings == nil {
 		return nil, apperror.New(apperror.CodeValidationRequired, "FirewallManager 依赖不能为空")
@@ -41,7 +41,7 @@ func NewFirewallManager(clock model.Clock, store repository.Store, clients *SSHC
 	return &FirewallManager{clock: clock, store: store, clients: clients, settings: settings}, nil
 }
 
-// Detect reads server-port and distinguishes UFW, firewalld, or no active firewall.
+// Detect 读取 server-port 并区分 UFW、firewalld 或无启用防火墙。
 func (m *FirewallManager) Detect(ctx context.Context, serverID model.ID) (port.FirewallStatus, error) {
 	server, _, client, err := m.connect(ctx, serverID)
 	if err != nil {
@@ -62,7 +62,7 @@ func (m *FirewallManager) Detect(ctx context.Context, serverID model.ID) (port.F
 	return m.DetectPort(ctx, serverID, serverPort)
 }
 
-// DetectPort probes the configured provider for one explicit TCP port.
+// DetectPort 针对一个明确的 TCP 端口探测已配置的防火墙实现。
 func (m *FirewallManager) DetectPort(ctx context.Context, serverID model.ID, serverPort uint16) (port.FirewallStatus, error) {
 	provider := m.settings.Snapshot().Firewall.Provider
 	return m.detectPort(ctx, nil, serverID, serverPort, provider)
@@ -139,7 +139,7 @@ printf 'none 0 0 %s\n' "$privileged"`
 	return status, nil
 }
 
-// EnsureAllowed applies an idempotent UFW or firewalld runtime/permanent rule.
+// EnsureAllowed 幂等地应用一条 UFW 或 firewalld 的运行期与永久规则。
 func (m *FirewallManager) EnsureAllowed(ctx context.Context, status port.FirewallStatus) error {
 	return m.ensureAllowed(ctx, nil, status)
 }
@@ -189,7 +189,7 @@ exit 43`
 	return nil
 }
 
-// RemoveAllowed removes one MineOps-owned UFW or firewalld rule.
+// RemoveAllowed 删除一条归属 MineOps 的 UFW 或 firewalld 规则。
 func (m *FirewallManager) RemoveAllowed(ctx context.Context, status port.FirewallStatus) error {
 	return m.removeAllowed(ctx, nil, status)
 }
@@ -239,12 +239,12 @@ exit 43`
 	return nil
 }
 
-// AcquirePort ensures a rule and records whether MineOps owns it.
+// AcquirePort 确保规则存在,并记录该规则是否归属 MineOps。
 func (m *FirewallManager) AcquirePort(ctx context.Context, serverID model.ID, serverPort uint16) (port.FirewallStatus, error) {
 	return m.acquirePort(ctx, nil, serverID, serverPort)
 }
 
-// AcquirePortWithClient ensures a rule over an already authenticated client so callers can reuse one SSH connection.
+// AcquirePortWithClient 在已认证的客户端上确保规则存在,便于调用方复用同一条 SSH 连接。
 func (m *FirewallManager) AcquirePortWithClient(ctx context.Context, client *SSHClient, serverID model.ID, serverPort uint16) (port.FirewallStatus, error) {
 	if client == nil {
 		return port.FirewallStatus{}, apperror.New(apperror.CodeValidationRequired, "防火墙操作的 SSH Client 不能为空")
@@ -295,7 +295,7 @@ func (m *FirewallManager) acquirePort(ctx context.Context, shared *SSHClient, se
 	return status, nil
 }
 
-// PreparePortChange validates confirmation and opens the new rule before configuration is saved.
+// PreparePortChange 校验确认结果,并在配置保存之前先放行新端口。
 func (m *FirewallManager) PreparePortChange(ctx context.Context, serverID model.ID, oldPort, newPort uint16, confirmed bool) (*FirewallPortChangePlan, error) {
 	server, err := m.store.MinecraftServers().Get(ctx, serverID, false)
 	if err != nil {
@@ -335,7 +335,7 @@ func (m *FirewallManager) PreparePortChange(ctx context.Context, serverID model.
 	}, nil
 }
 
-// AbortPortChange compensates a newly created rule when configuration saving fails.
+// AbortPortChange 在配置保存失败时补偿性地回收刚创建的规则。
 func (m *FirewallManager) AbortPortChange(ctx context.Context, plan *FirewallPortChangePlan) {
 	if plan == nil || !plan.Created || plan.NewStatus.Backend == enums.FirewallBackendNone {
 		return
@@ -348,7 +348,7 @@ func (m *FirewallManager) AbortPortChange(ctx context.Context, plan *FirewallPor
 	}
 }
 
-// CommitPortChange records the new lease and safely releases the old MineOps-owned rule.
+// CommitPortChange 记录新的归属,并安全释放归属 MineOps 的旧规则。
 func (m *FirewallManager) CommitPortChange(ctx context.Context, plan *FirewallPortChangePlan) error {
 	if plan == nil || plan.NewStatus.Backend == enums.FirewallBackendNone || !plan.NewStatus.Active {
 		return nil
@@ -367,7 +367,7 @@ func (m *FirewallManager) CommitPortChange(ctx context.Context, plan *FirewallPo
 	return m.releaseServerPort(ctx, plan.ServerID, plan.OldPort, false)
 }
 
-// CleanupPending removes deferred old rules after a Server has successfully started on its new port.
+// CleanupPending 在 Server 以新端口成功启动后,清理此前延后处理的旧规则。
 func (m *FirewallManager) CleanupPending(ctx context.Context, serverID model.ID) error {
 	leases, err := m.store.FirewallRuleLeases().ListByServer(ctx, serverID)
 	if err != nil {
@@ -383,7 +383,7 @@ func (m *FirewallManager) CleanupPending(ctx context.Context, serverID model.ID)
 	return nil
 }
 
-// PrepareStart enforces Disabled/Prompt/Automatic without removing shared rules.
+// PrepareStart 执行禁用、询问或自动策略,且不删除共享规则。
 func (m *FirewallManager) PrepareStart(ctx context.Context, serverID model.ID, confirmed bool) (port.FirewallStatus, error) {
 	server, err := m.store.MinecraftServers().Get(ctx, serverID, false)
 	if err != nil {
@@ -477,7 +477,7 @@ func (m *FirewallManager) connect(ctx context.Context, serverID model.ID) (*mode
 	return server, session, client, nil
 }
 
-// target reads the Minecraft Server and its SSH Session rows without opening a connection.
+// target 读取 Minecraft Server 及其 SSH Session 行,不建立任何连接。
 func (m *FirewallManager) target(ctx context.Context, serverID model.ID) (*model.MinecraftServer, *model.SSHSession, error) {
 	server, err := m.store.MinecraftServers().Get(ctx, serverID, false)
 	if err != nil {
@@ -490,7 +490,7 @@ func (m *FirewallManager) target(ctx context.Context, serverID model.ID) (*model
 	return server, session, nil
 }
 
-// clientFor returns the caller's shared client with a no-op release, or a freshly dialed client the caller must release.
+// clientFor 返回调用方的共享客户端并配空释放函数,或返回一条需由调用方释放的新建连接。
 func (m *FirewallManager) clientFor(ctx context.Context, shared *SSHClient, session *model.SSHSession) (*SSHClient, func(), error) {
 	if shared != nil {
 		return shared, func() {}, nil

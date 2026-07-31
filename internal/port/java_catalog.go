@@ -2,7 +2,7 @@ package port
 
 import "context"
 
-// JDKArtifact is the provider-neutral approved Java download description.
+// JDKArtifact 是与供应方无关、已核准的 Java 下载描述。
 type JDKArtifact struct {
 	Version         string `json:"version"`
 	MajorVersion    int    `json:"majorVersion"`
@@ -15,7 +15,7 @@ type JDKArtifact struct {
 	SHA256          string `json:"sha256"`
 }
 
-// JDKCatalog resolves approved Java artifacts without exposing provider response DTOs.
+// JDKCatalog 解析已核准的 Java 构件,不暴露供应方响应 DTO。
 type JDKCatalog interface {
 	List(context.Context, int, string, string) ([]JDKArtifact, error)
 	Resolve(context.Context, int, string, string) (JDKArtifact, error)

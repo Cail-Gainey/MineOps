@@ -14,21 +14,21 @@ import (
 
 const fabricDefaultBaseURL = "https://meta.fabricmc.net"
 
-// FabricCatalog resolves stable game, loader, and installer combinations.
+// FabricCatalog 解析稳定的游戏、Loader 与安装器组合。
 type FabricCatalog struct {
 	client  *httpclient.Client
 	sources SourceResolver
 }
 
-// NewFabricCatalog creates the official Fabric Meta adapter.
+// NewFabricCatalog 创建官方 Fabric Meta 适配器。
 func NewFabricCatalog(client *httpclient.Client, sources SourceResolver) *FabricCatalog {
 	return &FabricCatalog{client: client, sources: sources}
 }
 
-// Distribution returns Fabric.
+// Distribution 返回 Fabric。
 func (c *FabricCatalog) Distribution() enums.MinecraftServerType { return enums.ServerFabric }
 
-// ResolveVersions returns stable Minecraft versions and defers Loader resolution until installation.
+// ResolveVersions 返回稳定的 Minecraft 版本,把 Loader 解析推迟到安装阶段。
 func (c *FabricCatalog) ResolveVersions(ctx context.Context) ([]port.ServerVersion, error) {
 	if c == nil || c.client == nil {
 		return nil, apperror.New(apperror.CodeValidationRequired, "Fabric HTTP Client 不能为空")
@@ -56,7 +56,7 @@ func (c *FabricCatalog) ResolveVersions(ctx context.Context) ([]port.ServerVersi
 	return result, nil
 }
 
-// ResolveArtifact returns the stable Fabric server launcher combination.
+// ResolveArtifact 返回稳定的 Fabric 服务端启动器组合。
 func (c *FabricCatalog) ResolveArtifact(ctx context.Context, version, loader string) (port.ServerArtifact, error) {
 	if strings.TrimSpace(loader) == "" {
 		var err error

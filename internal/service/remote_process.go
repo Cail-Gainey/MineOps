@@ -20,7 +20,7 @@ import (
 	"github.com/Cail-Gainey/MineOps/internal/repository"
 )
 
-// RemoteProcessController starts recoverable detached processes and verifies Linux PID reuse evidence over SSH.
+// RemoteProcessController 启动可恢复的分离进程,并经 SSH 校验 Linux PID 复用证据。
 type RemoteProcessController struct {
 	clock    model.Clock
 	store    repository.Store
@@ -28,7 +28,7 @@ type RemoteProcessController struct {
 	settings *appsettings.Manager
 }
 
-// TmuxInstallPlan describes the detected remote package manager and fixed tmux installation command.
+// TmuxInstallPlan 描述探测到的远端包管理器与固定的 tmux 安装命令。
 type TmuxInstallPlan struct {
 	Installed      bool   `json:"installed"`
 	Version        string `json:"version,omitempty"`
@@ -39,7 +39,7 @@ type TmuxInstallPlan struct {
 	RequiresSudo   bool   `json:"requiresSudo"`
 }
 
-// NewRemoteProcessController creates the shared lifecycle and Console process adapter.
+// NewRemoteProcessController 创建生命周期与控制台共用的进程适配器。
 func NewRemoteProcessController(clock model.Clock, store repository.Store, clients *SSHClientFactory, settings *appsettings.Manager) (*RemoteProcessController, error) {
 	if clock == nil || store == nil || clients == nil || settings == nil {
 		return nil, apperror.New(apperror.CodeValidationRequired, "RemoteProcessController 依赖不能为空")
@@ -47,7 +47,7 @@ func NewRemoteProcessController(clock model.Clock, store repository.Store, clien
 	return &RemoteProcessController{clock: clock, store: store, clients: clients, settings: settings}, nil
 }
 
-// Start launches a recoverable Minecraft process inside a dedicated tmux session.
+// Start 在专用 tmux 会话内拉起一个可恢复的 Minecraft 进程。
 func (c *RemoteProcessController) Start(ctx context.Context, spec port.ProcessLaunchSpec) (port.InteractiveProcess, error) {
 	if !spec.ServerID.Valid() || !spec.SSHSessionID.Valid() || strings.TrimSpace(spec.Executable) == "" || !path.IsAbs(spec.WorkingDirectory) {
 		return nil, apperror.New(apperror.CodeValidationInvalidArgument, "Process Launch Spec 无效")
@@ -156,7 +156,7 @@ exit "$exit_code"`
 	return interactive, nil
 }
 
-// Probe verifies the persisted tmux session and its owning pane process identity.
+// Probe 校验持久化的 tmux 会话及其所属 pane 的进程身份。
 func (c *RemoteProcessController) Probe(ctx context.Context, identity model.RemoteProcessIdentity) (port.ProcessProbeResult, error) {
 	if identity.TmuxSession == "" {
 		return c.probeLegacyProcess(ctx, identity)
@@ -274,7 +274,7 @@ printf 'running\n%s\n%s\n%s\n%s\n' "$start_ticks" "$process_group" "$cwd" "$comm
 	return port.ProcessProbeResult{Identity: identity, Output: lastOutput}, nil
 }
 
-// Stop sends the Minecraft `stop` command through tmux and escalates by killing the session/process group.
+// Stop 经 tmux 下发 Minecraft `stop` 命令,必要时升级为结束会话与进程组。
 func (c *RemoteProcessController) Stop(ctx context.Context, identity model.RemoteProcessIdentity, force bool) error {
 	if identity.TmuxSession == "" {
 		return c.stopLegacyProcess(ctx, identity, force)
@@ -391,12 +391,12 @@ printf '%s\n' "$stop_command" > "$fifo"`
 	return c.terminateProcessGroup(ctx, client, identity.ProcessGroupID, "KILL")
 }
 
-// Attach creates a Console attachment to an already persisted remote process identity.
+// Attach 对一个已持久化的远端进程身份创建控制台附着。
 func (c *RemoteProcessController) Attach(identity model.RemoteProcessIdentity) port.InteractiveProcess {
 	return &remoteInteractiveProcess{controller: c, identity: identity}
 }
 
-// EnsureTmux verifies tmux and, after explicit confirmation, installs it through a supported package manager.
+// EnsureTmux 校验 tmux,并在显式确认后经受支持的包管理器安装它。
 func (c *RemoteProcessController) EnsureTmux(ctx context.Context, sshSessionID model.ID, installConfirmed bool) (TmuxInstallPlan, error) {
 	_, client, err := c.connect(ctx, sshSessionID)
 	if err != nil {

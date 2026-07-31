@@ -8,7 +8,7 @@ import (
 	"github.com/Cail-Gainey/MineOps/internal/global/enums"
 )
 
-// SettingsRecord is one encrypted, versioned settings category payload.
+// SettingsRecord 是一个加密且带版本的设置分类负载。
 type SettingsRecord struct {
 	Category      string `gorm:"primaryKey;size:32"`
 	SchemaVersion int

@@ -13,21 +13,21 @@ import (
 	"github.com/Cail-Gainey/MineOps/internal/repository"
 )
 
-// InstallationStepReporter persists per-step progress, messages, and log cursors.
+// InstallationStepReporter 持久化每个步骤的进度、消息与日志游标。
 type InstallationStepReporter interface {
 	SetProgress(float64, string, int64) error
 }
 
-// InstallationStepHandler executes one idempotent installation step and returns its durable checkpoint.
+// InstallationStepHandler 执行一个幂等安装步骤并返回其持久化检查点。
 type InstallationStepHandler func(context.Context, *InstallationSession, model.InstallationTask, model.InstallationStep, InstallationStepReporter) (map[string]any, error)
 
-// InstallationStartResult contains both durable task and operation identities returned immediately to Wails.
+// InstallationStartResult 承载立即返回给 Wails 的持久化任务与 Operation 标识。
 type InstallationStartResult struct {
 	TaskID      model.ID `json:"taskID"`
 	OperationID model.ID `json:"operationID"`
 }
 
-// InstallationRunner coordinates durable checkpoints with OperationRunner cancellation and resource locking.
+// InstallationRunner 把持久化检查点与 OperationRunner 的取消及资源锁协调起来。
 type InstallationRunner struct {
 	clock      model.Clock
 	store      repository.Store
@@ -43,9 +43,9 @@ type InstallationRunner struct {
 	progressMu sync.Mutex
 }
 
-// NewInstallationRunner creates the durable installation queue owner.
+// NewInstallationRunner 创建持久化安装队列的所有者。
 //
-// threads bounds the concurrent steps inside one installation wave; a nil pool falls back to appthread.Default().
+// threads 限制单个安装波次内的并发步骤数;池为 nil 时回落到 appthread.Default()。
 func NewInstallationRunner(clock model.Clock, store repository.Store, operations *OperationRunner, threads *appthread.Pool) (*InstallationRunner, error) {
 	if clock == nil || store == nil || operations == nil {
 		return nil, apperror.New(apperror.CodeValidationRequired, "InstallationRunner 依赖不能为空")
@@ -59,7 +59,7 @@ func NewInstallationRunner(clock model.Clock, store repository.Store, operations
 	}, nil
 }
 
-// SetSessionFactory installs the per-task shared SSH session factory used by execute.
+// SetSessionFactory 安装 execute 所用的、按任务共享的 SSH 会话工厂。
 func (r *InstallationRunner) SetSessionFactory(factory InstallationSessionFactory) error {
 	if factory == nil {
 		return apperror.New(apperror.CodeValidationRequired, "Installation Session Factory 不能为空")
@@ -70,7 +70,7 @@ func (r *InstallationRunner) SetSessionFactory(factory InstallationSessionFactor
 	return nil
 }
 
-// RegisterStep replaces one named idempotent step implementation.
+// RegisterStep 替换一个具名幂等步骤的实现。
 func (r *InstallationRunner) RegisterStep(name string, handler InstallationStepHandler) error {
 	if name == "" || handler == nil {
 		return apperror.New(apperror.CodeValidationRequired, "Installation Step 名称和 Handler 不能为空")
@@ -81,7 +81,7 @@ func (r *InstallationRunner) RegisterStep(name string, handler InstallationStepH
 	return nil
 }
 
-// Start persists the task and steps, starts the asynchronous Operation, and returns immediately.
+// Start 持久化任务与步骤、启动异步 Operation 并立即返回。
 func (r *InstallationRunner) Start(ctx context.Context, serverID model.ID) (InstallationStartResult, error) {
 	task, steps, err := model.NewInstallationTask(r.clock, serverID)
 	if err != nil {
@@ -115,7 +115,7 @@ func (r *InstallationRunner) Start(ctx context.Context, serverID model.ID) (Inst
 	return InstallationStartResult{TaskID: task.ID, OperationID: operationID}, nil
 }
 
-// Retry starts a new Operation while executing only Failed, Cancelled, or Waiting steps.
+// Retry 启动一个新的 Operation,只执行失败、已取消或等待中的步骤。
 func (r *InstallationRunner) Retry(ctx context.Context, taskID model.ID) (InstallationStartResult, error) {
 	task, steps, err := r.store.Installations().Get(ctx, taskID)
 	if err != nil {
@@ -167,12 +167,12 @@ func (r *InstallationRunner) Retry(ctx context.Context, taskID model.ID) (Instal
 	return InstallationStartResult{TaskID: task.ID, OperationID: operationID}, nil
 }
 
-// Cancel propagates cancellation through the active Operation context.
+// Cancel 通过进行中 Operation 的上下文传播取消。
 func (r *InstallationRunner) Cancel(ctx context.Context, operationID model.ID) error {
 	return r.operations.Cancel(ctx, operationID)
 }
 
-// RecoverInterrupted converts process-interrupted tasks and running steps into retryable failed checkpoints.
+// RecoverInterrupted 把被进程中断的任务与运行中步骤转换成可重试的失败检查点。
 func (r *InstallationRunner) RecoverInterrupted(ctx context.Context) error {
 	tasks, err := r.store.Installations().ListRecoverable(ctx)
 	if err != nil {
@@ -207,7 +207,7 @@ func (r *InstallationRunner) RecoverInterrupted(ctx context.Context) error {
 	return nil
 }
 
-// installationWaves groups steps that may run concurrently.
+// installationWaves 把可以并发执行的步骤分组。
 //
 // 每个波次内的步骤彼此没有依赖,波次之间严格有序。划分同时满足两类约束:
 //   - checkpoint 前驱边:install_java 依赖 resolve_java、install_server 依赖 download_server 等
@@ -230,7 +230,7 @@ var installationWaves = map[string]int{
 	"register_server":    7,
 }
 
-// installationWaveFor returns a step's wave, falling back to its order so unknown steps stay fully serialized.
+// installationWaveFor 返回步骤所属波次;未知步骤回落到其顺序号,从而保持完全串行。
 func installationWaveFor(step model.InstallationStep) int {
 	if wave, ok := installationWaves[step.Name]; ok {
 		return wave
@@ -238,7 +238,7 @@ func installationWaveFor(step model.InstallationStep) int {
 	return len(installationWaves) + step.Order
 }
 
-// stepOutcome carries one concurrent step's result back to the wave scheduler.
+// stepOutcome 把一个并发步骤的结果回传给波次调度器。
 //
 // done 只在任务体跑到最后一行时置位。handler panic、线程池拒绝配额、或波次在取得配额前被取消时,
 // appthread.Group 会把错误记在 Wait 的返回值里而任务体一行都不执行 —— 此时 err 仍是 nil,
@@ -320,7 +320,7 @@ func (r *InstallationRunner) execute(ctx context.Context, taskID model.ID, opera
 	return nil
 }
 
-// assertHandlers verifies every step of a wave has an implementation before any of them is marked running.
+// assertHandlers 在把任何步骤标记为运行中之前,先确认该波次每一步都有实现。
 func (r *InstallationRunner) assertHandlers(pending []*model.InstallationStep) error {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -332,7 +332,7 @@ func (r *InstallationRunner) assertHandlers(pending []*model.InstallationStep) e
 	return nil
 }
 
-// pendingWaves returns the ascending wave numbers that still contain executable steps.
+// pendingWaves 按升序返回仍含可执行步骤的波次号。
 func (r *InstallationRunner) pendingWaves(steps []model.InstallationStep) []int {
 	seen := make(map[int]bool, len(steps))
 	waves := make([]int, 0, len(steps))
@@ -352,7 +352,7 @@ func (r *InstallationRunner) pendingWaves(steps []model.InstallationStep) []int 
 	return waves
 }
 
-// startWave marks every step of one wave as running and republishes the derived task progress.
+// startWave 把某个波次的全部步骤标记为运行中,并重新发布推导出的任务进度。
 func (r *InstallationRunner) startWave(ctx context.Context, task *model.InstallationTask, steps []model.InstallationStep, pending []*model.InstallationStep) error {
 	r.progressMu.Lock()
 	defer r.progressMu.Unlock()
@@ -369,7 +369,7 @@ func (r *InstallationRunner) startWave(ctx context.Context, task *model.Installa
 	return r.store.Installations().UpdateTask(ctx, task)
 }
 
-// runWave executes one wave concurrently on the shared pool and collects every step's outcome.
+// runWave 在共享线程池上并发执行一个波次,并收集每个步骤的结果。
 func (r *InstallationRunner) runWave(ctx context.Context, remote *InstallationSession, task *model.InstallationTask, steps []model.InstallationStep, pending []*model.InstallationStep, operationReporter OperationReporter) ([]stepOutcome, error) {
 	waveCtx, cancelWave := context.WithCancel(ctx)
 	defer cancelWave()
@@ -422,7 +422,7 @@ func (r *InstallationRunner) runWave(ctx context.Context, remote *InstallationSe
 	return outcomes, nil
 }
 
-// snapshotStep copies a step for handler input, cloning the checkpoint map so handlers never alias live state.
+// snapshotStep 为 handler 输入复制步骤,并克隆检查点映射,避免 handler 别名到活动状态。
 func snapshotStep(step model.InstallationStep) model.InstallationStep {
 	if step.Checkpoint == nil {
 		return step
@@ -435,7 +435,7 @@ func snapshotStep(step model.InstallationStep) model.InstallationStep {
 	return step
 }
 
-// commitWave persists every successful step of one wave and republishes the derived task progress.
+// commitWave 持久化一个波次中全部成功的步骤,并重新发布推导出的任务进度。
 func (r *InstallationRunner) commitWave(ctx context.Context, task *model.InstallationTask, steps []model.InstallationStep, outcomes []stepOutcome, operationReporter OperationReporter) error {
 	r.progressMu.Lock()
 	for _, outcome := range outcomes {
@@ -466,7 +466,7 @@ func (r *InstallationRunner) commitWave(ctx context.Context, task *model.Install
 	return operationReporter.SetProgress(stage, overall, "安装步骤已完成")
 }
 
-// finishWaveFailure keeps every sibling that already succeeded and records the rest as failed or cancelled.
+// finishWaveFailure 保留同波次中已成功的步骤,其余记为失败或已取消。
 func (r *InstallationRunner) finishWaveFailure(ctx context.Context, task *model.InstallationTask, steps []model.InstallationStep, outcomes []stepOutcome, waveErr error) error {
 	taskCancelled := errors.Is(ctx.Err(), context.Canceled)
 	succeeded := make([]stepOutcome, 0, len(outcomes))
@@ -513,7 +513,7 @@ func (r *InstallationRunner) finishWaveFailure(ctx context.Context, task *model.
 	return r.finishFailed(task, failed, waveErr)
 }
 
-// finishServerInstalled commits the succeeded task and the stopped Minecraft Server in one transaction.
+// finishServerInstalled 在同一事务内提交成功的任务与处于已停止状态的 Minecraft Server。
 //
 // 两者必须原子:任务成功而服务器仍停留在 Installing 是没有恢复路径的状态。
 func (r *InstallationRunner) finishServerInstalled(ctx context.Context, task *model.InstallationTask) error {
@@ -532,7 +532,7 @@ func (r *InstallationRunner) finishServerInstalled(ctx context.Context, task *mo
 	})
 }
 
-// pendingStepOrder returns the lowest order that has not finished yet, or the step count when all finished.
+// pendingStepOrder 返回尚未完成的最小顺序号;全部完成时返回步骤总数。
 //
 // 取"最小未完成"而不是"最小运行中":一个波次里同时有多个步骤在跑,
 // 而"最大已完成序号"会随波次内步骤的 Order 分布来回跳。未完成集合只会收缩,
@@ -553,7 +553,7 @@ func pendingStepOrder(steps []model.InstallationStep) int {
 	return len(steps)
 }
 
-// overallStepProgress averages per-step progress so interleaved concurrent reports stay monotonic.
+// overallStepProgress 对各步骤进度取平均,使交错的并发上报保持单调。
 func overallStepProgress(steps []model.InstallationStep) float64 {
 	if len(steps) == 0 {
 		return 0
@@ -610,7 +610,7 @@ type installationStepReporter struct {
 	operation OperationReporter
 }
 
-// SetProgress persists one step's progress under the runner lock so concurrent steps cannot race.
+// SetProgress 在 runner 锁保护下持久化单个步骤的进度,避免并发步骤竞态。
 //
 // 锁覆盖整段:task.LogCursor 是所有 reporter 共享的字段,而 UpdateTask/UpdateStep 都是整行覆盖。
 // 总进度取所有步骤进度的均值,与并发上报的交错顺序无关,因此不会倒退。

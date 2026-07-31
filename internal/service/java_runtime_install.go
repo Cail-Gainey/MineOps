@@ -28,7 +28,7 @@ const (
 	maximumJDKEntries             = 100_000
 )
 
-// StartInstall starts a managed remote Eclipse Temurin installation Operation.
+// StartInstall 启动一次受管的远端 Eclipse Temurin 安装 Operation。
 func (m *JavaRuntimeManager) StartInstall(ctx context.Context, sshSessionID model.ID, majorVersion int, architecture string) (model.ID, error) {
 	if !sshSessionID.Valid() {
 		return "", apperror.New(apperror.CodeValidationInvalidArgument, "SSH Session ID 无效")

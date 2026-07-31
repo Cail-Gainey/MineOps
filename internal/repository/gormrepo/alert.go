@@ -11,7 +11,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// AlertRuleRecord is the indexed durable metric threshold representation.
+// AlertRuleRecord 是带索引的持久化指标阈值表示。
 type AlertRuleRecord struct {
 	ID              string `gorm:"primaryKey;size:36"`
 	ServerID        string `gorm:"index:idx_alert_rule_server_metric_enabled,priority:1;size:36"`
@@ -27,7 +27,7 @@ type AlertRuleRecord struct {
 	SchemaVersion   int
 }
 
-// AlertEventRecord is the indexed durable active/recovered incident representation.
+// AlertEventRecord 是带索引的持久化活跃与已恢复告警表示。
 type AlertEventRecord struct {
 	ID             string `gorm:"primaryKey;size:36"`
 	RuleID         string `gorm:"index:idx_alert_event_rule_state,priority:1;size:36"`

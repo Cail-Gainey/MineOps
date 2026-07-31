@@ -15,20 +15,20 @@ type migrationRecord struct {
 	AppliedAt time.Time
 }
 
-// Migration is one immutable versioned GORM migration.
+// Migration 是一个不可变的、带版本的 GORM 迁移。
 type Migration struct {
 	Version int
 	Name    string
 	Apply   func(*gorm.DB) error
 }
 
-// MigrationRunner applies pending Go migrations transactionally and records their versions.
+// MigrationRunner 在事务内应用待执行的 Go 迁移并记录其版本。
 type MigrationRunner struct {
 	database   *gorm.DB
 	migrations []Migration
 }
 
-// NewMigrationRunner creates a runner after validating unique positive migration versions.
+// NewMigrationRunner 在校验迁移版本唯一且为正之后创建执行器。
 func NewMigrationRunner(database *gorm.DB, migrations []Migration) (*MigrationRunner, error) {
 	if database == nil {
 		return nil, apperror.New(apperror.CodeValidationRequired, "Migration 数据库不能为空")
@@ -48,7 +48,7 @@ func NewMigrationRunner(database *gorm.DB, migrations []Migration) (*MigrationRu
 	return &MigrationRunner{database: database, migrations: copied}, nil
 }
 
-// Run applies every pending migration in an isolated transaction and stops on the first failure.
+// Run 在各自独立的事务中应用每个待执行迁移,遇到首个失败即停止。
 func (r *MigrationRunner) Run(ctx context.Context) error {
 	if err := r.database.WithContext(ctx).AutoMigrate(&migrationRecord{}); err != nil {
 		return apperror.Wrap(apperror.CodeIOWriteFailed, "创建 Migration 版本表失败", err)
@@ -84,7 +84,7 @@ func (r *MigrationRunner) Run(ctx context.Context) error {
 	return nil
 }
 
-// CurrentVersion returns the greatest successfully applied migration version.
+// CurrentVersion 返回已成功应用的最大迁移版本号。
 func (r *MigrationRunner) CurrentVersion(ctx context.Context) (int, error) {
 	var record migrationRecord
 	result := r.database.WithContext(ctx).Order("version desc").Limit(1).Find(&record)

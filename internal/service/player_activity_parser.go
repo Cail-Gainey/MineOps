@@ -16,18 +16,18 @@ import (
 	"github.com/Cail-Gainey/MineOps/internal/model"
 )
 
-// PlayerActivityGrammarVersion identifies the line-oriented remote activity grammar.
+// PlayerActivityGrammarVersion 标识面向行的远端活动数据语法版本。
 const PlayerActivityGrammarVersion = 1
 
 const (
 	playerActivityMaximumBatch    = 512
 	playerActivityMaximumLine     = 16 * 1024
 	playerActivityDuplicateWindow = 10 * time.Second
-	// maximumPlayerActivityBatch is kept as the manager-facing alias for the parser bound.
+	// maximumPlayerActivityBatch 保留为解析器上限在 Manager 侧的别名。
 	maximumPlayerActivityBatch = playerActivityMaximumBatch
 )
 
-// PlayerActivityRecord is one validated, versioned event extracted from a Minecraft log line.
+// PlayerActivityRecord 是从一行 Minecraft 日志提取出的、已校验的带版本事件。
 type PlayerActivityRecord struct {
 	ProcessIdentityID model.ID
 	Version           int
@@ -39,19 +39,19 @@ type PlayerActivityRecord struct {
 	RawEvidence       string
 }
 
-// PlayerActivityParseResult contains bounded records and non-fatal evidence about skipped lines.
+// PlayerActivityParseResult 承载有界的记录,以及关于被跳过行的非致命证据。
 type PlayerActivityParseResult struct {
 	Records  []PlayerActivityRecord
 	Warnings []string
 }
 
-// PlayerActivityParser parses supported Vanilla/Paper/Purpur/Fabric/Forge-family log lines.
+// PlayerActivityParser 解析受支持的 Vanilla/Paper/Purpur/Fabric/Forge 系日志行。
 type PlayerActivityParser struct {
 	DuplicateWindow time.Duration
 	MaximumBatch    int
 }
 
-// NewPlayerActivityParser creates a parser with conservative duplicate and batch bounds.
+// NewPlayerActivityParser 创建一个带保守去重与批次上限的解析器。
 func NewPlayerActivityParser() PlayerActivityParser {
 	return PlayerActivityParser{DuplicateWindow: playerActivityDuplicateWindow, MaximumBatch: playerActivityMaximumBatch}
 }
@@ -65,8 +65,8 @@ var (
 	loggedInPattern   = regexp.MustCompile(`(?i)(?:^|\s)(?:player\s+)?([A-Za-z0-9_]{1,32})\s+logged\s+in\s+with\s+entity\s+id\b`)
 )
 
-// ParseMinecraftPlayerActivity recognizes one supported Minecraft log line.
-// It returns (nil, nil) for ordinary non-player log lines.
+// ParseMinecraftPlayerActivity 识别一行受支持的 Minecraft 日志。
+// 对普通的非玩家日志行返回 (nil, nil)。
 func (p PlayerActivityParser) ParseMinecraftPlayerActivity(line string, observedAt time.Time) (*PlayerActivityRecord, error) {
 	line = strings.TrimSpace(strings.TrimSuffix(line, "\r"))
 	if line == "" {
@@ -103,7 +103,7 @@ func (p PlayerActivityParser) ParseMinecraftPlayerActivity(line string, observed
 	}, nil
 }
 
-// ParseLog parses bounded raw Minecraft log content and suppresses short-window duplicates.
+// ParseLog 解析有界的 Minecraft 原始日志内容,并抑制短窗口内的重复。
 func (p PlayerActivityParser) ParseLog(content string, observedAt time.Time) PlayerActivityParseResult {
 	maximum := p.MaximumBatch
 	if maximum <= 0 || maximum > playerActivityMaximumBatch {
@@ -149,7 +149,7 @@ func (p PlayerActivityParser) ParseLog(content string, observedAt time.Time) Pla
 	return result
 }
 
-// ParseRemoteBatch parses the versioned pipe-delimited Spool grammar into durable events.
+// ParseRemoteBatch 把带版本的竖线分隔 Spool 语法解析成持久化事件。
 func (p PlayerActivityParser) ParseRemoteBatch(content string, serverID, processIdentityID model.ID, fallbackObservedAt time.Time) ([]model.PlayerActivityEvent, []string, error) {
 	if !serverID.Valid() || !processIdentityID.Valid() {
 		return nil, nil, apperror.New(apperror.CodeValidationInvalidArgument, "玩家活动 Server 或 Process Identity 无效")
@@ -202,14 +202,14 @@ func (p PlayerActivityParser) ParseRemoteBatch(content string, serverID, process
 	return result, warnings, nil
 }
 
-// StablePlayerActivityEventID derives a deterministic UUID-shaped ID from immutable event inputs.
+// StablePlayerActivityEventID 由不可变的事件输入推导出确定性的 UUID 形态 ID。
 func StablePlayerActivityEventID(serverID, processIdentityID model.ID, sequence uint64, eventType enums.PlayerActivityEventType, normalizedName string) (model.ID, error) {
 	if !serverID.Valid() || !processIdentityID.Valid() || sequence == 0 || !eventType.Valid() || model.NormalizePlayerName(normalizedName) != normalizedName || normalizedName == "" {
 		return "", apperror.New(apperror.CodeValidationInvalidArgument, "玩家活动 Event ID 输入无效")
 	}
 	payload := fmt.Sprintf("%s\x00%s\x00%d\x00%s\x00%s", serverID, processIdentityID, sequence, eventType, normalizedName)
 	digest := sha256.Sum256([]byte(payload))
-	// Preserve MineOps' UUIDv7-shaped ID contract while keeping all identity bits deterministic.
+	// 在保持全部身份位确定性的同时,维持 MineOps 的 UUIDv7 形态 ID 契约。
 	digest[6] = (digest[6] & 0x0f) | 0x70
 	digest[8] = (digest[8] & 0x3f) | 0x80
 	encoded := make([]byte, 36)
@@ -259,7 +259,7 @@ func parseRemotePlayerActivityLine(line string, fallback time.Time) (PlayerActiv
 		observed = fallback.UTC()
 	}
 	raw := limitPlayerActivityEvidence(fields[5])
-	// The daemon records observation time as a fallback; recover the authoritative log clock when present.
+	// 守护进程记录观测时间作为兜底;日志自带权威时钟时优先还原它。
 	observed = playerActivityTimestamp(raw, observed)
 	return PlayerActivityRecord{ProcessIdentityID: recordProcessID, Version: PlayerActivityGrammarVersion, SourceSequence: sequence, Type: eventType,
 		PlayerName: name, NormalizedName: model.NormalizePlayerName(name), ObservedAt: observed,
@@ -300,7 +300,7 @@ func playerActivityTimestamp(line string, observedAt time.Time) time.Time {
 	minute, _ := strconv.Atoi(match[2])
 	second, _ := strconv.Atoi(match[3])
 	candidate := time.Date(observedAt.Year(), observedAt.Month(), observedAt.Day(), hour, minute, second, 0, time.UTC)
-	// Choose the nearest day to handle evidence around midnight without a local timezone assumption.
+	// 取最接近的日期以处理跨零点的证据,避免依赖本地时区假设。
 	if candidate.Sub(observedAt) > 12*time.Hour {
 		candidate = candidate.Add(-24 * time.Hour)
 	} else if observedAt.Sub(candidate) > 12*time.Hour {

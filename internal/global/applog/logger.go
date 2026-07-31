@@ -23,7 +23,7 @@ type ContextFields struct {
 
 type contextFieldsKey struct{}
 
-// Logger is the single structured logging boundary used by MineOps services.
+// Logger 是 MineOps 各服务唯一的结构化日志边界。
 type Logger struct {
 	logger *slog.Logger
 	level  *slog.LevelVar

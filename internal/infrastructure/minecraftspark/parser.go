@@ -14,7 +14,7 @@ const (
 	sparkPrefix        = "[⚡]"
 )
 
-// ParseTPSResponse parses the locked Spark console TPS and MSPT response grammar.
+// ParseTPSResponse 解析锁定的 Spark 控制台 TPS 与 MSPT 响应语法。
 func ParseTPSResponse(key AdapterKey, raw string) (Report, error) {
 	if !SupportsPluginVersion(key.PluginVersion) ||
 		key.CollectionMethod != CollectionRCONText ||

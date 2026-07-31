@@ -17,7 +17,7 @@ import (
 	"github.com/Cail-Gainey/MineOps/internal/global/apperror"
 )
 
-// DownloadRequest defines one checksum-enforced atomic artifact download.
+// DownloadRequest 定义一次强制校验和的原子构件下载。
 type DownloadRequest struct {
 	URL              string
 	Destination      string
@@ -28,14 +28,14 @@ type DownloadRequest struct {
 	ProgressInterval time.Duration
 }
 
-// DownloadProgress reports durable byte-level progress without owning cancellation.
+// DownloadProgress 汇报持久化的字节级进度,不持有取消权。
 type DownloadProgress struct {
 	Downloaded int64
 	Total      int64
 	Progress   float64
 }
 
-// DownloadResult contains the actual verified artifact evidence.
+// DownloadResult 承载实际已校验的构件证据。
 type DownloadResult struct {
 	Path   string `json:"path"`
 	Size   int64  `json:"size"`
@@ -43,17 +43,17 @@ type DownloadResult struct {
 	SHA512 string `json:"sha512"`
 }
 
-// Downloader streams artifacts through a temporary file, verifies SHA-256 or SHA-512, and atomically publishes the result.
+// Downloader 把构件经临时文件流式落盘,校验 SHA-256 或 SHA-512 后原子发布结果。
 type Downloader struct {
 	client *Client
 }
 
-// NewDownloader creates a downloader backed by the shared HTTP client.
+// NewDownloader 创建一个基于共享 HTTP 客户端的下载器。
 func NewDownloader(client *Client) *Downloader {
 	return &Downloader{client: client}
 }
 
-// Download executes a cancellable checksum-enforced download and cleans every failed temporary file.
+// Download 执行一次可取消、强制校验和的下载,并清理所有失败的临时文件。
 func (d *Downloader) Download(ctx context.Context, request DownloadRequest, onProgress func(DownloadProgress)) (result DownloadResult, err error) {
 	sha256Checksum := strings.ToLower(strings.TrimSpace(request.ExpectedSHA256))
 	sha512Checksum := strings.ToLower(strings.TrimSpace(request.ExpectedSHA512))

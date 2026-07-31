@@ -22,27 +22,27 @@ const (
 )
 
 const (
-	// DesktopUpdatePhaseIdle indicates that no update operation is running.
+	// DesktopUpdatePhaseIdle 表示当前没有进行中的更新操作。
 	DesktopUpdatePhaseIdle = "idle"
-	// DesktopUpdatePhaseChecking indicates that release metadata is being resolved.
+	// DesktopUpdatePhaseChecking 表示正在解析发行版元数据。
 	DesktopUpdatePhaseChecking = "checking"
-	// DesktopUpdatePhaseAvailable indicates that a newer release is available.
+	// DesktopUpdatePhaseAvailable 表示存在可用的新版本。
 	DesktopUpdatePhaseAvailable = "available"
-	// DesktopUpdatePhaseDownloading indicates that an Artifact is being downloaded.
+	// DesktopUpdatePhaseDownloading 表示正在下载构件。
 	DesktopUpdatePhaseDownloading = "downloading"
-	// DesktopUpdatePhaseVerifying indicates that a downloaded Artifact is being verified.
+	// DesktopUpdatePhaseVerifying 表示正在校验已下载的构件。
 	DesktopUpdatePhaseVerifying = "verifying"
-	// DesktopUpdatePhaseReady indicates that a verified update awaits restart.
+	// DesktopUpdatePhaseReady 表示已校验的更新正等待重启生效。
 	DesktopUpdatePhaseReady = "ready"
-	// DesktopUpdatePhaseRestarting indicates that the updater helper is restarting MineOps.
+	// DesktopUpdatePhaseRestarting 表示更新助手正在重启 MineOps。
 	DesktopUpdatePhaseRestarting = "restarting"
-	// DesktopUpdatePhaseUpToDate indicates that no newer release was found.
+	// DesktopUpdatePhaseUpToDate 表示未发现更新版本。
 	DesktopUpdatePhaseUpToDate = "up-to-date"
-	// DesktopUpdatePhaseError indicates that the latest update action failed.
+	// DesktopUpdatePhaseError 表示最近一次更新操作失败。
 	DesktopUpdatePhaseError = "error"
 )
 
-// DesktopUpdateStatus describes the configured channel and complete Desktop self-update lifecycle.
+// DesktopUpdateStatus 描述已配置的通道与完整的桌面自更新生命周期。
 type DesktopUpdateStatus struct {
 	Enabled          bool       `json:"enabled"`
 	Channel          string     `json:"channel"`
@@ -68,14 +68,14 @@ type DesktopUpdateStatus struct {
 	ReadyToRestart   bool       `json:"readyToRestart"`
 }
 
-// DesktopUpdateProgress describes one bounded update download progress sample.
+// DesktopUpdateProgress 描述一次有界的更新下载进度采样。
 type DesktopUpdateProgress struct {
 	DownloadedBytes int64   `json:"downloadedBytes"`
 	TotalBytes      int64   `json:"totalBytes"`
 	Progress        float64 `json:"progress"`
 }
 
-// DesktopUpdateDriver connects the domain update coordinator to a platform updater.
+// DesktopUpdateDriver 把领域层的更新协调器接到具体平台的 updater 上。
 type DesktopUpdateDriver interface {
 	Check(context.Context) (DesktopUpdateStatus, error)
 	DownloadAndInstall(context.Context, func(DesktopUpdateProgress)) error
@@ -83,7 +83,7 @@ type DesktopUpdateDriver interface {
 	Restart(context.Context, bool) error
 }
 
-// DesktopUpdateManager checks trusted Desktop release metadata without downloading or installing updates.
+// DesktopUpdateManager 只检查受信任的桌面发行元数据,不下载也不安装。
 type DesktopUpdateManager struct {
 	clock     model.Clock
 	settings  *appsettings.Manager
@@ -98,7 +98,7 @@ type DesktopUpdateManager struct {
 	driver    DesktopUpdateDriver
 }
 
-// AttachDriver connects the platform-specific updater and triggers a fresh status refresh.
+// AttachDriver 接入平台专属 updater 并触发一次状态刷新。
 func (m *DesktopUpdateManager) AttachDriver(driver DesktopUpdateDriver) {
 	if m == nil {
 		return
@@ -115,7 +115,7 @@ func (m *DesktopUpdateManager) updateDriver() DesktopUpdateDriver {
 	return m.driver
 }
 
-// NewDesktopUpdateManager creates the Desktop version-check coordinator.
+// NewDesktopUpdateManager 创建桌面版本检查协调器。
 func NewDesktopUpdateManager(clock model.Clock, settings *appsettings.Manager, downloads *DownloadManager, catalog *desktoprelease.Catalog, logger *applog.Logger) (*DesktopUpdateManager, error) {
 	if clock == nil || settings == nil || downloads == nil || catalog == nil {
 		return nil, apperror.New(apperror.CodeValidationRequired, "Desktop Update 依赖不能为空")
@@ -131,14 +131,14 @@ func NewDesktopUpdateManager(clock model.Clock, settings *appsettings.Manager, d
 	return manager, nil
 }
 
-// Status returns the latest Desktop release check without starting network activity.
+// Status 返回最近一次桌面发行版检查结果,不发起网络请求。
 func (m *DesktopUpdateManager) Status() DesktopUpdateStatus {
 	m.statusMu.Lock()
 	defer m.statusMu.Unlock()
 	return m.status
 }
 
-// CheckNow immediately checks the configured channel without downloading or installing an update.
+// CheckNow 立即检查已配置通道,不下载也不安装更新。
 func (m *DesktopUpdateManager) CheckNow(ctx context.Context) (DesktopUpdateStatus, error) {
 	if driver := m.updateDriver(); driver != nil {
 		if !m.checkMu.TryLock() {
@@ -183,7 +183,7 @@ func (m *DesktopUpdateManager) CheckNow(ctx context.Context) (DesktopUpdateStatu
 	return m.finishCheck(status, nil)
 }
 
-// DownloadNow downloads and verifies the available Desktop update without restarting the app.
+// DownloadNow 下载并校验可用的桌面更新,不重启应用。
 func (m *DesktopUpdateManager) DownloadNow(ctx context.Context) (DesktopUpdateStatus, error) {
 	driver := m.updateDriver()
 	if driver == nil {
@@ -222,15 +222,15 @@ func (m *DesktopUpdateManager) DownloadNow(ctx context.Context) (DesktopUpdateSt
 	return status, nil
 }
 
-// CancelDownload cancels the active Desktop Artifact download when supported.
+// CancelDownload 在受支持时取消进行中的桌面构件下载。
 func (m *DesktopUpdateManager) CancelDownload() {
 	if driver := m.updateDriver(); driver != nil {
 		driver.Cancel()
 	}
 }
 
-// RestartAndApply requests a guarded restart into the verified Desktop update.
-// RestartAndApply requests a guarded restart into the verified Desktop update.
+// RestartAndApply 请求一次受保护的重启,进入已校验的桌面更新。
+// RestartAndApply 请求一次受保护的重启,进入已校验的桌面更新。
 func (m *DesktopUpdateManager) RestartAndApply(ctx context.Context, discardUnsaved bool) (DesktopUpdateStatus, error) {
 	driver := m.updateDriver()
 	if driver == nil {
@@ -249,7 +249,7 @@ func (m *DesktopUpdateManager) RestartAndApply(ctx context.Context, discardUnsav
 	return m.Status(), nil
 }
 
-// Run checks on startup, committed General/Download Settings changes, and every twelve hours when enabled.
+// Run 在启动时、通用与下载设置提交变更时,以及启用后每十二小时各检查一次。
 func (m *DesktopUpdateManager) Run(ctx context.Context) error {
 	unsubscribe := m.settings.Subscribe(func(change appsettings.Change) {
 		if change.Category == enums.SettingsGeneral || change.Category == enums.SettingsDownloads {
@@ -299,7 +299,7 @@ func (m *DesktopUpdateManager) runAutomaticCheck(ctx context.Context, failureMes
 	}
 }
 
-// Trigger requests one coalesced check after relevant committed Settings changes.
+// Trigger 在相关设置提交变更后请求一次合并的检查。
 func (m *DesktopUpdateManager) Trigger() {
 	if m == nil {
 		return

@@ -10,7 +10,7 @@ import (
 
 const OfficialBuildNumber = 525
 
-// Artifact is one exact official lucko/spark build with an immutable SHA-256 digest.
+// Artifact 是一个确切的官方 lucko/spark 构建,带不可变的 SHA-256 摘要。
 type Artifact struct {
 	Platform          string               `json:"platform"`
 	Provider          string               `json:"provider"`
@@ -27,7 +27,7 @@ type Artifact struct {
 	Dependencies      []DependencyArtifact `json:"dependencies,omitempty"`
 }
 
-// DependencyArtifact is one immutable runtime dependency installed alongside a Spark mod.
+// DependencyArtifact 是随 Spark 模组一并安装的一个不可变运行时依赖。
 type DependencyArtifact struct {
 	Name              string   `json:"name"`
 	Version           string   `json:"version"`
@@ -69,7 +69,7 @@ var officialArtifacts = map[string]Artifact{
 	},
 }
 
-// ArtifactForServer returns the exact approved artifact for one MineOps server family and Minecraft version.
+// ArtifactForServer 返回某个 MineOps 服务端家族与 Minecraft 版本对应的确切核准构件。
 func ArtifactForServer(serverType enums.MinecraftServerType, minecraftVersion string, javaMajor int) (Artifact, error) {
 	if serverType == enums.ServerPaper && PaperUsesBundledSpark(minecraftVersion) {
 		return Artifact{}, fmt.Errorf("%w: Paper Minecraft %s bundles spark; automatic external artifact installation is unavailable", ErrUnsupported, strings.TrimSpace(minecraftVersion))
@@ -126,7 +126,7 @@ func PaperUsesBundledSpark(minecraftVersion string) bool {
 	return major >= 26
 }
 
-// PlatformForServerType returns the versioned adapter platform family used by capability and parser records.
+// PlatformForServerType 返回能力与解析器记录所用的、带版本的适配器平台家族。
 func PlatformForServerType(serverType enums.MinecraftServerType) PlatformFamily {
 	switch serverType {
 	case enums.ServerPaper, enums.ServerPurpur, enums.ServerFolia:

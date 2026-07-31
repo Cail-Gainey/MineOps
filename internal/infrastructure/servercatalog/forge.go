@@ -16,22 +16,22 @@ import (
 const forgeDefaultBaseURL = "https://maven.minecraftforge.net"
 const neoForgeDefaultBaseURL = "https://maven.neoforged.net/releases"
 
-// ForgeCatalog resolves Forge or NeoForge Installer artifacts from official Maven metadata.
+// ForgeCatalog 从官方 Maven 元数据解析 Forge 或 NeoForge 安装器构件。
 type ForgeCatalog struct {
 	client       *httpclient.Client
 	sources      SourceResolver
 	distribution enums.MinecraftServerType
 }
 
-// NewForgeCatalog creates an official Forge or NeoForge Maven adapter.
+// NewForgeCatalog 创建官方 Forge 或 NeoForge 的 Maven 适配器。
 func NewForgeCatalog(client *httpclient.Client, sources SourceResolver, distribution enums.MinecraftServerType) *ForgeCatalog {
 	return &ForgeCatalog{client: client, sources: sources, distribution: distribution}
 }
 
-// Distribution returns Forge or NeoForge.
+// Distribution 返回 Forge 或 NeoForge。
 func (c *ForgeCatalog) Distribution() enums.MinecraftServerType { return c.distribution }
 
-// ResolveVersions returns latest available Loader build for each supported Minecraft version.
+// ResolveVersions 为每个受支持的 Minecraft 版本返回最新可用的 Loader 构建。
 func (c *ForgeCatalog) ResolveVersions(ctx context.Context) ([]port.ServerVersion, error) {
 	if c == nil || c.client == nil || c.distribution != enums.ServerForge && c.distribution != enums.ServerNeoForge {
 		return nil, apperror.New(apperror.CodeValidationInvalidArgument, "Forge Catalog 配置无效")
@@ -97,7 +97,7 @@ func (c *ForgeCatalog) ResolveVersions(ctx context.Context) ([]port.ServerVersio
 	return result, nil
 }
 
-// ResolveArtifact returns one exact Maven Installer Jar with its published SHA-256.
+// ResolveArtifact 返回一个确切的 Maven 安装器 Jar 及其公布的 SHA-256。
 func (c *ForgeCatalog) ResolveArtifact(ctx context.Context, version, build string) (port.ServerArtifact, error) {
 	if strings.TrimSpace(build) == "" {
 		versions, err := c.ResolveVersions(ctx)

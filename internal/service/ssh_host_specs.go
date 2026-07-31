@@ -19,7 +19,7 @@ home=${HOME:-/}
 disk_kib=$(df -Pk "$home" 2>/dev/null | awk 'NR==2 {print $2}' || true)
 printf '%s\t%s\t%s\n' "${cpu_count:-0}" "${memory_kib:-0}" "${disk_kib:-0}"`
 
-// CollectHostSpecs authenticates through the configured direct or Jump Host route and reads host capacity facts once.
+// CollectHostSpecs 按配置的直连或 Jump Host 路由完成认证,并一次性读取主机容量信息。
 func (f *SSHClientFactory) CollectHostSpecs(ctx context.Context, session *model.SSHSession, settings model.SSHSettings) (model.SSHHostSpecs, error) {
 	if session == nil {
 		return model.SSHHostSpecs{}, apperror.New(apperror.CodeValidationRequired, "SSH Session 不能为空")
@@ -43,7 +43,7 @@ func (c *SSHClient) collectHostSpecs(ctx context.Context) (model.SSHHostSpecs, e
 	return parseHostSpecs(result.Stdout)
 }
 
-// parseHostSpecs reads the probe's final line so a remote profile or MOTD writing to stdout cannot break collection.
+// parseHostSpecs 只读取探测输出的最后一行,避免远端 profile 或 MOTD 写入 stdout 干扰采集。
 func parseHostSpecs(output string) (model.SSHHostSpecs, error) {
 	fields := strings.Fields(lastNonEmptyLine(output))
 	if len(fields) != 3 {
@@ -71,7 +71,7 @@ func lastNonEmptyLine(output string) string {
 	return ""
 }
 
-// EnsureHostSpecs collects host capacity facts only when the Session has none, so listing never triggers SSH twice.
+// EnsureHostSpecs 仅在 Session 尚无主机容量信息时采集,确保列表不会重复触发 SSH。
 func (m *SSHSessionManager) EnsureHostSpecs(ctx context.Context, clients *SSHClientFactory, session *model.SSHSession, settings model.SSHSettings) (model.SSHHostSpecs, error) {
 	if session == nil {
 		return model.SSHHostSpecs{}, apperror.New(apperror.CodeValidationRequired, "SSH Session 不能为空")
@@ -82,7 +82,7 @@ func (m *SSHSessionManager) EnsureHostSpecs(ctx context.Context, clients *SSHCli
 	return m.RefreshHostSpecs(ctx, clients, session, settings)
 }
 
-// RefreshHostSpecs probes the host once over SSH and persists the result on the Session row.
+// RefreshHostSpecs 经 SSH 探测主机一次,并把结果写回 Session 行。
 func (m *SSHSessionManager) RefreshHostSpecs(ctx context.Context, clients *SSHClientFactory, session *model.SSHSession, settings model.SSHSettings) (model.SSHHostSpecs, error) {
 	if clients == nil || session == nil {
 		return model.SSHHostSpecs{}, apperror.New(apperror.CodeValidationRequired, "SSH 主机规格采集依赖不能为空")

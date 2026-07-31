@@ -20,7 +20,7 @@ import * as model$0 from "../model/models.js";
 import * as time$0 from "../../../../../time/models.js";
 
 /**
- * BackgroundResource describes the current controlled application background image.
+ * BackgroundResource 描述当前受控的应用背景图。
  */
 export class BackgroundResource {
     /**
@@ -152,7 +152,7 @@ export class CollectorStatus {
 }
 
 /**
- * DesktopUpdateStatus describes the configured channel and complete Desktop self-update lifecycle.
+ * DesktopUpdateStatus 描述已配置的通道与完整的桌面自更新生命周期。
  */
 export class DesktopUpdateStatus {
     /**
@@ -330,7 +330,7 @@ export class DesktopUpdateStatus {
 }
 
 /**
- * DiagnosticPackage describes one completed redacted diagnostic archive.
+ * DiagnosticPackage 描述一份已完成的脱敏诊断归档。
  */
 export class DiagnosticPackage {
     /**
@@ -393,7 +393,7 @@ export class DiagnosticPackage {
 }
 
 /**
- * DownloadCacheStatus describes the current local artifact cache footprint.
+ * DownloadCacheStatus 描述当前本地构件缓存的占用情况。
  */
 export class DownloadCacheStatus {
     /**
@@ -445,7 +445,7 @@ export class DownloadCacheStatus {
 }
 
 /**
- * DownloadSourceStatus contains current reachability, latency, and stable failure details.
+ * DownloadSourceStatus 承载当前可达性、时延与稳定的失败细节。
  */
 export class DownloadSourceStatus {
     /**
@@ -525,7 +525,7 @@ export class DownloadSourceStatus {
 }
 
 /**
- * JavaCandidate contains a verified remote Java executable before persistence.
+ * JavaCandidate 承载持久化之前已校验的远端 Java 可执行文件。
  */
 export class JavaCandidate {
     /**
@@ -574,7 +574,7 @@ export class JavaCandidate {
 }
 
 /**
- * LogStatus describes the actual runtime mode, active log file, and bounded directory usage.
+ * LogStatus 描述真实运行模式、当前日志文件与有界的目录占用。
  */
 export class LogStatus {
     /**
@@ -778,7 +778,7 @@ export class MonitoringOverview {
 }
 
 /**
- * PerformanceOverview combines Spark capability, snapshots, reports, and related host/process metrics.
+ * PerformanceOverview 汇总 Spark 能力、Snapshot、报告与相关的主机及进程指标。
  */
 export class PerformanceOverview {
     /**
@@ -864,7 +864,7 @@ export class PerformanceOverview {
 }
 
 /**
- * ProxyCredentialStatus exposes non-secret proxy credential state.
+ * ProxyCredentialStatus 暴露非机密的代理凭据状态。
  */
 export class ProxyCredentialStatus {
     /**
@@ -909,7 +909,7 @@ export class ProxyCredentialStatus {
 }
 
 /**
- * RemoteDirectory contains one normalized directory, remote Home, and stable-sorted entries.
+ * RemoteDirectory 承载一个规范化目录、远端 Home 与稳定排序后的条目。
  */
 export class RemoteDirectory {
     /**
@@ -958,7 +958,7 @@ export class RemoteDirectory {
 }
 
 /**
- * RemoteServerInspection contains read-only evidence used before importing an existing remote Server.
+ * RemoteServerInspection 承载导入已有远端 Server 之前的只读探测证据。
  */
 export class RemoteServerInspection {
     /**
@@ -1053,7 +1053,7 @@ export class RemoteServerInspection {
 }
 
 /**
- * RemoteServerJar is one ordinary root-level Jar candidate discovered without changing the remote directory.
+ * RemoteServerJar 是在不改动远端目录的前提下发现的一个根级普通 Jar 候选。
  */
 export class RemoteServerJar {
     /**
@@ -1091,7 +1091,7 @@ export class RemoteServerJar {
 }
 
 /**
- * ServerBackup is one verified MineOps-managed remote Server backup archive.
+ * ServerBackup 是一份经校验、由 MineOps 管理的远端 Server 备份归档。
  */
 export class ServerBackup {
     /**
@@ -1150,7 +1150,7 @@ export class ServerBackup {
 }
 
 /**
- * ServerInstallationStatus summarizes remote files against durable Server and Installation metadata.
+ * ServerInstallationStatus 把远端文件与持久化的 Server 及安装元数据比对后给出汇总。
  */
 export class ServerInstallationStatus {
     /**
@@ -1287,7 +1287,7 @@ export class ServerInstallationStatus {
 }
 
 /**
- * ServerPropertiesBackup is one retained pre-save server.properties revision.
+ * ServerPropertiesBackup 是一份保存前保留的 server.properties 历史版本。
  */
 export class ServerPropertiesBackup {
     /**
@@ -1339,7 +1339,7 @@ export class ServerPropertiesBackup {
 }
 
 /**
- * ServerPropertiesSnapshot contains raw text, effective values, and validation information.
+ * ServerPropertiesSnapshot 承载原文、生效值与校验信息。
  */
 export class ServerPropertiesSnapshot {
     /**
@@ -1399,7 +1399,7 @@ export class ServerPropertiesSnapshot {
 }
 
 /**
- * ServerPropertyUpdate changes one key while preserving all unrelated physical lines.
+ * ServerPropertyUpdate 修改一个键,同时完整保留所有无关的物理行。
  */
 export class ServerPropertyUpdate {
     /**
@@ -1437,7 +1437,7 @@ export class ServerPropertyUpdate {
 }
 
 /**
- * ServerPropertyValue is the effective last value for one server.properties key.
+ * ServerPropertyValue 是某个 server.properties 键的最终生效值。
  */
 export class ServerPropertyValue {
     /**
@@ -1941,7 +1941,7 @@ export class StorageStatus {
 }
 
 /**
- * UnsavedItem identifies one frontend editor or form currently holding uncommitted work.
+ * UnsavedItem 标识一个当前持有未提交内容的前端编辑器或表单。
  */
 export class UnsavedItem {
     /**

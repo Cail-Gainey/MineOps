@@ -1,4 +1,4 @@
-// Package jdkcatalog implements approved external JDK catalog adapters.
+// Package jdkcatalog 实现已核准的外部 JDK 目录适配器。
 package jdkcatalog
 
 import (
@@ -18,18 +18,18 @@ type sourceResolver interface {
 	ResolveSource(string, string) string
 }
 
-// AdoptiumCatalog resolves Eclipse Temurin Linux JDK artifacts from the Adoptium v3 API.
+// AdoptiumCatalog 从 Adoptium v3 API 解析 Eclipse Temurin 的 Linux JDK 构件。
 type AdoptiumCatalog struct {
 	client  *httpclient.Client
 	sources sourceResolver
 }
 
-// NewAdoptiumCatalog creates a catalog with bounded connection and response timeouts.
+// NewAdoptiumCatalog 创建一个带有界连接与响应超时的目录适配器。
 func NewAdoptiumCatalog(client *httpclient.Client, sources sourceResolver) *AdoptiumCatalog {
 	return &AdoptiumCatalog{client: client, sources: sources}
 }
 
-// List returns approved latest HotSpot JDK artifacts for one Java major and Linux architecture.
+// List 返回指定 Java 主版本与 Linux 架构下已核准的最新 HotSpot JDK 构件。
 func (c *AdoptiumCatalog) List(ctx context.Context, majorVersion int, architecture, operatingSystem string) ([]port.JDKArtifact, error) {
 	if majorVersion != 8 && majorVersion != 11 && majorVersion != 17 && majorVersion != 21 && majorVersion != 24 && majorVersion != 25 {
 		return nil, apperror.New(apperror.CodeValidationInvalidArgument, "不支持的 Java Catalog 主版本")
@@ -78,7 +78,7 @@ func (c *AdoptiumCatalog) List(ctx context.Context, majorVersion int, architectu
 	return result, nil
 }
 
-// Resolve returns the preferred first artifact from the approved catalog result.
+// Resolve 从已核准的目录结果中返回首选的第一个构件。
 func (c *AdoptiumCatalog) Resolve(ctx context.Context, majorVersion int, architecture, operatingSystem string) (port.JDKArtifact, error) {
 	artifacts, err := c.List(ctx, majorVersion, architecture, operatingSystem)
 	if err != nil {

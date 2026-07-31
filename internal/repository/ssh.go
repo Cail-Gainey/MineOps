@@ -6,7 +6,7 @@ import (
 	"github.com/Cail-Gainey/MineOps/internal/model"
 )
 
-// SSHSessionQuery contains search, grouping, favourite, and pagination filters.
+// SSHSessionQuery 承载搜索、分组、收藏与分页过滤条件。
 type SSHSessionQuery struct {
 	Search        string
 	Group         string
@@ -15,7 +15,7 @@ type SSHSessionQuery struct {
 	Offset        int
 }
 
-// SSHSessionRepository persists reusable SSH connection metadata without secrets.
+// SSHSessionRepository 持久化可复用的 SSH 连接元数据,不含密文。
 type SSHSessionRepository interface {
 	Create(context.Context, *model.SSHSession) error
 	Update(context.Context, *model.SSHSession) error
@@ -26,7 +26,7 @@ type SSHSessionRepository interface {
 	CountServerReferences(context.Context, model.ID) (int64, error)
 }
 
-// SSHCredentialRepository persists secrets inside the SQLCipher-encrypted database.
+// SSHCredentialRepository 把密文持久化在 SQLCipher 加密的数据库内。
 type SSHCredentialRepository interface {
 	Create(context.Context, *model.SSHCredential) error
 	Update(context.Context, *model.SSHCredential) error
@@ -34,7 +34,7 @@ type SSHCredentialRepository interface {
 	Delete(context.Context, model.ID) error
 }
 
-// KnownHostRepository persists trusted keys and fingerprint replacement history.
+// KnownHostRepository 持久化受信任密钥与指纹替换历史。
 type KnownHostRepository interface {
 	Create(context.Context, *model.KnownHost) error
 	Update(context.Context, *model.KnownHost) error

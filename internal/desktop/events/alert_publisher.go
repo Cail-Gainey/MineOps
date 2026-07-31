@@ -13,10 +13,10 @@ func init() {
 	application.RegisterEvent[model.AlertEvent](constants.AlertEventName)
 }
 
-// AlertPublisher emits durable threshold incident transitions through Wails Events.
+// AlertPublisher 通过 Wails 事件发布持久化的阈值告警状态迁移。
 type AlertPublisher struct{}
 
-// PublishAlert emits one active, recovered, or acknowledged alert event.
+// PublishAlert 发布一条活跃、已恢复或已确认的告警事件。
 func (AlertPublisher) PublishAlert(ctx context.Context, event model.AlertEvent) error {
 	if err := ctx.Err(); err != nil {
 		return err

@@ -1,4 +1,4 @@
-// Command verify-sidecar verifies the detached Wails Ed25519ph signature of a release manifest.
+// Command verify-sidecar 校验发行清单所附的 Wails Ed25519ph 分离签名。
 package main
 
 import (

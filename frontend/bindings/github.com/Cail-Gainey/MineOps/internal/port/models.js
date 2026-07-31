@@ -11,7 +11,7 @@ import { Create as $Create } from "@wailsio/runtime";
 import * as enums$0 from "../global/enums/models.js";
 
 /**
- * JDKArtifact is the provider-neutral approved Java download description.
+ * JDKArtifact 是与供应方无关、已核准的 Java 下载描述。
  */
 export class JDKArtifact {
     /**
@@ -98,7 +98,7 @@ export class JDKArtifact {
 }
 
 /**
- * ServerDistribution describes one dynamically registered server type and its installation capabilities.
+ * ServerDistribution 描述一个动态注册的服务端类型及其安装能力。
  */
 export class ServerDistribution {
     /**
@@ -157,7 +157,7 @@ export class ServerDistribution {
 }
 
 /**
- * ServerVersion is one provider-neutral version exposed by a server distribution catalog.
+ * ServerVersion 是服务端发行版目录暴露的、与供应方无关的一个版本。
  */
 export class ServerVersion {
     /**

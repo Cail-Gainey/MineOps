@@ -18,14 +18,14 @@ type databaseMetadataRecord struct {
 	UpdatedAt  time.Time
 }
 
-// BootstrapResult contains the ready encrypted connection and immutable database identity metadata.
+// BootstrapResult 承载就绪的加密连接与不可变的数据库身份元数据。
 type BootstrapResult struct {
 	Connection *Connection
 	DatabaseID string
 	KeyVersion int
 }
 
-// BootstrapDatabase initializes or opens the encrypted database without silently replacing missing state.
+// BootstrapDatabase 初始化或打开加密数据库,不会静默替换缺失的状态。
 func BootstrapDatabase(ctx context.Context, path string, store KeyStore) (BootstrapResult, error) {
 	if path == "" || store == nil {
 		return BootstrapResult{}, apperror.New(apperror.CodeValidationRequired, "数据库路径和 KeyStore 不能为空")

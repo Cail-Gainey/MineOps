@@ -30,7 +30,7 @@ type validatedZIPEntry struct {
 	mode       os.FileMode
 }
 
-// StartExtractZIP starts a durable Operation that validates a remote ZIP locally and publishes a new remote directory atomically.
+// StartExtractZIP 启动一个持久化任务:在本地校验远端 ZIP,并原子发布一个新的远端目录。
 func (m *FileManager) StartExtractZIP(ctx context.Context, sshSessionID model.ID, archivePath, destinationPath, currentDirectory string) (model.ID, error) {
 	if !sshSessionID.Valid() {
 		return "", apperror.New(apperror.CodeValidationInvalidArgument, "SSH Session ID 无效")

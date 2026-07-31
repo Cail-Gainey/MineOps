@@ -13,21 +13,21 @@ import (
 
 const mojangBaseURL = "https://piston-meta.mojang.com"
 
-// MojangCatalog resolves release-only Vanilla server artifacts.
+// MojangCatalog 只解析正式发行版的 Vanilla 服务端构件。
 type MojangCatalog struct {
 	client  *httpclient.Client
 	sources SourceResolver
 }
 
-// NewMojangCatalog creates the official Mojang catalog adapter.
+// NewMojangCatalog 创建官方 Mojang 目录适配器。
 func NewMojangCatalog(client *httpclient.Client, sources SourceResolver) *MojangCatalog {
 	return &MojangCatalog{client: client, sources: sources}
 }
 
-// Distribution returns Vanilla.
+// Distribution 返回 Vanilla。
 func (c *MojangCatalog) Distribution() enums.MinecraftServerType { return enums.ServerVanilla }
 
-// ResolveVersions returns release versions only and preserves provider ordering.
+// ResolveVersions 只返回正式发行版本,并保留供应方的排序。
 func (c *MojangCatalog) ResolveVersions(ctx context.Context) ([]port.ServerVersion, error) {
 	manifest, err := c.manifest(ctx)
 	if err != nil {
@@ -47,7 +47,7 @@ func (c *MojangCatalog) ResolveVersions(ctx context.Context) ([]port.ServerVersi
 	return result, nil
 }
 
-// ResolveArtifact resolves the official server Jar metadata for one release.
+// ResolveArtifact 解析某个发行版对应的官方服务端 Jar 元数据。
 func (c *MojangCatalog) ResolveArtifact(ctx context.Context, version, _ string) (port.ServerArtifact, error) {
 	manifest, err := c.manifest(ctx)
 	if err != nil {

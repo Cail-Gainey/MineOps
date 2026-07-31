@@ -7,7 +7,7 @@ import (
 	"github.com/Cail-Gainey/MineOps/internal/model"
 )
 
-// ServerVersion is one provider-neutral version exposed by a server distribution catalog.
+// ServerVersion 是服务端发行版目录暴露的、与供应方无关的一个版本。
 type ServerVersion struct {
 	Distribution enums.MinecraftServerType `json:"distribution"`
 	Version      string                    `json:"version"`
@@ -16,7 +16,7 @@ type ServerVersion struct {
 	JavaMajor    int                       `json:"javaMajor"`
 }
 
-// ServerDistribution describes one dynamically registered server type and its installation capabilities.
+// ServerDistribution 描述一个动态注册的服务端类型及其安装能力。
 type ServerDistribution struct {
 	Type           enums.MinecraftServerType `json:"type"`
 	DisplayName    string                    `json:"displayName"`
@@ -25,7 +25,7 @@ type ServerDistribution struct {
 	InstallerReady bool                      `json:"installerReady"`
 }
 
-// ServerArtifact is the immutable provider-neutral download selected for installation.
+// ServerArtifact 是为安装选定的、不可变且与供应方无关的下载构件。
 type ServerArtifact struct {
 	Distribution enums.MinecraftServerType `json:"distribution"`
 	GameVersion  string                    `json:"gameVersion"`
@@ -37,28 +37,28 @@ type ServerArtifact struct {
 	SourceRisk   string                    `json:"sourceRisk,omitempty"`
 }
 
-// InstallationPreparation contains resolved runtime and artifact inputs for a durable task.
+// InstallationPreparation 承载持久化任务已解析的运行时与构件输入。
 type InstallationPreparation struct {
 	Server    model.MinecraftServer `json:"server"`
 	Artifact  ServerArtifact        `json:"artifact"`
 	JavaMajor int                   `json:"javaMajor"`
 }
 
-// InstallationResult records actual installed artifact and first-start evidence.
+// InstallationResult 记录实际安装的构件与首次启动证据。
 type InstallationResult struct {
 	ArtifactSHA256 string            `json:"artifactSHA256"`
 	JarPath        string            `json:"jarPath"`
 	Metadata       map[string]string `json:"metadata,omitempty"`
 }
 
-// ServerCatalog isolates provider APIs from application and desktop layers.
+// ServerCatalog 把供应方 API 与应用层、桌面层隔离开。
 type ServerCatalog interface {
 	Distribution() enums.MinecraftServerType
 	ResolveVersions(context.Context) ([]ServerVersion, error)
 	ResolveArtifact(context.Context, string, string) (ServerArtifact, error)
 }
 
-// Installer keeps distribution-specific preparation, installation, and verification out of the application service.
+// Installer 把发行版专属的准备、安装与校验挡在应用服务之外。
 type Installer interface {
 	Distribution() enums.MinecraftServerType
 	Prepare(context.Context, model.MinecraftServer, ServerArtifact) (InstallationPreparation, error)

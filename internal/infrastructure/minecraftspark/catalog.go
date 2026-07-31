@@ -23,7 +23,7 @@ const (
 	quiltedFabricAPIProjectID = "qvIfYCYJ"
 )
 
-// modrinthDependencySpec describes one loader API dependency installed alongside a Spark mod build.
+// modrinthDependencySpec 描述随 Spark 模组构建一并安装的一个加载器 API 依赖。
 type modrinthDependencySpec struct {
 	projectID    string
 	name         string
@@ -31,7 +31,7 @@ type modrinthDependencySpec struct {
 	matchPattern string
 }
 
-// loaderDependency returns the runtime API dependency required by spark's mod build for one loader.
+// loaderDependency 返回某个加载器下 spark 模组构建所需的运行时 API 依赖。
 // spark 的模组构建在运行期依赖对应加载器 API（fabric.mod.json 声明），但 Modrinth 元数据未声明，必须随装。
 func loaderDependency(loader string) (modrinthDependencySpec, bool) {
 	switch loader {
@@ -44,18 +44,18 @@ func loaderDependency(loader string) (modrinthDependencySpec, bool) {
 	}
 }
 
-// Catalog resolves dynamic Minecraft spark releases while preserving fixed layouts for other platforms.
+// Catalog 解析动态的 Minecraft spark 发行版,同时为其他平台保留固定布局。
 type Catalog struct {
 	client  *httpclient.Client
 	baseURL string
 }
 
-// NewCatalog creates the approved Minecraft spark release catalog.
+// NewCatalog 创建已核准的 Minecraft spark 发行版目录。
 func NewCatalog(client *httpclient.Client) *Catalog {
 	return &Catalog{client: client, baseURL: modrinthAPIBaseURL}
 }
 
-// ResolveArtifact selects one exact Spark artifact for the Server platform and Minecraft version.
+// ResolveArtifact 为该 Server 平台与 Minecraft 版本选出一个确切的 Spark 构件。
 func (c *Catalog) ResolveArtifact(ctx context.Context, serverType enums.MinecraftServerType, minecraftVersion string, javaMajor int) (Artifact, error) {
 	loader := modrinthLoader(serverType)
 	if loader == "" {
@@ -164,7 +164,7 @@ func (r modrinthVersion) modArtifact(loader string, requiredJavaMajor int) (Arti
 	}, nil
 }
 
-// primaryFile validates and returns the single primary CDN file of one Modrinth release.
+// primaryFile 校验并返回某个 Modrinth 发行版唯一的主 CDN 文件。
 func (r modrinthVersion) primaryFile(projectID string) (modrinthFile, string, string, error) {
 	if strings.TrimSpace(r.ID) == "" {
 		return modrinthFile{}, "", "", apperror.New(apperror.CodeValidationInvalidArgument, "Modrinth 发布缺少 Version ID")
@@ -198,7 +198,7 @@ func (r modrinthVersion) primaryFile(projectID string) (modrinthFile, string, st
 	return file, parsedURL.String(), sha512, nil
 }
 
-// resolveModrinthDependency selects the newest stable release of one loader API dependency for an exact Minecraft version.
+// resolveModrinthDependency 为确切的 Minecraft 版本选出某个加载器 API 依赖的最新稳定发行版。
 func (c *Catalog) resolveModrinthDependency(ctx context.Context, spec modrinthDependencySpec, minecraftVersion string, requiredJavaMajor int) (DependencyArtifact, error) {
 	query := url.Values{}
 	query.Set("loaders", `[`+strconv.Quote(spec.loader)+`]`)

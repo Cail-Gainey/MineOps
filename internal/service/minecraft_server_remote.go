@@ -112,13 +112,13 @@ if [ -f "$root/logs/latest.log" ] && [ ! -L "$root/logs/latest.log" ]; then
   printf '\n'
 fi`
 
-// RemoteServerJar is one ordinary root-level Jar candidate discovered without changing the remote directory.
+// RemoteServerJar 是在不改动远端目录的前提下发现的一个根级普通 Jar 候选。
 type RemoteServerJar struct {
 	Name string `json:"name"`
 	Size int64  `json:"size"`
 }
 
-// RemoteServerInspection contains read-only evidence used before importing an existing remote Server.
+// RemoteServerInspection 承载导入已有远端 Server 之前的只读探测证据。
 type RemoteServerInspection struct {
 	RemotePath       string                    `json:"remotePath"`
 	Jars             []RemoteServerJar         `json:"jars"`
@@ -131,7 +131,7 @@ type RemoteServerInspection struct {
 	Warnings         []string                  `json:"warnings"`
 }
 
-// InspectRemote performs read-only launch file, Properties, EULA, and version-clue inspection.
+// InspectRemote 只读探测启动文件、Properties、EULA 与版本线索。
 func (m *MinecraftServerManager) InspectRemote(ctx context.Context, sshSessionID model.ID, requestedPath string) (RemoteServerInspection, error) {
 	client, home, err := m.connectRemoteServer(ctx, sshSessionID)
 	if err != nil {
@@ -301,7 +301,7 @@ printf '%s' "$resolved"`
 	return resolvedPath, nil
 }
 
-// ImportRemote registers read-only inspected remote files without modifying the original directory.
+// ImportRemote 登记只读探测过的远端文件,不改动原目录。
 func (m *MinecraftServerManager) ImportRemote(ctx context.Context, command MinecraftServerCommand) (*model.MinecraftServer, error) {
 	if err := m.validateReferences(ctx, command.SSHSessionID, command.JavaRuntimeID); err != nil {
 		return nil, err
@@ -347,7 +347,7 @@ func (m *MinecraftServerManager) ImportRemote(ctx context.Context, command Minec
 	return server, nil
 }
 
-// StartHardDeleteRemote starts destructive removal only after exact soft-deleted Server confirmation.
+// StartHardDeleteRemote 仅在对已软删除 Server 完成精确确认后启动破坏性删除。
 func (m *MinecraftServerManager) StartHardDeleteRemote(ctx context.Context, id model.ID, confirmedName, confirmedPath string) (model.ID, error) {
 	server, err := m.store.MinecraftServers().Get(ctx, id, true)
 	if err != nil {

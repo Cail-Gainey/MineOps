@@ -6,7 +6,7 @@ import (
 	"github.com/Cail-Gainey/MineOps/internal/model"
 )
 
-// JavaRuntimeQuery contains SSH, major-version, source, and pagination filters.
+// JavaRuntimeQuery 承载 SSH、主版本、来源与分页过滤条件。
 type JavaRuntimeQuery struct {
 	SSHSessionID model.ID
 	MajorVersion int
@@ -15,7 +15,7 @@ type JavaRuntimeQuery struct {
 	Offset       int
 }
 
-// JavaRuntimeRepository persists reusable remote Java installations.
+// JavaRuntimeRepository 持久化可复用的远端 Java 安装。
 type JavaRuntimeRepository interface {
 	Create(context.Context, *model.JavaRuntime) error
 	Update(context.Context, *model.JavaRuntime) error

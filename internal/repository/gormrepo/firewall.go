@@ -10,7 +10,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// FirewallRuleLeaseRecord is the encrypted SQLite representation of one firewall rule reference.
+// FirewallRuleLeaseRecord 是一条防火墙规则引用在加密 SQLite 中的表示。
 type FirewallRuleLeaseRecord struct {
 	ServerID       string `gorm:"primaryKey;size:36"`
 	Backend        string `gorm:"primaryKey;index:idx_firewall_rule,priority:2;size:24"`

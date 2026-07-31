@@ -6,7 +6,7 @@ import (
 	"github.com/Cail-Gainey/MineOps/internal/model"
 )
 
-// InstallationRepository persists task aggregates and ordered checkpointed steps.
+// InstallationRepository 持久化安装任务聚合与有序的检查点步骤。
 type InstallationRepository interface {
 	Create(context.Context, *model.InstallationTask, []model.InstallationStep) error
 	UpdateTask(context.Context, *model.InstallationTask) error

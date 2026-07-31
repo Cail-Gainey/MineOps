@@ -14,17 +14,17 @@ import (
 	"github.com/Cail-Gainey/MineOps/internal/model"
 )
 
-// DesktopPreferences applies platform desktop integration controlled by General Settings.
+// DesktopPreferences 应用由通用设置控制的平台桌面集成。
 type DesktopPreferences struct {
 	executable string
 }
 
-// SyncApplicationVersion updates platform installation metadata after a self-update.
+// SyncApplicationVersion 在自更新后更新平台安装元数据。
 func (m *DesktopPreferences) SyncApplicationVersion(ctx context.Context) error {
 	return syncWindowsApplicationVersion(ctx, constants.ApplicationVersion)
 }
 
-// NewDesktopPreferences resolves the current executable used for platform integration.
+// NewDesktopPreferences 解析用于平台集成的当前可执行文件。
 func NewDesktopPreferences() (*DesktopPreferences, error) {
 	executable, err := os.Executable()
 	if err != nil {
@@ -37,7 +37,7 @@ func NewDesktopPreferences() (*DesktopPreferences, error) {
 	return &DesktopPreferences{executable: filepath.Clean(executable)}, nil
 }
 
-// ApplyGeneral applies the committed launch-at-startup preference for the current platform.
+// ApplyGeneral 在当前平台应用已提交的开机启动偏好。
 func (m *DesktopPreferences) ApplyGeneral(ctx context.Context, settings model.GeneralSettings) error {
 	switch runtime.GOOS {
 	case "darwin":

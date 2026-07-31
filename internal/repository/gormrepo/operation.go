@@ -12,7 +12,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// OperationRecord is the encrypted SQLite representation of a durable Operation.
+// OperationRecord 是持久化 Operation 在加密 SQLite 中的表示。
 type OperationRecord struct {
 	ID           string `gorm:"primaryKey;size:36"`
 	Type         string `gorm:"index;size:32"`
@@ -95,7 +95,7 @@ func (r *operationRepository) ListHistory(ctx context.Context, query repository.
 	return queryOperations(database.Limit(limit).Offset(query.Offset))
 }
 
-// DeleteHistory deletes one terminal Operation and rejects active records.
+// DeleteHistory 删除一条终态 Operation,拒绝删除活动记录。
 func (r *operationRepository) DeleteHistory(ctx context.Context, id model.ID) error {
 	terminalStates := []string{
 		enums.OperationSucceeded.String(), enums.OperationFailed.String(), enums.OperationCancelled.String(),
@@ -116,7 +116,7 @@ func (r *operationRepository) DeleteHistory(ctx context.Context, id model.ID) er
 	})
 }
 
-// ClearHistory deletes all terminal Operations without touching pending or running records.
+// ClearHistory 删除全部终态 Operation,不触碰待执行与运行中的记录。
 func (r *operationRepository) ClearHistory(ctx context.Context) (int64, error) {
 	terminalStates := []string{
 		enums.OperationSucceeded.String(), enums.OperationFailed.String(), enums.OperationCancelled.String(),

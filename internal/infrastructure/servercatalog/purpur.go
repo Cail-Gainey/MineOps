@@ -14,21 +14,21 @@ import (
 
 const purpurDefaultBaseURL = "https://api.purpurmc.org"
 
-// PurpurCatalog resolves Purpur versions and exact builds.
+// PurpurCatalog 解析 Purpur 的版本与确切构建。
 type PurpurCatalog struct {
 	client  *httpclient.Client
 	sources SourceResolver
 }
 
-// NewPurpurCatalog creates the official Purpur catalog adapter.
+// NewPurpurCatalog 创建官方 Purpur 目录适配器。
 func NewPurpurCatalog(client *httpclient.Client, sources SourceResolver) *PurpurCatalog {
 	return &PurpurCatalog{client: client, sources: sources}
 }
 
-// Distribution returns Purpur.
+// Distribution 返回 Purpur。
 func (c *PurpurCatalog) Distribution() enums.MinecraftServerType { return enums.ServerPurpur }
 
-// ResolveVersions returns Purpur game versions without resolving every version's build eagerly.
+// ResolveVersions 返回 Purpur 的游戏版本,不急切解析每个版本的构建。
 func (c *PurpurCatalog) ResolveVersions(ctx context.Context) ([]port.ServerVersion, error) {
 	var project struct {
 		Versions []string `json:"versions"`
@@ -57,7 +57,7 @@ func (c *PurpurCatalog) ResolveVersions(ctx context.Context) ([]port.ServerVersi
 	return result, nil
 }
 
-// ResolveArtifact returns the exact Purpur build download; actual SHA-256 is recorded after download.
+// ResolveArtifact 返回确切的 Purpur 构建下载;真实 SHA-256 在下载后记录。
 func (c *PurpurCatalog) ResolveArtifact(ctx context.Context, version, build string) (port.ServerArtifact, error) {
 	if strings.TrimSpace(build) == "" {
 		var metadata struct {

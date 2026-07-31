@@ -28,7 +28,7 @@ const (
 	maximumServerBackupExpanded     int64 = 64 * 1024 * 1024 * 1024
 )
 
-// ServerBackup is one verified MineOps-managed remote Server backup archive.
+// ServerBackup 是一份经校验、由 MineOps 管理的远端 Server 备份归档。
 type ServerBackup struct {
 	Name       string    `json:"name"`
 	Path       string    `json:"path"`
@@ -44,7 +44,7 @@ type validatedTarEntry struct {
 	dir      bool
 }
 
-// ListBackups returns MineOps-managed archives for one Server without reading archive payloads.
+// ListBackups 返回某台 Server 由 MineOps 管理的归档,不读取归档内容。
 func (m *MinecraftServerManager) ListBackups(ctx context.Context, serverID model.ID) ([]ServerBackup, error) {
 	server, err := m.store.MinecraftServers().Get(ctx, serverID, false)
 	if err != nil {
@@ -105,7 +105,7 @@ find "$1" -mindepth 1 -maxdepth 1 -type f -name "$2" -printf '%f\000%p\000%s\000
 	return backups, nil
 }
 
-// StartBackup starts a remote tar.gz backup Operation for a stopped or ready Server.
+// StartBackup 为已停止或就绪的 Server 启动一次远端 tar.gz 备份 Operation。
 func (m *MinecraftServerManager) StartBackup(ctx context.Context, serverID model.ID) (model.ID, error) {
 	server, err := m.store.MinecraftServers().Get(ctx, serverID, false)
 	if err != nil {
@@ -122,7 +122,7 @@ func (m *MinecraftServerManager) StartBackup(ctx context.Context, serverID model
 	})
 }
 
-// StartRestoreBackup starts safe validation and atomic directory replacement from one managed backup.
+// StartRestoreBackup 启动安全校验,并用一份受管备份原子替换目录。
 func (m *MinecraftServerManager) StartRestoreBackup(ctx context.Context, serverID model.ID, backupPath string) (model.ID, error) {
 	server, err := m.store.MinecraftServers().Get(ctx, serverID, false)
 	if err != nil {

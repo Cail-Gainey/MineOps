@@ -14,7 +14,7 @@ import (
 	"github.com/Cail-Gainey/MineOps/internal/repository"
 )
 
-// LifecycleManager coordinates durable Operations with remote process identity and verified Server state.
+// LifecycleManager 把持久化 Operation 与远端进程身份、已校验的 Server 状态协调起来。
 type LifecycleManager struct {
 	clock      model.Clock
 	store      repository.Store
@@ -32,7 +32,7 @@ type serverLifecycleObserver interface {
 
 type serverLifecycleFailureObserver interface{ ServerFailed(model.ID) }
 
-// NewLifecycleManager creates the Start/Stop/Restart/Recover application service.
+// NewLifecycleManager 创建启动、停止、重启与恢复的应用服务。
 func NewLifecycleManager(clock model.Clock, store repository.Store, operations *OperationRunner, processes *RemoteProcessController, firewall *FirewallManager) (*LifecycleManager, error) {
 	if clock == nil || store == nil || operations == nil || processes == nil || firewall == nil {
 		return nil, apperror.New(apperror.CodeValidationRequired, "LifecycleManager 依赖不能为空")
@@ -40,7 +40,7 @@ func NewLifecycleManager(clock model.Clock, store repository.Store, operations *
 	return &LifecycleManager{clock: clock, store: store, operations: operations, processes: processes, firewall: firewall}, nil
 }
 
-// SetObserver attaches collection lifecycle reactions after runtime composition is complete.
+// SetObserver 在运行时组装完成后挂接采集侧的生命周期响应。
 func (m *LifecycleManager) SetObserver(observer serverLifecycleObserver) {
 	if observer != nil {
 		m.observerMu.Lock()
@@ -49,7 +49,7 @@ func (m *LifecycleManager) SetObserver(observer serverLifecycleObserver) {
 	}
 }
 
-// GetState probes durable process identity before returning the Server lifecycle state.
+// GetState 先探测持久化的进程身份,再返回 Server 生命周期状态。
 func (m *LifecycleManager) GetState(ctx context.Context, serverID model.ID) (enums.LifecycleState, *model.RemoteProcessIdentity, error) {
 	server, err := m.store.MinecraftServers().Get(ctx, serverID, false)
 	if err != nil {
@@ -127,7 +127,7 @@ func (m *LifecycleManager) lifecycleObservers() []serverLifecycleObserver {
 	return append([]serverLifecycleObserver(nil), m.observers...)
 }
 
-// Start starts one Server asynchronously and immediately returns its Operation ID.
+// Start 异步启动一台 Server 并立即返回其 Operation ID。
 func (m *LifecycleManager) Start(ctx context.Context, serverID model.ID, firewallConfirmed, tmuxInstallConfirmed bool) (model.ID, error) {
 	server, err := m.store.MinecraftServers().Get(ctx, serverID, false)
 	if err != nil {
@@ -153,7 +153,7 @@ func (m *LifecycleManager) Start(ctx context.Context, serverID model.ID, firewal
 	})
 }
 
-// Stop stops one Server asynchronously; already stopped Servers are idempotent.
+// Stop 异步停止一台 Server;已停止的 Server 调用是幂等的。
 func (m *LifecycleManager) Stop(ctx context.Context, serverID model.ID, force bool) (model.ID, error) {
 	server, err := m.store.MinecraftServers().Get(ctx, serverID, false)
 	if err != nil {
@@ -170,7 +170,7 @@ func (m *LifecycleManager) Stop(ctx context.Context, serverID model.ID, force bo
 	})
 }
 
-// Restart executes tracked Stop and Start stages inside one resource-locked Operation.
+// Restart 在同一个持有资源锁的 Operation 内执行可跟踪的停止与启动阶段。
 func (m *LifecycleManager) Restart(ctx context.Context, serverID model.ID, tmuxInstallConfirmed bool) (model.ID, error) {
 	server, err := m.store.MinecraftServers().Get(ctx, serverID, false)
 	if err != nil {
@@ -196,7 +196,7 @@ func (m *LifecycleManager) Restart(ctx context.Context, serverID model.ID, tmuxI
 	})
 }
 
-// Recover probes every persisted active identity and reconciles Server state after application startup.
+// Recover 在应用启动后探测每个持久化的活动身份并校正 Server 状态。
 func (m *LifecycleManager) Recover(ctx context.Context) error {
 	identities, err := m.store.ProcessIdentities().ListActive(ctx)
 	if err != nil {
@@ -210,7 +210,7 @@ func (m *LifecycleManager) Recover(ctx context.Context) error {
 	return nil
 }
 
-// Monitor periodically reconciles active identities so unexpected exits become Failed without requiring an open UI.
+// Monitor 周期性校正活动身份,使异常退出无需界面打开也能转为失败状态。
 func (m *LifecycleManager) Monitor(ctx context.Context, interval time.Duration) error {
 	if interval <= 0 {
 		interval = 5 * time.Second

@@ -16,14 +16,14 @@ import (
 	"github.com/Cail-Gainey/MineOps/internal/repository"
 )
 
-// ServerCatalogRegistry is the application-facing dynamic distribution catalog contract.
+// ServerCatalogRegistry 是面向应用层的动态发行版目录契约。
 type ServerCatalogRegistry interface {
 	List() []port.ServerDistribution
 	ResolveVersions(context.Context, enums.MinecraftServerType) ([]port.ServerVersion, error)
 	ResolveArtifact(context.Context, enums.MinecraftServerType, string, string) (port.ServerArtifact, error)
 }
 
-// InstallationManager exposes catalog resolution and the durable ten-step remote installation workflow.
+// InstallationManager 对外暴露目录解析与持久化的远端安装流程。
 type InstallationManager struct {
 	clock        model.Clock
 	store        repository.Store
@@ -36,7 +36,7 @@ type InstallationManager struct {
 	firewall     *FirewallManager
 }
 
-// NewInstallationManager creates the installation application service and registers every standard step.
+// NewInstallationManager 创建安装应用服务并注册全部标准步骤。
 func NewInstallationManager(clock model.Clock, store repository.Store, settings *appsettings.Manager, clients *SSHClientFactory, javaRuntimes *JavaRuntimeManager, jdkCatalog port.JDKCatalog, catalogs ServerCatalogRegistry, runner *InstallationRunner, firewall *FirewallManager) (*InstallationManager, error) {
 	if clock == nil || store == nil || settings == nil || clients == nil || javaRuntimes == nil || jdkCatalog == nil || catalogs == nil || runner == nil || firewall == nil {
 		return nil, apperror.New(apperror.CodeValidationRequired, "InstallationManager 依赖不能为空")
@@ -63,17 +63,17 @@ func NewInstallationManager(clock model.Clock, store repository.Store, settings 
 	return manager, nil
 }
 
-// newInstallationSession creates the shared SSH session a single installation task reuses across all steps.
+// newInstallationSession 创建单个安装任务在所有步骤间复用的共享 SSH 会话。
 func (m *InstallationManager) newInstallationSession(serverID model.ID) *InstallationSession {
 	return newInstallationSession(m.clients, m.store, m.settings, serverID)
 }
 
-// ListDistributions returns the dynamic first-release server type registry.
+// ListDistributions 返回动态的首发服务端类型注册表。
 func (m *InstallationManager) ListDistributions() []port.ServerDistribution {
 	return m.catalogs.List()
 }
 
-// ResolveVersions returns provider-neutral versions for one registered distribution.
+// ResolveVersions 返回某个已注册发行版的、与供应方无关的版本列表。
 func (m *InstallationManager) ResolveVersions(ctx context.Context, distribution enums.MinecraftServerType) ([]port.ServerVersion, error) {
 	if !distribution.Valid() {
 		return nil, apperror.New(apperror.CodeValidationInvalidArgument, "服务端类型无效")
@@ -81,7 +81,7 @@ func (m *InstallationManager) ResolveVersions(ctx context.Context, distribution 
 	return m.catalogs.ResolveVersions(ctx, distribution)
 }
 
-// Start performs the installation preflight before creating a durable asynchronous task.
+// Start 先执行安装预检,再创建持久化的异步任务。
 func (m *InstallationManager) Start(ctx context.Context, serverID model.ID) (InstallationStartResult, error) {
 	server, session, client, err := m.connectServer(ctx, serverID)
 	if err != nil {
@@ -127,17 +127,17 @@ printf '%s\n' "$home"`
 	return started, nil
 }
 
-// Cancel propagates installation cancellation to the active Operation.
+// Cancel 把安装取消传播到进行中的 Operation。
 func (m *InstallationManager) Cancel(ctx context.Context, operationID model.ID) error {
 	return m.runner.Cancel(ctx, operationID)
 }
 
-// Get returns one durable InstallationTask aggregate and its ordered steps.
+// Get 返回一个持久化的 InstallationTask 聚合及其有序步骤。
 func (m *InstallationManager) Get(ctx context.Context, taskID model.ID) (*model.InstallationTask, []model.InstallationStep, error) {
 	return m.store.Installations().Get(ctx, taskID)
 }
 
-// ListByServer returns recent durable installation tasks for one Minecraft Server.
+// ListByServer 返回某台 Minecraft Server 近期的持久化安装任务。
 func (m *InstallationManager) ListByServer(ctx context.Context, serverID model.ID, limit, offset int) ([]model.InstallationTask, error) {
 	if !serverID.Valid() {
 		return nil, apperror.New(apperror.CodeValidationInvalidArgument, "Minecraft Server ID 无效")
@@ -145,7 +145,7 @@ func (m *InstallationManager) ListByServer(ctx context.Context, serverID model.I
 	return m.store.Installations().ListByServer(ctx, serverID, limit, offset)
 }
 
-// Retry performs preflight again and resumes only failed, cancelled, or waiting steps.
+// Retry 重新执行预检,并只续跑失败、已取消或等待中的步骤。
 func (m *InstallationManager) Retry(ctx context.Context, taskID model.ID) (InstallationStartResult, error) {
 	task, _, err := m.store.Installations().Get(ctx, taskID)
 	if err != nil {
@@ -164,7 +164,7 @@ func (m *InstallationManager) Retry(ctx context.Context, taskID model.ID) (Insta
 	return m.runner.Retry(ctx, taskID)
 }
 
-// ResolveDirectoryConflict applies backup, rename, or cancel without ever deleting the existing directory.
+// ResolveDirectoryConflict 执行备份、改名或取消,任何情况下都不删除已存在的目录。
 func (m *InstallationManager) ResolveDirectoryConflict(ctx context.Context, taskID model.ID, action, newName string) (InstallationStartResult, error) {
 	task, steps, err := m.store.Installations().Get(ctx, taskID)
 	if err != nil {

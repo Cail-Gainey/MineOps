@@ -14,21 +14,21 @@ import (
 
 const quiltDefaultBaseURL = "https://meta.quiltmc.org"
 
-// QuiltCatalog resolves stable Quilt loader and installer combinations.
+// QuiltCatalog 解析稳定的 Quilt Loader 与安装器组合。
 type QuiltCatalog struct {
 	client  *httpclient.Client
 	sources SourceResolver
 }
 
-// NewQuiltCatalog creates the official Quilt Meta adapter.
+// NewQuiltCatalog 创建官方 Quilt Meta 适配器。
 func NewQuiltCatalog(client *httpclient.Client, sources SourceResolver) *QuiltCatalog {
 	return &QuiltCatalog{client: client, sources: sources}
 }
 
-// Distribution returns Quilt.
+// Distribution 返回 Quilt。
 func (c *QuiltCatalog) Distribution() enums.MinecraftServerType { return enums.ServerQuilt }
 
-// ResolveVersions returns stable Minecraft versions with the preferred loader version.
+// ResolveVersions 返回稳定的 Minecraft 版本及其首选 Loader 版本。
 func (c *QuiltCatalog) ResolveVersions(ctx context.Context) ([]port.ServerVersion, error) {
 	if c == nil || c.client == nil {
 		return nil, apperror.New(apperror.CodeValidationRequired, "Quilt HTTP Client 不能为空")
@@ -59,7 +59,7 @@ func (c *QuiltCatalog) ResolveVersions(ctx context.Context) ([]port.ServerVersio
 	return result, nil
 }
 
-// ResolveArtifact returns the Quilt server launcher endpoint for an exact combination.
+// ResolveArtifact 返回某个确切组合对应的 Quilt 服务端启动器地址。
 func (c *QuiltCatalog) ResolveArtifact(ctx context.Context, version, loader string) (port.ServerArtifact, error) {
 	if strings.TrimSpace(loader) == "" {
 		var err error

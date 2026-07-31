@@ -7,7 +7,7 @@ import (
 	"github.com/Cail-Gainey/MineOps/internal/model"
 )
 
-// MinecraftServerQuery contains search, SSH, group, tag, state, and deletion filters.
+// MinecraftServerQuery 承载搜索、SSH、分组、标签、状态与删除过滤条件。
 type MinecraftServerQuery struct {
 	Search         string
 	SSHSessionID   model.ID
@@ -19,7 +19,7 @@ type MinecraftServerQuery struct {
 	Offset         int
 }
 
-// MinecraftServerRepository persists SSH-bound Minecraft Server metadata and launch profiles.
+// MinecraftServerRepository 持久化绑定 SSH 的 Minecraft Server 元数据与启动配置。
 type MinecraftServerRepository interface {
 	Create(context.Context, *model.MinecraftServer) error
 	Update(context.Context, *model.MinecraftServer) error

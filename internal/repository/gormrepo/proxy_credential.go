@@ -10,7 +10,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// ProxyCredentialRecord stores proxy authentication only inside SQLCipher-encrypted SQLite.
+// ProxyCredentialRecord 仅在 SQLCipher 加密的 SQLite 中存放代理认证信息。
 type ProxyCredentialRecord struct {
 	ID        string `gorm:"primaryKey;size:36"`
 	Username  string `gorm:"size:255"`

@@ -7,7 +7,7 @@
 import { Create as $Create } from "@wailsio/runtime";
 
 /**
- * BackupInfo describes a completed portable encrypted SQLite backup.
+ * BackupInfo 描述一份已完成的便携加密 SQLite 备份。
  */
 export class BackupInfo {
     /**
@@ -136,7 +136,7 @@ export class PendingMaintenance {
 }
 
 /**
- * SpikeResult contains observable SQLCipher, GORM, transaction, and disk-encryption evidence.
+ * SpikeResult 承载可观测的 SQLCipher、GORM、事务与磁盘加密证据。
  */
 export class SpikeResult {
     /**

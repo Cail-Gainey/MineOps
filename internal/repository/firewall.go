@@ -7,7 +7,7 @@ import (
 	"github.com/Cail-Gainey/MineOps/internal/model"
 )
 
-// FirewallRuleLeaseRepository persists MineOps ownership and references for remote firewall rules.
+// FirewallRuleLeaseRepository 持久化 MineOps 对远端防火墙规则的归属与引用。
 type FirewallRuleLeaseRepository interface {
 	Upsert(context.Context, *model.FirewallRuleLease) error
 	ListByServer(context.Context, model.ID) ([]model.FirewallRuleLease, error)

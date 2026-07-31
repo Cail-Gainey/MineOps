@@ -14,7 +14,7 @@ import (
 	"github.com/Cail-Gainey/MineOps/internal/repository"
 )
 
-// ServerStarted schedules remote player activity daemon replacement and synchronization.
+// ServerStarted 调度远端玩家活动守护进程的替换与同步。
 func (m *PlayerActivityManager) ServerStarted(serverID model.ID) {
 	if m == nil || !serverID.Valid() {
 		return
@@ -25,7 +25,7 @@ func (m *PlayerActivityManager) ServerStarted(serverID model.ID) {
 	}
 }
 
-// ServerStopped schedules daemon shutdown and a server-boundary session reconciliation.
+// ServerStopped 调度守护进程停止与一次服务器边界的会话校正。
 func (m *PlayerActivityManager) ServerStopped(serverID model.ID) {
 	if m == nil || !serverID.Valid() {
 		return
@@ -36,7 +36,7 @@ func (m *PlayerActivityManager) ServerStopped(serverID model.ID) {
 	}
 }
 
-// ServerFailed schedules estimated session reconciliation after an unexpected process exit.
+// ServerFailed 在进程异常退出后调度一次估算式的会话校正。
 func (m *PlayerActivityManager) ServerFailed(serverID model.ID) {
 	if m == nil || !serverID.Valid() {
 		return
@@ -47,7 +47,7 @@ func (m *PlayerActivityManager) ServerFailed(serverID model.ID) {
 	}
 }
 
-// Run continuously synchronizes running Servers without requiring an open Desktop page.
+// Run 持续同步运行中的 Server,无需桌面页面处于打开状态。
 func (m *PlayerActivityManager) Run(ctx context.Context) error {
 	if err := m.Bootstrap(ctx); err != nil && ctx.Err() == nil {
 		m.logger.Warn(ctx, "玩家活动启动 Bootstrap 失败", applog.Fields{"error": err.Error()})
@@ -70,7 +70,7 @@ func (m *PlayerActivityManager) Run(ctx context.Context) error {
 	}
 }
 
-// Bootstrap synchronizes current Process Identity evidence for Servers already running at Desktop startup.
+// Bootstrap 为桌面启动时已在运行的 Server 同步当前的进程身份证据。
 func (m *PlayerActivityManager) Bootstrap(ctx context.Context) error {
 	servers, err := m.store.MinecraftServers().List(ctx, repository.MinecraftServerQuery{State: enums.LifecycleRunning, Limit: 500})
 	if err != nil {
@@ -91,7 +91,7 @@ func (m *PlayerActivityManager) Bootstrap(ctx context.Context) error {
 	return first
 }
 
-// SynchronizeServer immediately claims and applies pending activity for one Server.
+// SynchronizeServer 立即认领并应用某台 Server 的待处理活动数据。
 func (m *PlayerActivityManager) SynchronizeServer(ctx context.Context, serverID model.ID) error {
 	if !serverID.Valid() {
 		return apperror.New(apperror.CodeValidationInvalidArgument, "玩家活动 Server ID 无效")
@@ -241,7 +241,7 @@ func (m *PlayerActivityManager) syncServer(ctx context.Context, serverID model.I
 			return err
 		}
 	}
-	// A legacy checkpoint may be absent after an upgrade; inspect open sessions to enforce the same boundary.
+	// 升级后可能缺少历史检查点;此时改为检查未结束会话以施加同样的边界。
 	if openSessions, listErr := m.store.Players().ListSessions(ctx, repository.PlayerSessionQuery{ServerID: serverID, OpenOnly: true, Limit: 200}); listErr == nil {
 		seen := make(map[model.ID]struct{})
 		for _, session := range openSessions {
@@ -318,8 +318,8 @@ fi`
 	} else if err := m.Ingest(ctx, events, dropped); err != nil {
 		return err
 	}
-	// A recovered Claim may belong to the previous process cycle; retain that evidence on its old identity,
-	// but advance the collector checkpoint to the currently managed cycle to avoid repeated reconciliation.
+	// 恢复出的 Claim 可能属于上一个进程周期;把该证据保留在旧身份上,
+	// 但把采集器检查点推进到当前受管周期,避免反复校正。
 	if status, statusErr := m.store.Players().GetCollectorStatus(ctx, server.ID); statusErr == nil {
 		status.ProcessIdentityID = &identity.ID
 		status.UpdatedAt = m.clock.Now().UTC()

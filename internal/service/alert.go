@@ -18,7 +18,7 @@ const (
 	alertEvaluationQueueSize   = 64
 )
 
-// AlertEventPublisher emits durable active, updated, recovered, and acknowledged incidents.
+// AlertEventPublisher 发布持久化的活跃、更新、恢复与已确认告警。
 type AlertEventPublisher interface {
 	PublishAlert(context.Context, model.AlertEvent) error
 }
@@ -28,7 +28,7 @@ type alertPendingMatch struct {
 	latestValue    float64
 }
 
-// AlertManager owns bounded threshold evaluation, duration debounce, cooldown, recovery, and acknowledgement.
+// AlertManager 负责有界的阈值判定、持续时长防抖、冷却、恢复与确认。
 type AlertManager struct {
 	clock     model.Clock
 	store     repository.Store
@@ -40,7 +40,7 @@ type AlertManager struct {
 	pending map[model.ID]alertPendingMatch
 }
 
-// NewAlertManager creates the threshold rule and incident application service.
+// NewAlertManager 创建阈值规则与告警事件的应用服务。
 func NewAlertManager(clock model.Clock, store repository.Store, publisher AlertEventPublisher, logger *applog.Logger) (*AlertManager, error) {
 	if clock == nil || store == nil {
 		return nil, apperror.New(apperror.CodeValidationRequired, "Alert Service 依赖不能为空")
@@ -51,7 +51,7 @@ func NewAlertManager(clock model.Clock, store repository.Store, publisher AlertE
 	return &AlertManager{clock: clock, store: store, publisher: publisher, logger: logger, queue: make(chan []model.MetricSample, alertEvaluationQueueSize), pending: make(map[model.ID]alertPendingMatch)}, nil
 }
 
-// ObserveMetrics enqueues a stable bounded copy and never blocks Metric ingest.
+// ObserveMetrics 入队一份稳定的有界副本,绝不阻塞 Metric 写入。
 func (m *AlertManager) ObserveMetrics(samples []model.MetricSample) {
 	if m == nil || len(samples) == 0 {
 		return
@@ -64,7 +64,7 @@ func (m *AlertManager) ObserveMetrics(samples []model.MetricSample) {
 	}
 }
 
-// Run evaluates queued samples until the application context is cancelled.
+// Run 持续判定队列中的样本,直到应用上下文被取消。
 func (m *AlertManager) Run(ctx context.Context) error {
 	for {
 		select {
@@ -80,7 +80,7 @@ func (m *AlertManager) Run(ctx context.Context) error {
 	}
 }
 
-// CreateRule validates one bounded threshold rule and persists it in encrypted SQLite.
+// CreateRule 校验一条有界阈值规则并写入加密 SQLite。
 func (m *AlertManager) CreateRule(ctx context.Context, rule model.AlertRule) (model.AlertRule, error) {
 	if _, err := m.store.MinecraftServers().Get(ctx, rule.ServerID, false); err != nil {
 		return model.AlertRule{}, err
@@ -100,7 +100,7 @@ func (m *AlertManager) CreateRule(ctx context.Context, rule model.AlertRule) (mo
 	return rule, nil
 }
 
-// UpdateRule updates threshold controls and clears any pending duration debounce when disabled.
+// UpdateRule 更新阈值控制项;规则停用时清除待判定的持续时长防抖。
 func (m *AlertManager) UpdateRule(ctx context.Context, rule model.AlertRule) (model.AlertRule, error) {
 	existing, err := m.store.Alerts().GetRule(ctx, rule.ID)
 	if err != nil {
@@ -123,7 +123,7 @@ func (m *AlertManager) UpdateRule(ctx context.Context, rule model.AlertRule) (mo
 	return rule, nil
 }
 
-// DeleteRule removes one rule after recovering any active incident.
+// DeleteRule 先把活跃告警置为已恢复,再删除该规则。
 func (m *AlertManager) DeleteRule(ctx context.Context, id model.ID) error {
 	if active, err := m.store.Alerts().FindActiveEvent(ctx, id); err == nil {
 		now := m.clock.Now().UTC()
@@ -139,17 +139,17 @@ func (m *AlertManager) DeleteRule(ctx context.Context, id model.ID) error {
 	return m.store.Alerts().DeleteRule(ctx, id)
 }
 
-// ListRules returns bounded rules for one Server and optional Metric.
+// ListRules 返回某台 Server 及可选指标下的有界规则。
 func (m *AlertManager) ListRules(ctx context.Context, query repository.AlertRuleQuery) ([]model.AlertRule, error) {
 	return m.store.Alerts().ListRules(ctx, query)
 }
 
-// ListEvents returns bounded active or historical incidents.
+// ListEvents 返回有界的活跃或历史告警事件。
 func (m *AlertManager) ListEvents(ctx context.Context, query repository.AlertEventQuery) ([]model.AlertEvent, error) {
 	return m.store.Alerts().ListEvents(ctx, query)
 }
 
-// DeleteEvent permanently removes one incident and publishes recovery for an active event.
+// DeleteEvent 永久删除一条告警;若其处于活跃状态则同时发布恢复事件。
 func (m *AlertManager) DeleteEvent(ctx context.Context, eventID model.ID) error {
 	event, err := m.store.Alerts().GetEvent(ctx, eventID)
 	if err != nil {
@@ -166,7 +166,7 @@ func (m *AlertManager) DeleteEvent(ctx context.Context, eventID model.ID) error 
 	return nil
 }
 
-// Acknowledge marks one incident as reviewed without changing active/recovered state.
+// Acknowledge 把一条告警标记为已查看,不改变其活跃或已恢复状态。
 func (m *AlertManager) Acknowledge(ctx context.Context, eventID model.ID) (model.AlertEvent, error) {
 	event, err := m.store.Alerts().GetEvent(ctx, eventID)
 	if err != nil {

@@ -18,7 +18,7 @@ const (
 	remotePlayerActivityMaximumOutput = remotePlayerActivitySpoolBytes + 64*1024
 )
 
-// playerActivityRemotePaths returns stable remote files under the Server monitoring directory.
+// playerActivityRemotePaths 返回 Server 监控目录下稳定的远端文件路径。
 func playerActivityRemotePaths(server model.MinecraftServer) (dataDirectory, daemonPath, spoolPath, claimPath string) {
 	dataDirectory = path.Join(server.RemotePath, ".mineops-monitoring")
 	daemonPath = path.Join(dataDirectory, "player-activity-daemon.sh")
@@ -27,7 +27,7 @@ func playerActivityRemotePaths(server model.MinecraftServer) (dataDirectory, dae
 	return
 }
 
-// playerActivityCollectorConfigDigest binds every daemon input so stale collectors are replaced safely.
+// playerActivityCollectorConfigDigest 绑定守护进程的全部输入,使陈旧采集器能被安全替换。
 func playerActivityCollectorConfigDigest(server model.MinecraftServer, processIdentityID, managedPID, managedPGID, logPath string, intervalSeconds int) string {
 	hash := sha256.New()
 	for _, value := range [][]byte{
@@ -40,7 +40,7 @@ func playerActivityCollectorConfigDigest(server model.MinecraftServer, processId
 	return hex.EncodeToString(hash.Sum(nil))
 }
 
-// playerActivityCollectorClaimScript atomically promotes a complete Spool to a retryable Claim.
+// playerActivityCollectorClaimScript 原子地把一个完整 Spool 提升为可重试的 Claim。
 func playerActivityCollectorClaimScript() string {
 	return `set -eu
 claim_path=$1
@@ -54,7 +54,7 @@ if [ ! -s "$claim_path" ] && [ -s "$spool_path" ]; then mv -f "$spool_path" "$cl
 if [ -s "$claim_path" ]; then cat "$claim_path"; fi`
 }
 
-// playerActivityCollectorStopScript kills only a PID whose command line still names the managed daemon.
+// playerActivityCollectorStopScript 只结束命令行仍指向受管守护进程的 PID。
 func playerActivityCollectorStopScript() string {
 	return `set -eu
 pid_path=$1

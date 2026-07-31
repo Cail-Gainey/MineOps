@@ -1,4 +1,4 @@
-// Package sqlcipher validates encrypted SQLite behavior before production persistence is built.
+// Package sqlcipher 在生产持久化落地之前验证加密 SQLite 的行为。
 package sqlcipher
 
 import (
@@ -37,7 +37,7 @@ type spikeDatabaseMetadata struct {
 	KeyVersion int
 }
 
-// SpikeResult contains observable SQLCipher, GORM, transaction, and disk-encryption evidence.
+// SpikeResult 承载可观测的 SQLCipher、GORM、事务与磁盘加密证据。
 type SpikeResult struct {
 	CipherVersion         string `json:"cipherVersion"`
 	JournalMode           string `json:"journalMode"`
@@ -66,7 +66,7 @@ type SpikeResult struct {
 	KeyVersion            int    `json:"keyVersion"`
 }
 
-// Passed reports whether every required SQLCipher and automatic-key gate succeeded.
+// Passed 返回全部必需的 SQLCipher 与自动密钥关卡是否都已通过。
 func (r SpikeResult) Passed() bool {
 	return strings.HasPrefix(r.CipherVersion, "4.15.0") &&
 		r.JournalMode == "wal" &&
@@ -94,7 +94,7 @@ func (r SpikeResult) Passed() bool {
 		r.KeyVersion == 2
 }
 
-// RunSpike creates a temporary encrypted database and verifies the stage 0 SQLCipher baseline.
+// RunSpike 创建临时加密数据库并验证 SQLCipher 基线。
 func RunSpike(ctx context.Context) (SpikeResult, error) {
 	directory, err := os.MkdirTemp("", "mineops-sqlcipher-spike-")
 	if err != nil {

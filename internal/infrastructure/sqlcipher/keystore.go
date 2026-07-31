@@ -18,7 +18,7 @@ const (
 	databaseKeyAccount            = "database-key"
 )
 
-// DatabaseKey contains the database identity, key version, initialization state, and raw 256-bit key.
+// DatabaseKey 承载数据库身份、密钥版本、初始化状态与 256 位原始密钥。
 type DatabaseKey struct {
 	DatabaseID      string `json:"databaseID"`
 	Version         int    `json:"version"`
@@ -33,20 +33,20 @@ type storedDatabaseKey struct {
 	KeyBase64       string `json:"keyBase64"`
 }
 
-// KeyStore is the system-secure persistence boundary for the automatic SQLCipher key.
+// KeyStore 是自动 SQLCipher 密钥在系统安全存储上的持久化边界。
 type KeyStore interface {
 	Load(context.Context) (DatabaseKey, error)
 	Save(context.Context, DatabaseKey) error
 	Delete(context.Context) error
 }
 
-// SystemKeyStore stores the SQLCipher key in Keychain, Credential Manager, or Secret Service.
+// SystemKeyStore 把 SQLCipher 密钥存入 Keychain、凭据管理器或 Secret Service。
 type SystemKeyStore struct {
 	serviceName string
 	accountName string
 }
 
-// NewDevelopmentSystemKeyStore returns a secure store isolated from the packaged database key.
+// NewDevelopmentSystemKeyStore 返回与打包版数据库密钥相互隔离的安全存储。
 func NewDevelopmentSystemKeyStore() SystemKeyStore {
 	return SystemKeyStore{serviceName: developmentKeyringServiceName, accountName: databaseKeyAccount}
 }
@@ -63,7 +63,7 @@ func (s SystemKeyStore) keyringCoordinates() (string, string) {
 	return serviceName, accountName
 }
 
-// Load reads and validates the automatic SQLCipher key from system secure storage.
+// Load 从系统安全存储读取并校验自动 SQLCipher 密钥。
 func (s SystemKeyStore) Load(ctx context.Context) (DatabaseKey, error) {
 	if err := ctx.Err(); err != nil {
 		return DatabaseKey{}, err
@@ -90,7 +90,7 @@ func (s SystemKeyStore) Load(ctx context.Context) (DatabaseKey, error) {
 	}, nil
 }
 
-// Save atomically replaces the automatic SQLCipher key record in system secure storage.
+// Save 在系统安全存储中原子替换自动 SQLCipher 密钥记录。
 func (s SystemKeyStore) Save(ctx context.Context, value DatabaseKey) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -112,7 +112,7 @@ func (s SystemKeyStore) Save(ctx context.Context, value DatabaseKey) error {
 	return nil
 }
 
-// Delete removes the automatic SQLCipher key from system secure storage.
+// Delete 从系统安全存储中删除自动 SQLCipher 密钥。
 func (s SystemKeyStore) Delete(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -124,7 +124,7 @@ func (s SystemKeyStore) Delete(ctx context.Context) error {
 	return nil
 }
 
-// GenerateDatabaseKey creates a random database identity and 256-bit SQLCipher key in memory.
+// GenerateDatabaseKey 在内存中生成随机的数据库身份与 256 位 SQLCipher 密钥。
 func GenerateDatabaseKey() (DatabaseKey, error) {
 	identity := make([]byte, 16)
 	key := make([]byte, 32)

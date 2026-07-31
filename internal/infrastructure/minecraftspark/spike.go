@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-// SpikeResult contains capability, parser, style-cleaning, optional-MSPT, and fail-closed evidence.
+// SpikeResult 承载能力、解析器、样式清洗、可选 MSPT 与失败关闭的验证证据。
 type SpikeResult struct {
 	PluginVersion              string             `json:"pluginVersion"`
 	ParserVersion              string             `json:"parserVersion"`
@@ -28,7 +28,7 @@ type SpikeResult struct {
 	ApacheDependencyProhibited bool               `json:"apacheDependencyProhibited"`
 }
 
-// Passed reports whether every required Minecraft spark adapter gate succeeded.
+// Passed 返回全部必需的 Minecraft spark 适配器关卡是否都已通过。
 func (r SpikeResult) Passed() bool {
 	return r.PluginVersion == BaselinePluginVersion &&
 		r.ParserVersion == ParserVersion &&
@@ -48,7 +48,7 @@ func (r SpikeResult) Passed() bool {
 		r.ApacheDependencyProhibited
 }
 
-// RunSpike validates the locked Minecraft spark support matrix and parser behavior.
+// RunSpike 校验锁定的 Minecraft spark 支持矩阵与解析器行为。
 func RunSpike() (SpikeResult, error) {
 	key := AdapterKey{
 		Platform:         PlatformPaper,

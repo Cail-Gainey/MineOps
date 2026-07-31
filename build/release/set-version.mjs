@@ -11,8 +11,6 @@ const replacements = [
   ["internal/global/constants/constants.go", /(ApplicationVersion\s+=\s+")[^"]+(")/, `$1${version}$2`],
   ["internal/global/constants/constants.go", /(ApplicationUserAgent\s+=\s+"MineOps\/)[^"]+(")/, `$1${version}$2`],
   ["frontend/package.json", /("version"\s*:\s*")[^"]+(")/, `$1${version}$2`],
-  ["frontend/package-lock.json", /^(  "version"\s*:\s*")[^"]+(")/m, `$1${version}$2`],
-  ["frontend/package-lock.json", /("":\s*\{\s*"name"\s*:\s*"mineops-frontend",\s*"version"\s*:\s*")[^"]+(")/, `$1${version}$2`],
   ["build/config.yml", /(version:\s+")[^"]+("\s+# The application version)/, `$1${version}$2`],
   ["build/linux/nfpm/nfpm.yaml", /^(version:\s+")[^"]+("\s*)$/m, `$1${version}$2`],
   ["build/windows/info.json", /("(?:file_version|ProductVersion)"\s*:\s*")[^"]+("?)/g, `$1${version}$2`],
